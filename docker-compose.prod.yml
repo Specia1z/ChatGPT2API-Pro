@@ -58,7 +58,8 @@ services:
       - uploads:/app/uploads
     ports:
       # 仅绑定 localhost，由宝塔 Nginx 反代 /api 与 /uploads 到此
-      - "127.0.0.1:8080:8080"
+      # 宿主机端口可在 .env.prod 用 BACKEND_PORT 覆盖（默认 8080），避开端口冲突
+      - "127.0.0.1:${BACKEND_PORT:-8080}:8080"
     depends_on:
       mysql:
         condition: service_healthy
@@ -83,7 +84,8 @@ services:
       NODE_ENV: production
     ports:
       # 仅绑定 localhost，由宝塔 Nginx 反代 / 到此
-      - "127.0.0.1:3000:3000"
+      # 宿主机端口可在 .env.prod 用 FRONTEND_PORT 覆盖（默认 3000），避开端口冲突
+      - "127.0.0.1:${FRONTEND_PORT:-3000}:3000"
     depends_on:
       - backend
     networks: [c2a]
