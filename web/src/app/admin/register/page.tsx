@@ -45,6 +45,7 @@ export default function RegisterPage() {
   const [liveStats, setLiveStats] = useState({ success: 0, fail: 0, done: 0, running: 0 });
   const [logFilter, setLogFilter] = useState<LogLevel>("all");
   const [autoScroll, setAutoScroll] = useState(true);
+  const [consoleOpen, setConsoleOpen] = useState(false);
   const [collapsedProviders, setCollapsedProviders] = useState<Set<number>>(new Set());
   const [removeIndex, setRemoveIndex] = useState<number | null>(null);
   const logRef = useRef<HTMLDivElement>(null);
@@ -131,63 +132,63 @@ export default function RegisterPage() {
   );
 
   return (
-    <div className={`${heading.variable} ${mono.variable} h-screen bg-background flex overflow-hidden`}>
+    <div className={`${heading.variable} ${mono.variable} h-screen bg-background flex overflow-hidden pb-16 md:pb-0`}>
       <AdminSidebar />
       <main className="flex-1 min-w-0 flex flex-col overflow-hidden">
 
         {/* ═══ Header ═══ */}
-        <div className="border-b bg-card px-8 py-4 flex items-center justify-between shrink-0">
+        <div className="border-b bg-card px-4 sm:px-8 py-4 flex items-start sm:items-center justify-between shrink-0 gap-2">
           <div>
-            <h1 className={`${heading.className} text-base font-semibold tracking-tight`}>注册机配置</h1>
-            <p className="text-xs text-muted-foreground mt-0.5">管理邮箱提供商 · 批量注册 ChatGPT 账号</p>
+            <h1 className={`${heading.className} text-sm sm:text-base font-semibold tracking-tight`}>注册机配置</h1>
+            <p className="text-[10px] sm:text-xs text-muted-foreground mt-0.5">管理邮箱提供商 · 批量注册 ChatGPT 账号</p>
           </div>
-          <div className="flex items-center gap-2.5">
+          <div className="flex items-center gap-1.5 sm:gap-2.5 shrink-0">
             {isRunning ? (
-              <span className="inline-flex items-center gap-1.5 text-xs font-medium text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-2.5 py-1 rounded-full">
-                <span className="relative flex size-2">
+              <span className="inline-flex items-center gap-1 sm:gap-1.5 text-[10px] sm:text-xs font-medium text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-1.5 sm:px-2.5 py-1 rounded-full whitespace-nowrap">
+                <span className="relative flex size-1.5 sm:size-2">
                   <span className="animate-ping absolute inset-0 rounded-full bg-emerald-400 opacity-75" />
-                  <span className="relative rounded-full size-2 bg-emerald-500" />
+                  <span className="relative rounded-full size-1.5 sm:size-2 bg-emerald-500" />
                 </span>
-                运行中
+                <span className="hidden sm:inline">运行中</span><span className="sm:hidden">运行</span>
               </span>
             ) : (
-              <Badge variant="secondary" className="gap-1.5">
-                <span className="size-1.5 rounded-full bg-muted-foreground" /> 已停止
+              <Badge variant="secondary" className="gap-1 sm:gap-1.5 text-[10px] sm:text-xs whitespace-nowrap">
+                <span className="size-1.5 rounded-full bg-muted-foreground" /> <span className="hidden sm:inline">已停止</span><span className="sm:hidden">停止</span>
               </Badge>
             )}
-            <Button variant="outline" size="sm" onClick={save} disabled={saving} className="gap-1.5 text-xs">
-              <Save className="size-3.5" /> {saving ? "保存中..." : "保存配置"}
+            <Button variant="outline" size="sm" onClick={save} disabled={saving} className="gap-1 sm:gap-1.5 text-[10px] sm:text-xs px-1.5 sm:px-2">
+              <Save className="size-3 sm:size-3.5" /> <span className="hidden sm:inline">{saving ? "保存中..." : "保存配置"}</span><span className="sm:hidden">保存</span>
             </Button>
           </div>
         </div>
 
-        <div className="flex-1 flex min-h-0 overflow-hidden">
+        <div className="flex-1 flex flex-col lg:flex-row min-h-0 overflow-hidden">
           {/* ═══ 左侧：设置面板 ═══ */}
-          <motion.div className="flex-1 p-6 lg:p-8 overflow-auto scrollbar-thin" variants={stagger} initial="hidden" animate="visible">
+          <motion.div className="flex-1 p-4 sm:p-6 lg:p-8 overflow-auto scrollbar-thin" variants={stagger} initial="hidden" animate="visible">
             <div className="max-w-3xl space-y-6">
 
               {/* 实时统计 */}
-              <motion.div variants={fadeUp} className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <motion.div variants={fadeUp} className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3">
                 {[
                   { label: "成功", value: liveStats.success, icon: CheckCircle, color: "text-emerald-500", bg: "bg-emerald-500/10" },
                   { label: "失败", value: liveStats.fail, icon: XCircle, color: "text-red-500", bg: "bg-red-500/10" },
                   { label: "进行中", value: liveStats.running, icon: Activity, color: "text-blue-500", bg: "bg-blue-500/10" },
                   { label: "已完成", value: liveStats.done, icon: TrendingUp, color: "text-primary", bg: "bg-primary/10" },
                 ].map(item => (
-                  <div key={item.label} className="rounded-xl border bg-card p-4">
-                    <div className={`size-8 rounded-lg ${item.bg} flex items-center justify-center mb-2`}>
-                      <item.icon className={`size-4 ${item.color}`} />
+                  <div key={item.label} className="rounded-xl border bg-card p-3 sm:p-4">
+                    <div className={`size-7 sm:size-8 rounded-lg ${item.bg} flex items-center justify-center mb-1.5 sm:mb-2`}>
+                      <item.icon className={`size-3.5 sm:size-4 ${item.color}`} />
                     </div>
-                    <p className={`${mono.className} text-xl font-medium tabular-nums`}>{item.value.toLocaleString()}</p>
-                    <p className="text-[10px] text-muted-foreground mt-0.5">{item.label}</p>
+                    <p className={`${mono.className} text-base sm:text-xl font-medium tabular-nums`}>{item.value.toLocaleString()}</p>
+                    <p className="text-[9px] sm:text-[10px] text-muted-foreground mt-0.5">{item.label}</p>
                   </div>
                 ))}
               </motion.div>
 
               {/* 基础设置 + 注册控制 */}
-              <motion.div variants={fadeUp} className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+              <motion.div variants={fadeUp} className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-5">
                 {/* 基础设置 */}
-                <div className="rounded-2xl border bg-card p-5">
+                <div className="rounded-2xl border bg-card p-4 sm:p-5">
                   <div className="flex items-center gap-2 mb-4">
                     <div className="size-8 rounded-lg bg-blue-500/10 flex items-center justify-center">
                       <Settings className="size-4 text-blue-500" />
@@ -207,7 +208,7 @@ export default function RegisterPage() {
                 </div>
 
                 {/* 注册控制 */}
-                <div className={`rounded-2xl border p-5 relative overflow-hidden transition-all duration-500 bg-card ${isRunning ? "ring-1 ring-emerald-500/30 border-emerald-500/30" : ""}`}>
+                <div className={`rounded-2xl border p-4 sm:p-5 relative overflow-hidden transition-all duration-500 bg-card ${isRunning ? "ring-1 ring-emerald-500/30 border-emerald-500/30" : ""}`}>
                   {isRunning && <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-emerald-400 to-transparent animate-pulse" />}
                   <div className="flex items-center gap-2 mb-4">
                     <div className={`size-8 rounded-lg flex items-center justify-center ${isRunning ? "bg-emerald-500/10" : "bg-muted"}`}>
@@ -215,7 +216,7 @@ export default function RegisterPage() {
                     </div>
                     <h2 className={`${heading.className} text-sm font-semibold`}>注册控制</h2>
                   </div>
-                  <div className="grid grid-cols-2 gap-3 mb-4">
+                  <div className="grid grid-cols-2 gap-2 sm:gap-3 mb-4">
                     {[{ label: "注册总数", key: "total", val: cfg?.total || 10 }, { label: "并发线程", key: "threads", val: cfg?.threads || 3 }].map(f => (
                       <div key={f.key} className="space-y-1">
                         <label className="text-xs text-muted-foreground">{f.label}</label>
@@ -243,8 +244,8 @@ export default function RegisterPage() {
                         onChange={e => update(cfg?.mode === "quota" ? "target_quota" : "target_available", +e.target.value)} className="text-xs" />
                     </div>
                   )}
-                  <div className="flex gap-2">
-                    <Button onClick={start} disabled={isRunning} className="flex-1 gap-1.5 text-xs"
+                  <div className="flex gap-1.5 sm:gap-2">
+                    <Button onClick={start} disabled={isRunning} className="flex-1 gap-1 sm:gap-1.5 text-[10px] sm:text-xs"
                       style={{ backgroundColor: isRunning ? undefined : "#10b981" }}>
                       <Play className="size-3.5" /> 启动注册
                     </Button>
@@ -280,7 +281,7 @@ export default function RegisterPage() {
                     {cfg?.mail_providers.map((p: any, i: number) => (
                       <div key={i} className="rounded-2xl border bg-card overflow-hidden">
                         <button onClick={() => toggleCollapse(i)}
-                          className="w-full flex items-center justify-between px-5 py-3.5 hover:bg-muted/40 transition-colors text-left">
+                          className="w-full flex items-center justify-between px-4 sm:px-5 py-3 sm:py-3.5 hover:bg-muted/40 transition-colors text-left">
                           <div className="flex items-center gap-3">
                             <div className="size-8 rounded-lg bg-violet-500/10 flex items-center justify-center">
                               <Mail className="size-4 text-violet-500" />
@@ -295,8 +296,8 @@ export default function RegisterPage() {
                           <ChevronDown className={`size-4 text-muted-foreground transition-transform duration-200 ${collapsedProviders.has(i) ? "" : "rotate-180"}`} />
                         </button>
                         {!collapsedProviders.has(i) && (
-                          <div className="px-5 pb-4 space-y-3 border-t">
-                            <div className="grid grid-cols-2 gap-3 pt-4">
+                          <div className="px-4 sm:px-5 pb-4 space-y-3 border-t">
+                            <div className="grid grid-cols-2 gap-2 sm:gap-3 pt-4">
                               <div className="space-y-1">
                                 <label className="text-xs text-muted-foreground">API 地址</label>
                                 <Input value={p.api_base || ""} onChange={e => updateProvider(i, "api_base", e.target.value)} placeholder="https://apimail.infiniio.com" className="text-xs" />
@@ -328,23 +329,39 @@ export default function RegisterPage() {
             </div>
           </motion.div>
 
-          {/* ═══ 右侧：终端控制台 ═══ */}
-          <div className="w-[400px] shrink-0 border-l flex flex-col bg-zinc-950">
+          {/* ═══ 终端：桌面侧栏 / 移动端抽屉 ═══ */}
+          <div className={`
+            flex flex-col bg-card
+            /* Desktop side panel */
+            lg:w-[400px] lg:shrink-0 lg:border-l lg:relative lg:z-auto
+            /* Mobile bottom drawer */
+            fixed inset-x-0 bottom-0 z-50
+            border-t rounded-t-2xl
+            shadow-2xl
+            transition-transform duration-300 ease-in-out
+            ${consoleOpen ? 'translate-y-0' : 'translate-y-full'}
+            max-h-[70vh]
+          `}>
+            {/* 拖拽手柄 — 移动端 */}
+            <div className="flex lg:hidden items-center justify-center py-2 shrink-0 cursor-pointer" onClick={() => setConsoleOpen(false)}>
+              <div className="w-8 h-1 rounded-full bg-muted-foreground/30" />
+            </div>
+
             {/* 控制台头部 */}
-            <div className="h-11 flex items-center gap-2 px-4 border-b border-zinc-800 shrink-0">
+            <div className="h-11 flex items-center gap-2 px-4 border-b shrink-0">
               <div className="flex items-center gap-1.5">
                 <div className="size-2.5 rounded-full bg-red-500/80" />
                 <div className="size-2.5 rounded-full bg-amber-500/80" />
-                <div className={`size-2.5 rounded-full ${isRunning ? "bg-emerald-500 animate-pulse shadow-[0_0_8px_rgba(16,185,129,0.6)]" : "bg-zinc-600"}`} />
+                <div className={`size-2.5 rounded-full ${isRunning ? "bg-emerald-500 animate-pulse shadow-[0_0_8px_rgba(16,185,129,0.6)]" : "bg-muted-foreground/30"}`} />
               </div>
-              <span className={`${mono.className} text-[11px] text-zinc-400 ml-2`}>
+              <span className={`${mono.className} text-[11px] text-muted-foreground ml-2`}>
                 {isRunning ? "register.log — 运行中" : "register.log — 已停止"}
               </span>
               <div className="flex items-center gap-1 ml-auto">
                 {LOG_LEVELS.map(level => (
                   <button key={level} onClick={() => setLogFilter(level)}
                     className={`text-[10px] px-1.5 py-0.5 rounded transition-colors font-medium ${
-                      logFilter === level ? "bg-zinc-700 text-zinc-100" : "text-zinc-500 hover:text-zinc-300"
+                      logFilter === level ? "bg-muted text-foreground" : "text-muted-foreground hover:text-foreground/70"
                     }`}>
                     {level === "all" ? "全部" : levelConfig[level]?.label}
                   </button>
@@ -353,15 +370,15 @@ export default function RegisterPage() {
             </div>
 
             {/* 工具行 */}
-            <div className="h-8 flex items-center gap-2 px-4 border-b border-zinc-800/60 shrink-0">
+            <div className="h-8 flex items-center gap-2 px-4 border-b shrink-0">
               <button onClick={() => setAutoScroll(!autoScroll)}
-                className={`inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded transition-colors font-medium ${autoScroll ? "text-emerald-400" : "text-zinc-500 hover:text-zinc-300"}`}>
+                className={`inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded transition-colors font-medium ${autoScroll ? "text-emerald-400" : "text-muted-foreground hover:text-foreground/70"}`}>
                 <ArrowDownToLine className="size-3" /> 自动滚动
               </button>
-              <button onClick={() => setLogs([])} className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded text-zinc-500 hover:text-zinc-300 transition-colors">
+              <button onClick={() => setLogs([])} className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded text-muted-foreground hover:text-foreground/70 transition-colors">
                 <Eraser className="size-3" /> 清空
               </button>
-              <span className={`${mono.className} text-[10px] text-zinc-600 tabular-nums ml-auto`}>{filteredLogs.length} 行</span>
+              <span className={`${mono.className} text-[10px] text-muted-foreground/60 tabular-nums ml-auto`}>{filteredLogs.length} 行</span>
             </div>
 
             {/* 日志 */}
@@ -375,8 +392,8 @@ export default function RegisterPage() {
               <div className={`${mono.className} p-2.5 space-y-px`}>
                 {filteredLogs.length === 0 ? (
                   <div className="flex flex-col items-center gap-3 py-20">
-                    <Terminal className="size-8 text-zinc-700" />
-                    <p className="text-[11px] text-zinc-500">{logs.length === 0 ? "等待注册事件..." : "无匹配日志"}</p>
+                    <Terminal className="size-8 text-muted-foreground/40" />
+                    <p className="text-[11px] text-muted-foreground">{logs.length === 0 ? "等待注册事件..." : "无匹配日志"}</p>
                   </div>
                 ) : filteredLogs.map((l, i) => {
                   const lc = levelConfig[l.level] || levelConfig.info;
@@ -384,11 +401,11 @@ export default function RegisterPage() {
                     <div key={i} className={`flex items-start gap-2 px-2 py-1 rounded transition-colors ${
                       l.level === "red" ? "bg-red-500/5" : l.level === "yellow" ? "bg-amber-500/5" : ""
                     } ${i === filteredLogs.length - 1 ? "animate-[slideIn_0.25s_ease-out]" : ""}`}>
-                      <span className="text-[10px] text-zinc-600 shrink-0 w-9 pt-px tabular-nums">{l.time}</span>
+                      <span className="text-[10px] text-muted-foreground/60 shrink-0 w-9 pt-px tabular-nums">{l.time}</span>
                       <lc.icon className="size-3 shrink-0 mt-px" style={{ color: lc.fill }} />
                       <span className="text-[11px] leading-relaxed break-all" style={{ color: lc.fill }}>
                         {l.text}
-                        {l.email && <span className="text-zinc-500 ml-1.5">{l.email}</span>}
+                        {l.email && <span className="text-muted-foreground ml-1.5">{l.email}</span>}
                       </span>
                     </div>
                   );
@@ -396,6 +413,17 @@ export default function RegisterPage() {
               </div>
             </div>
           </div>
+
+          {/* 移动端 backdrop + 浮动按钮 */}
+          {consoleOpen && (
+            <div className="fixed inset-0 z-40 lg:hidden bg-black/30" onClick={() => setConsoleOpen(false)} />
+          )}
+          <button
+            onClick={() => setConsoleOpen(!consoleOpen)}
+            className="fixed bottom-4 right-4 z-50 lg:hidden size-11 rounded-full bg-card border shadow-lg flex items-center justify-center text-foreground/70 hover:text-white hover:bg-muted transition-colors"
+          >
+            <Terminal className="size-5" />
+          </button>
 
       <style jsx global>{`@keyframes slideIn { 0% { opacity: 0; transform: translateY(-4px); } 100% { opacity: 1; transform: translateY(0); } }`}</style>
         </div>

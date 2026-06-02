@@ -168,12 +168,12 @@ export default function AdminPage() {
   const statusCounts = useMemo(() => ({ 正常: stats?.active ?? 0, 限流: stats?.limited ?? 0, 异常: stats?.abnormal ?? 0, 禁用: stats?.disabled ?? 0 }), [stats]);
 
   if (loading && !stats) return (
-    <div className="h-screen bg-background flex overflow-hidden">
+    <div className="h-screen bg-background flex overflow-hidden pb-[calc(4rem+env(safe-area-inset-bottom))] md:pb-0">
       <AdminSidebar />
       <main className="flex-1 flex flex-col overflow-hidden">
-        <div className="border-b bg-card px-8 py-4 shrink-0"><Skeleton className="h-6 w-32" /></div>
-        <div className="flex-1 p-8 overflow-auto space-y-6">
-          <div className="grid grid-cols-4 lg:grid-cols-7 gap-3">{[...Array(7)].map((_, i) => <Skeleton key={i} className="h-20 rounded-xl" />)}</div>
+        <div className="border-b bg-card px-4 sm:px-8 py-4 shrink-0"><Skeleton className="h-6 w-32" /></div>
+        <div className="flex-1 p-4 sm:p-8 overflow-auto space-y-4 sm:space-y-6">
+          <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3">{[...Array(7)].map((_, i) => <Skeleton key={i} className="h-20 rounded-xl" />)}</div>
           <Skeleton className="h-[400px] rounded-2xl" />
         </div>
       </main>
@@ -181,40 +181,40 @@ export default function AdminPage() {
   );
 
   return (
-    <div className={`${heading.variable} ${mono.variable} h-screen bg-background flex overflow-hidden`}>
+    <div className={`${heading.variable} ${mono.variable} h-screen bg-background flex overflow-hidden pb-[calc(4rem+env(safe-area-inset-bottom))] md:pb-0`}>
       <AdminSidebar />
       <main className="flex-1 min-w-0 flex flex-col overflow-hidden">
 
         {/* ═══ Header ═══ */}
-        <div className="border-b bg-card px-8 py-4 flex items-center justify-between shrink-0">
+        <div className="border-b bg-card px-4 sm:px-8 py-4 flex items-start sm:items-center justify-between shrink-0 gap-2">
           <div>
-            <h1 className={`${heading.className} text-base font-semibold tracking-tight`}>号池管理</h1>
-            <p className="text-xs text-muted-foreground mt-0.5">
+            <h1 className={`${heading.className} text-sm sm:text-base font-semibold tracking-tight`}>号池管理</h1>
+            <p className="text-[10px] sm:text-xs text-muted-foreground mt-0.5">
               {stats ? `${stats.total} 个账号 · ${stats.active} 正常 · 配额 ${stats.total_quota}` : "加载中..."}
             </p>
           </div>
-          <div className="flex items-center gap-2">
-            <Button variant="ghost" size="sm" onClick={() => fetchData()} disabled={loading} className="gap-1.5 text-xs text-muted-foreground">
-              <RefreshCw className={`size-3.5 ${loading ? "animate-spin" : ""}`} /> 刷新
+          <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+            <Button variant="ghost" size="sm" onClick={() => fetchData()} disabled={loading} className="gap-1 sm:gap-1.5 text-[10px] sm:text-xs text-muted-foreground px-1.5 sm:px-2">
+              <RefreshCw className={`size-3 sm:size-3.5 ${loading ? "animate-spin" : ""}`} /> <span className="hidden sm:inline">刷新</span>
             </Button>
-            <Button variant="outline" size="sm" className="gap-1.5 text-xs" onClick={async () => {
+            <Button variant="outline" size="sm" className="gap-1 sm:gap-1.5 text-[10px] sm:text-xs px-1.5 sm:px-2" onClick={async () => {
               const id = toast.loading("正在同步账号信息...");
               try { const res = await api<any>("/api/accounts/refresh", { method: "POST" }); toast.success(`已同步 ${res.data.refreshed}/${res.data.total}`, { id }); fetchData(); }
               catch { toast.error("同步失败", { id }); }
             }}>
-              <RefreshCw className="size-3.5" /> 同步信息
+              <RefreshCw className="size-3 sm:size-3.5" /> <span className="hidden sm:inline">同步信息</span><span className="sm:hidden">同步</span>
             </Button>
-            <Button size="sm" className="gap-1.5 text-xs" onClick={() => setShowAdd(true)}>
-              <Plus className="size-3.5" /> 添加账号
+            <Button size="sm" className="gap-1 sm:gap-1.5 text-[10px] sm:text-xs px-1.5 sm:px-2" onClick={() => setShowAdd(true)}>
+              <Plus className="size-3 sm:size-3.5" /> <span className="hidden sm:inline">添加账号</span><span className="sm:hidden">添加</span>
             </Button>
           </div>
         </div>
 
         <motion.div className="flex-1 overflow-auto scrollbar-thin" variants={stagger} initial="hidden" animate="visible">
-          <div className="p-6 lg:p-8 space-y-6">
+          <div className="p-4 sm:p-6 lg:p-8 space-y-4 sm:space-y-6">
 
             {/* ═══ 统计卡片 ═══ */}
-            <motion.div variants={fadeUp} className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3">
+            <motion.div variants={fadeUp} className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2 sm:gap-3">
               {[
                 { label: "总账号", value: stats?.total ?? 0, icon: Database, color: "text-foreground", bg: "bg-muted" },
                 { label: "正常", value: stats?.active ?? 0, icon: CheckCircle, color: "text-emerald-500", bg: "bg-emerald-500/10" },
@@ -224,39 +224,39 @@ export default function AdminPage() {
                 { label: "总配额", value: stats?.total_quota ?? 0, icon: Zap, color: "text-primary", bg: "bg-primary/10" },
                 { label: "成功数", value: stats?.total_success ?? 0, icon: CheckCircle, color: "text-emerald-500", bg: "bg-emerald-500/10" },
               ].map(item => (
-                <div key={item.label} className="rounded-xl border bg-card p-3.5 hover:shadow-sm transition-shadow">
-                  <div className={`size-8 rounded-lg ${item.bg} flex items-center justify-center mb-2`}>
-                    <item.icon className={`size-4 ${item.color}`} />
+                <div key={item.label} className="rounded-xl border bg-card p-3 sm:p-3.5 hover:shadow-sm transition-shadow">
+                  <div className={`size-7 sm:size-8 rounded-lg ${item.bg} flex items-center justify-center mb-1.5 sm:mb-2`}>
+                    <item.icon className={`size-3.5 sm:size-4 ${item.color}`} />
                   </div>
-                  <p className={`${mono.className} text-lg font-medium tabular-nums`}>{item.value.toLocaleString()}</p>
-                  <p className="text-[10px] text-muted-foreground mt-0.5">{item.label}</p>
+                  <p className={`${mono.className} text-base sm:text-lg font-medium tabular-nums`}>{item.value.toLocaleString()}</p>
+                  <p className="text-[9px] sm:text-[10px] text-muted-foreground mt-0.5">{item.label}</p>
                 </div>
               ))}
             </motion.div>
 
             {/* ═══ 实时并发 / 占用图表 ═══ */}
             <motion.div variants={fadeUp} className="rounded-2xl border bg-card overflow-hidden">
-              <div className="flex items-center justify-between px-5 py-3.5 border-b">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between px-4 sm:px-5 py-3 sm:py-3.5 border-b gap-3">
                 <div className="flex items-center gap-2">
-                  <div className="size-8 rounded-lg bg-emerald-500/10 flex items-center justify-center">
-                    <Activity className="size-4 text-emerald-500" />
+                  <div className="size-7 sm:size-8 rounded-lg bg-emerald-500/10 flex items-center justify-center shrink-0">
+                    <Activity className="size-3.5 sm:size-4 text-emerald-500" />
                   </div>
                   <div>
-                    <p className={`${heading.className} text-sm font-semibold`}>实时并发监控</p>
-                    <p className="text-[10px] text-muted-foreground">每 5 秒采样 · 号池占用与全局任务</p>
+                    <p className={`${heading.className} text-xs sm:text-sm font-semibold`}>实时并发监控</p>
+                    <p className="text-[9px] sm:text-[10px] text-muted-foreground">每 5 秒采样 · 号池占用与全局任务</p>
                   </div>
                 </div>
-                <div className="flex items-center gap-4">
+                <div className="flex items-center gap-3 sm:gap-4">
                   {[
                     { label: "号池占用", value: chartData.length ? chartData[chartData.length - 1].slots : 0, color: "text-emerald-500", icon: Zap },
                     { label: "全局任务", value: sched?.global_active ?? 0, sub: sched ? `/ ${sched.global_max}` : "", color: "text-blue-500", icon: Activity },
                     { label: "活跃用户", value: sched?.active_users ?? 0, color: "text-violet-500", icon: Users },
                   ].map(m => (
                     <div key={m.label} className="text-right">
-                      <p className={`${mono.className} text-lg font-bold tabular-nums ${m.color}`}>
-                        {m.value}<span className="text-[10px] text-muted-foreground font-normal ml-0.5">{m.sub || ""}</span>
+                      <p className={`${mono.className} text-base sm:text-lg font-bold tabular-nums ${m.color}`}>
+                        {m.value}<span className="text-[9px] sm:text-[10px] text-muted-foreground font-normal ml-0.5">{m.sub || ""}</span>
                       </p>
-                      <p className="text-[10px] text-muted-foreground inline-flex items-center gap-1"><m.icon className="size-2.5" />{m.label}</p>
+                      <p className="text-[9px] sm:text-[10px] text-muted-foreground inline-flex items-center gap-1"><m.icon className="size-2 sm:size-2.5" />{m.label}</p>
                     </div>
                   ))}
                 </div>
@@ -293,8 +293,8 @@ export default function AdminPage() {
                 )}
               </div>
             </motion.div>
-            <motion.div variants={fadeUp} className="flex items-center gap-3 flex-wrap">
-              <div className="relative w-64 shrink-0">
+            <motion.div variants={fadeUp} className="flex items-center gap-2 sm:gap-3 flex-wrap">
+              <div className="relative w-full sm:w-64 shrink-0">
                 <Search className="size-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
                 <Input value={search} onChange={e => { setSearch(e.target.value); setPage(1); }}
                   placeholder="搜索邮箱或 Token..." className="pl-9 pr-8 text-xs" />
@@ -305,19 +305,19 @@ export default function AdminPage() {
                 )}
               </div>
 
-              <div className="flex items-center gap-1">
+              <div className="flex items-center gap-1 overflow-x-auto flex-nowrap">
                 <button onClick={() => { setStatusFilter("all"); setPage(1); }}
-                  className={`px-2.5 py-1.5 rounded-md text-xs font-medium transition-all ${statusFilter === "all" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground hover:bg-muted"}`}>
+                  className={`px-2 sm:px-2.5 py-1.5 rounded-md text-[10px] sm:text-xs font-medium transition-all whitespace-nowrap ${statusFilter === "all" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground hover:bg-muted"}`}>
                   全部 {stats?.total ?? 0}
                 </button>
                 {STATUS_OPTS.map(s => {
                   const meta = STATUS_META[s];
                   return (
                     <button key={s} onClick={() => { setStatusFilter(s); setPage(1); }}
-                      className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-all ${
+                      className={`inline-flex items-center gap-1 sm:gap-1.5 px-2 sm:px-2.5 py-1.5 rounded-md text-[10px] sm:text-xs font-medium transition-all whitespace-nowrap ${
                         statusFilter === s ? `${meta.bg} font-semibold` : "text-muted-foreground hover:text-foreground hover:bg-muted"
                       }`} style={statusFilter === s ? { color: meta.color } : undefined}>
-                      <span className="size-1.5 rounded-full" style={{ backgroundColor: meta.color }} />
+                      <span className="size-1.5 rounded-full shrink-0" style={{ backgroundColor: meta.color }} />
                       {s} {statusCounts[s]}
                     </button>
                   );

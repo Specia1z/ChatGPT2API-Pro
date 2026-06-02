@@ -9,6 +9,7 @@ import {
   LayoutDashboard, Zap, Shield, Settings, ImageIcon,
   Package, Users, LogOut, Ticket, BarChart3, ChevronRight,
   ShoppingCart, Tag, Database, Sun, Moon,
+  Menu, X,
 } from "lucide-react";
 import { setToken, BASE } from "@/lib/api";
 
@@ -53,8 +54,14 @@ const navGroups = [
 export function AdminSidebar() {
   const [settings, setSettings] = useState<any>(null);
   const [dark, setDark] = useState(true);
+  const [mobileOpen, setMobileOpen] = useState(false);
   const pathname = usePathname();
   const router = useRouter();
+
+  // 路由切换时关闭移动端侧栏
+  useEffect(() => {
+    setMobileOpen(false);
+  }, [pathname]);
 
   useEffect(() => {
     fetch(`${BASE}/api/settings`).then(r => r.json()).then(d => { if (d?.data) setSettings(d.data); }).catch(() => {});
@@ -69,7 +76,31 @@ export function AdminSidebar() {
   };
 
   return (
-    <aside className={`${heading.variable} w-60 shrink-0 flex flex-col border-r bg-card`}>
+    <>
+      {/* ── Mobile hamburger ── */}
+      <button
+        onClick={() => setMobileOpen(!mobileOpen)}
+        className="fixed top-3 left-3 z-50 md:hidden size-9 rounded-xl bg-background border shadow-sm flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors"
+        aria-label="菜单"
+      >
+        {mobileOpen ? <X className="size-[18px]" /> : <Menu className="size-[18px]" />}
+      </button>
+
+      {/* ── Mobile backdrop ── */}
+      {mobileOpen && (
+        <div
+          className="fixed inset-0 z-40 bg-black/40 md:hidden"
+          onClick={() => setMobileOpen(false)}
+        />
+      )}
+
+      {/* ── Sidebar panel ── */}
+      <aside className={`${heading.variable} w-60 shrink-0 flex flex-col border-r bg-card
+        fixed md:relative inset-y-0 left-0 z-50
+        transition-transform duration-300 ease-in-out
+        ${mobileOpen ? 'translate-x-0' : '-translate-x-full'}
+        md:translate-x-0
+        max-sm:pt-[env(safe-area-inset-top)] max-sm:pb-[calc(3.5rem+env(safe-area-inset-bottom))]`}>
 
       {/* ── Logo ── */}
       <Link href="/" className="flex items-center gap-3 px-5 py-4 border-b hover:bg-muted/40 transition-colors group">
@@ -135,5 +166,29 @@ export function AdminSidebar() {
         </button>
       </div>
     </aside>
+
+      {/* ── Mobile bottom nav ── */}
+      <nav className="fixed bottom-0 inset-x-0 z-50 md:hidden border-t border-border bg-background/80 backdrop-blur-2xl pb-[env(safe-area-inset-bottom)]">
+        <div className="flex items-stretch justify-around h-14">
+          {[
+            { href: "/admin/stats", label: "统计", icon: BarChart3 },
+            { href: "/admin", label: "号池", icon: LayoutDashboard },
+            { href: "/admin/register", label: "注册", icon: Zap },
+            { href: "/admin/monitor", label: "监控", icon: Shield },
+          ].map(tab => {
+            const active = pathname === tab.href;
+            const Icon = tab.icon;
+            return (
+              <Link key={tab.href} href={tab.href}
+                className="relative flex-1 flex flex-col items-center justify-center gap-0.5 active:scale-95 transition-transform">
+                <Icon className={`w-[18px] h-[18px] transition-all duration-200 ${active ? "text-foreground -translate-y-0.5" : "text-muted-foreground"}`} />
+                <span className={`text-[10px] leading-none transition-colors ${active ? "text-foreground font-medium" : "text-muted-foreground"}`}>{tab.label}</span>
+                {active && <span className="absolute top-0 h-0.5 w-6 rounded-full bg-foreground" />}
+              </Link>
+            );
+          })}
+        </div>
+      </nav>
+    </>
   );
 }

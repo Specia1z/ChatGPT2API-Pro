@@ -54,7 +54,7 @@ export default function MonitorPage() {
   const [loading, setLoading] = useState(true);
   const [checking, setChecking] = useState(false);
   const [logs, setLogs] = useState<any[]>([]);
-  const [consoleOpen, setConsoleOpen] = useState(true);
+  const [consoleOpen, setConsoleOpen] = useState(false);
   const [logFilter, setLogFilter] = useState<LogLevel>("all");
   const [autoScroll, setAutoScroll] = useState(true);
   const logRef = useRef<HTMLDivElement>(null);
@@ -115,17 +115,17 @@ export default function MonitorPage() {
   );
 
   return (
-    <div className={`${heading.variable} ${mono.variable} h-screen bg-background flex overflow-hidden`}>
+    <div className={`${heading.variable} ${mono.variable} h-screen bg-background flex overflow-hidden pb-16 md:pb-0`}>
       <AdminSidebar />
       <main className="flex-1 min-w-0 flex flex-col overflow-hidden">
 
         {/* ═══ Header ═══ */}
-        <div className="border-b bg-card px-8 py-4 flex items-center justify-between shrink-0">
-          <div>
-            <h1 className={`${heading.className} text-base font-semibold tracking-tight flex items-center gap-2.5`}>
+        <div className="border-b bg-card px-4 sm:px-8 py-4 flex items-start sm:items-center justify-between shrink-0 gap-2">
+          <div className="min-w-0">
+            <h1 className={`${heading.className} text-sm sm:text-base font-semibold tracking-tight flex items-center gap-2 sm:gap-2.5 flex-wrap`}>
               账号监控
               {cfg?.enabled && (
-                <span className="inline-flex items-center gap-1.5 text-xs font-medium text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full">
+                <span className="inline-flex items-center gap-1 sm:gap-1.5 text-[10px] sm:text-xs font-medium text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-1.5 sm:px-2 py-0.5 rounded-full whitespace-nowrap">
                   <span className="relative flex size-1.5">
                     <span className="animate-ping absolute inset-0 rounded-full bg-emerald-400 opacity-75" />
                     <span className="relative rounded-full size-1.5 bg-emerald-500" />
@@ -134,15 +134,15 @@ export default function MonitorPage() {
                 </span>
               )}
             </h1>
-            <p className="text-xs text-muted-foreground mt-0.5">自动健康检查 · 异常清理 · 智能补号</p>
+            <p className="text-[10px] sm:text-xs text-muted-foreground mt-0.5">自动健康检查 · 异常清理 · 智能补号</p>
           </div>
-          <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" onClick={trigger} disabled={checking} className="gap-1.5 text-xs">
-              {checking ? <RefreshCw className="size-3.5 animate-spin" /> : <Play className="size-3.5" />}
-              {checking ? "检查中..." : "立即检查"}
+          <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+            <Button variant="outline" size="sm" onClick={trigger} disabled={checking} className="gap-1 sm:gap-1.5 text-[10px] sm:text-xs px-1.5 sm:px-2">
+              {checking ? <RefreshCw className="size-3 sm:size-3.5 animate-spin" /> : <Play className="size-3 sm:size-3.5" />}
+              <span className="hidden sm:inline">{checking ? "检查中..." : "立即检查"}</span><span className="sm:hidden">{checking ? "..." : "检查"}</span>
             </Button>
-            <Button size="sm" onClick={save} className="gap-1.5 text-xs">
-              <Save className="size-3.5" /> 保存配置
+            <Button size="sm" onClick={save} className="gap-1 sm:gap-1.5 text-[10px] sm:text-xs px-1.5 sm:px-2">
+              <Save className="size-3 sm:size-3.5" /> <span className="hidden sm:inline">保存配置</span><span className="sm:hidden">保存</span>
             </Button>
           </div>
         </div>
@@ -150,18 +150,18 @@ export default function MonitorPage() {
         <div className="flex-1 flex min-h-0 overflow-hidden">
 
           {/* ═══ 左侧：配置面板 ═══ */}
-          <motion.div className="flex-1 p-6 lg:p-8 overflow-auto scrollbar-thin" variants={stagger} initial="hidden" animate="visible">
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 max-w-5xl">
+          <motion.div className="flex-1 p-4 sm:p-6 lg:p-8 overflow-auto scrollbar-thin" variants={stagger} initial="hidden" animate="visible">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 sm:gap-4 max-w-5xl">
 
               {/* 监控配置 */}
               <motion.div variants={fadeUp} className="rounded-2xl border bg-card overflow-hidden">
-                <div className="px-5 py-3.5 border-b flex items-center gap-2">
+                <div className="px-4 sm:px-5 py-3 sm:py-3.5 border-b flex items-center gap-2">
                   <div className="size-8 rounded-lg bg-emerald-500/10 flex items-center justify-center">
                     <Gauge className="size-4 text-emerald-500" />
                   </div>
                   <h2 className={`${heading.className} text-sm font-semibold`}>监控配置</h2>
                 </div>
-                <div className="px-5 py-1">
+                <div className="px-4 sm:px-5 py-1">
                   <ToggleRow label="启用自动监控" desc="定时检查所有账号健康状态" checked={cfg?.enabled} onChange={v => update("enabled", v)} />
                   <div className="border-t" />
                   <div className="flex items-center justify-between py-3">
@@ -180,13 +180,13 @@ export default function MonitorPage() {
 
               {/* 自动清理 */}
               <motion.div variants={fadeUp} className="rounded-2xl border bg-card overflow-hidden">
-                <div className="px-5 py-3.5 border-b flex items-center gap-2">
+                <div className="px-4 sm:px-5 py-3 sm:py-3.5 border-b flex items-center gap-2">
                   <div className="size-8 rounded-lg bg-red-500/10 flex items-center justify-center">
                     <Trash2 className="size-4 text-red-500" />
                   </div>
                   <h2 className={`${heading.className} text-sm font-semibold`}>自动清理</h2>
                 </div>
-                <div className="px-5 py-1">
+                <div className="px-4 sm:px-5 py-1">
                   <ToggleRow label="删除异常账号" desc="自动移除状态为「异常」的账号" checked={cfg?.auto_remove_abnormal} onChange={v => update("auto_remove_abnormal", v)} />
                   <div className="border-t" />
                   <ToggleRow label="删除禁用/封禁账号" desc="自动移除被禁用或 401 封禁的账号" checked={cfg?.auto_remove_disabled} onChange={v => update("auto_remove_disabled", v)} />
@@ -195,13 +195,13 @@ export default function MonitorPage() {
 
               {/* 智能补号 */}
               <motion.div variants={fadeUp} className="rounded-2xl border bg-card overflow-hidden">
-                <div className="px-5 py-3.5 border-b flex items-center gap-2">
+                <div className="px-4 sm:px-5 py-3 sm:py-3.5 border-b flex items-center gap-2">
                   <div className="size-8 rounded-lg bg-blue-500/10 flex items-center justify-center">
                     <Settings2 className="size-4 text-blue-500" />
                   </div>
                   <h2 className={`${heading.className} text-sm font-semibold`}>智能补号</h2>
                 </div>
-                <div className="px-5 py-1">
+                <div className="px-4 sm:px-5 py-1">
                   <ToggleRow label="自动补注册" desc="可用账号低于目标时自动触发注册机补号" checked={cfg?.auto_refill} onChange={v => update("auto_refill", v)} />
                   {cfg?.auto_refill && (
                     <>
@@ -227,47 +227,126 @@ export default function MonitorPage() {
             </div>
           </motion.div>
 
-          {/* ═══ 右侧：终端控制台 ═══ */}
-          {consoleOpen ? (
-            <div className="w-[400px] shrink-0 border-l flex flex-col bg-zinc-950">
-              {/* 控制台头部 */}
-              <div className="h-11 flex items-center gap-2 px-4 border-b border-zinc-800 shrink-0">
+          {/* ═══ Desktop: 终端侧栏 ═══ */}
+          <div className="hidden lg:block">
+            {consoleOpen ? (
+              <div className="w-[400px] shrink-0 border-l flex flex-col bg-card h-full">
+                {/* 控制台头部 */}
+                <div className="h-11 flex items-center gap-2 px-4 border-b border shrink-0">
+                  <div className="flex items-center gap-1.5">
+                    <div className="size-2.5 rounded-full bg-red-500/80" />
+                    <div className="size-2.5 rounded-full bg-amber-500/80" />
+                    <div className={`size-2.5 rounded-full ${cfg?.enabled ? "bg-emerald-500 animate-pulse shadow-[0_0_8px_rgba(16,185,129,0.6)]" : "bg-muted-foreground/30"}`} />
+                  </div>
+                  <span className={`${mono.className} text-[11px] text-muted-foreground ml-2`}>
+                    {cfg?.enabled ? "monitor.log — 运行中" : "monitor.log — 已停止"}
+                  </span>
+                  <div className="flex items-center gap-1 ml-auto">
+                    {LOG_LEVELS.map(level => (
+                      <button key={level} onClick={() => setLogFilter(level)}
+                        className={`text-[10px] px-1.5 py-0.5 rounded transition-colors font-medium ${
+                          logFilter === level ? "bg-muted text-foreground" : "text-muted-foreground hover:text-foreground/70"
+                        }`}>
+                        {level === "all" ? "全部" : levelConfig[level]?.label}
+                      </button>
+                    ))}
+                    <button onClick={() => setConsoleOpen(false)} className="p-1 rounded hover:bg-muted transition-colors ml-1">
+                      <PanelRightClose className="size-3.5 text-muted-foreground" />
+                    </button>
+                  </div>
+                </div>
+                <div className="h-8 flex items-center gap-2 px-4 border-b border shrink-0">
+                  <button onClick={() => setAutoScroll(!autoScroll)}
+                    className={`inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded transition-colors font-medium ${autoScroll ? "text-emerald-400" : "text-muted-foreground hover:text-foreground/70"}`}>
+                    <ArrowDownToLine className="size-3" /> 自动滚动
+                  </button>
+                  <button onClick={() => setLogs([])} className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded text-muted-foreground hover:text-foreground/70 transition-colors">
+                    <Eraser className="size-3" /> 清空
+                  </button>
+                  <span className={`${mono.className} text-[10px] text-muted-foreground/60 tabular-nums ml-auto`}>{filteredLogs.length} 行</span>
+                </div>
+                <div ref={logRef} className="flex-1 overflow-auto scrollbar-thin"
+                  onScroll={e => {
+                    const el = e.currentTarget;
+                    const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 30;
+                    if (!atBottom && autoScroll) setAutoScroll(false);
+                    if (atBottom && !autoScroll) setAutoScroll(true);
+                  }}>
+                  <div className={`${mono.className} p-2.5 space-y-px`}>
+                    {filteredLogs.length === 0 ? (
+                      <div className="flex flex-col items-center gap-3 py-20">
+                        <Terminal className="size-8 text-muted-foreground/40" />
+                        <p className="text-[11px] text-muted-foreground">{logs.length === 0 ? "等待监控事件..." : "无匹配日志"}</p>
+                      </div>
+                    ) : filteredLogs.map((l, i) => {
+                      const lc = levelConfig[l.level] || levelConfig.info;
+                      return (
+                        <div key={i} className={`flex items-start gap-2 px-2 py-1 rounded transition-colors ${l.level === "red" ? "bg-red-500/5" : l.level === "yellow" ? "bg-amber-500/5" : ""} ${i === filteredLogs.length - 1 ? "animate-[slideIn_0.25s_ease-out]" : ""}`}>
+                          <span className="text-[10px] text-muted-foreground/60 shrink-0 w-9 pt-px tabular-nums">{l.time}</span>
+                          <lc.icon className="size-3 shrink-0 mt-px" style={{ color: lc.fill }} />
+                          <span className="text-[11px] leading-relaxed break-all" style={{ color: lc.fill }}>
+                            {l.text}{l.email && <span className="text-muted-foreground ml-1.5">{l.email}</span>}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <button onClick={() => setConsoleOpen(true)}
+                className="shrink-0 border-l flex flex-col items-center gap-2 pt-4 w-11 bg-card hover:bg-muted/40 transition-colors">
+                <PanelRightOpen className="size-4 text-muted-foreground" />
+                <span className="text-[10px] text-muted-foreground" style={{ writingMode: "vertical-rl" }}>实时日志</span>
+                <span className={`${mono.className} text-[10px] text-muted-foreground tabular-nums`}>{logs.length}</span>
+              </button>
+            )}
+          </div>
+
+          {/* ═══ Mobile: 终端底部抽屉 ═══ */}
+          <div className={`
+            flex flex-col bg-card lg:hidden
+            fixed inset-x-0 bottom-0 z-50
+            border-t border rounded-t-2xl
+            shadow-2xl
+            transition-transform duration-300 ease-in-out
+            ${consoleOpen ? 'translate-y-0' : 'translate-y-full'}
+            max-h-[70vh]
+          `}>
+            {/* 拖拽手柄 */}
+            <div className="flex items-center justify-center py-2 shrink-0 cursor-pointer" onClick={() => setConsoleOpen(false)}>
+              <div className="w-8 h-1 rounded-full bg-muted-foreground/30" />
+            </div>
+
+            <div className="max-h-full flex flex-col overflow-hidden">
+              <div className="h-11 flex items-center gap-2 px-4 border-b border shrink-0">
                 <div className="flex items-center gap-1.5">
                   <div className="size-2.5 rounded-full bg-red-500/80" />
                   <div className="size-2.5 rounded-full bg-amber-500/80" />
-                  <div className={`size-2.5 rounded-full ${cfg?.enabled ? "bg-emerald-500 animate-pulse shadow-[0_0_8px_rgba(16,185,129,0.6)]" : "bg-zinc-600"}`} />
+                  <div className={`size-2.5 rounded-full ${cfg?.enabled ? "bg-emerald-500 animate-pulse shadow-[0_0_8px_rgba(16,185,129,0.6)]" : "bg-muted-foreground/30"}`} />
                 </div>
-                <span className={`${mono.className} text-[11px] text-zinc-400 ml-2`}>
-                  {cfg?.enabled ? "monitor.log — 运行中" : "monitor.log — 已停止"}
+                <span className={`${mono.className} text-[11px] text-muted-foreground ml-2`}>
+                  {cfg?.enabled ? "monitor.log" : "monitor.log"}
                 </span>
                 <div className="flex items-center gap-1 ml-auto">
                   {LOG_LEVELS.map(level => (
                     <button key={level} onClick={() => setLogFilter(level)}
-                      className={`text-[10px] px-1.5 py-0.5 rounded transition-colors font-medium ${
-                        logFilter === level ? "bg-zinc-700 text-zinc-100" : "text-zinc-500 hover:text-zinc-300"
-                      }`}>
+                      className={`text-[10px] px-1.5 py-0.5 rounded transition-colors font-medium ${logFilter === level ? "bg-muted text-foreground" : "text-muted-foreground hover:text-foreground/70"}`}>
                       {level === "all" ? "全部" : levelConfig[level]?.label}
                     </button>
                   ))}
-                  <button onClick={() => setConsoleOpen(false)} className="p-1 rounded hover:bg-zinc-800 transition-colors ml-1">
-                    <PanelRightClose className="size-3.5 text-zinc-500" />
-                  </button>
                 </div>
               </div>
-
-              {/* 工具行 */}
-              <div className="h-8 flex items-center gap-2 px-4 border-b border-zinc-800/60 shrink-0">
+              <div className="h-8 flex items-center gap-2 px-4 border-b border shrink-0">
                 <button onClick={() => setAutoScroll(!autoScroll)}
-                  className={`inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded transition-colors font-medium ${autoScroll ? "text-emerald-400" : "text-zinc-500 hover:text-zinc-300"}`}>
+                  className={`inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded transition-colors font-medium ${autoScroll ? "text-emerald-400" : "text-muted-foreground hover:text-foreground/70"}`}>
                   <ArrowDownToLine className="size-3" /> 自动滚动
                 </button>
-                <button onClick={() => setLogs([])} className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded text-zinc-500 hover:text-zinc-300 transition-colors">
+                <button onClick={() => setLogs([])} className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded text-muted-foreground hover:text-foreground/70 transition-colors">
                   <Eraser className="size-3" /> 清空
                 </button>
-                <span className={`${mono.className} text-[10px] text-zinc-600 tabular-nums ml-auto`}>{filteredLogs.length} 行</span>
+                <span className={`${mono.className} text-[10px] text-muted-foreground/60 tabular-nums ml-auto`}>{filteredLogs.length} 行</span>
               </div>
-
-              {/* 日志 */}
               <div ref={logRef} className="flex-1 overflow-auto scrollbar-thin"
                 onScroll={e => {
                   const el = e.currentTarget;
@@ -278,20 +357,17 @@ export default function MonitorPage() {
                 <div className={`${mono.className} p-2.5 space-y-px`}>
                   {filteredLogs.length === 0 ? (
                     <div className="flex flex-col items-center gap-3 py-20">
-                      <Terminal className="size-8 text-zinc-700" />
-                      <p className="text-[11px] text-zinc-500">{logs.length === 0 ? "等待监控事件..." : "无匹配日志"}</p>
+                      <Terminal className="size-8 text-muted-foreground/40" />
+                      <p className="text-[11px] text-muted-foreground">{logs.length === 0 ? "等待监控事件..." : "无匹配日志"}</p>
                     </div>
                   ) : filteredLogs.map((l, i) => {
                     const lc = levelConfig[l.level] || levelConfig.info;
                     return (
-                      <div key={i} className={`flex items-start gap-2 px-2 py-1 rounded transition-colors ${
-                        l.level === "red" ? "bg-red-500/5" : l.level === "yellow" ? "bg-amber-500/5" : ""
-                      } ${i === filteredLogs.length - 1 ? "animate-[slideIn_0.25s_ease-out]" : ""}`}>
-                        <span className="text-[10px] text-zinc-600 shrink-0 w-9 pt-px tabular-nums">{l.time}</span>
+                      <div key={i} className={`flex items-start gap-2 px-2 py-1 rounded transition-colors ${l.level === "red" ? "bg-red-500/5" : l.level === "yellow" ? "bg-amber-500/5" : ""} ${i === filteredLogs.length - 1 ? "animate-[slideIn_0.25s_ease-out]" : ""}`}>
+                        <span className="text-[10px] text-muted-foreground/60 shrink-0 w-9 pt-px tabular-nums">{l.time}</span>
                         <lc.icon className="size-3 shrink-0 mt-px" style={{ color: lc.fill }} />
                         <span className="text-[11px] leading-relaxed break-all" style={{ color: lc.fill }}>
-                          {l.text}
-                          {l.email && <span className="text-zinc-500 ml-1.5">{l.email}</span>}
+                          {l.text}{l.email && <span className="text-muted-foreground ml-1.5">{l.email}</span>}
                         </span>
                       </div>
                     );
@@ -299,14 +375,18 @@ export default function MonitorPage() {
                 </div>
               </div>
             </div>
-          ) : (
-            <button onClick={() => setConsoleOpen(true)}
-              className="shrink-0 border-l flex flex-col items-center gap-2 pt-4 w-11 bg-card hover:bg-muted/40 transition-colors">
-              <PanelRightOpen className="size-4 text-muted-foreground" />
-              <span className="text-[10px] text-muted-foreground" style={{ writingMode: "vertical-rl" }}>实时日志</span>
-              <span className={`${mono.className} text-[10px] text-muted-foreground tabular-nums`}>{logs.length}</span>
-            </button>
+          </div>
+
+          {/* 移动端 backdrop + 浮动按钮 */}
+          {consoleOpen && (
+            <div className="fixed inset-0 z-40 lg:hidden bg-black/30" onClick={() => setConsoleOpen(false)} />
           )}
+          <button
+            onClick={() => setConsoleOpen(!consoleOpen)}
+            className="fixed bottom-4 right-4 z-50 lg:hidden size-11 rounded-full bg-card border shadow-lg flex items-center justify-center text-foreground/70 hover:text-white hover:bg-muted transition-colors"
+          >
+            <Terminal className="size-5" />
+          </button>
         </div>
       </main>
 

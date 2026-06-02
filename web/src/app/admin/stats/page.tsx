@@ -119,22 +119,22 @@ function KpiCard({ icon, iconBg, iconColor, label, value, sparkline, sparkColor,
 }) {
   return (
     <motion.div variants={fadeUp}
-      className="group relative rounded-2xl border bg-card p-5 overflow-hidden transition-all duration-300 hover:shadow-lg hover:shadow-primary/5 hover:-translate-y-0.5">
-      <div className="flex items-start justify-between mb-3">
-        <div className={`size-10 rounded-xl ${iconBg} flex items-center justify-center`}>
+      className="group relative rounded-2xl border bg-card p-4 sm:p-5 overflow-hidden transition-all duration-300 hover:shadow-lg hover:shadow-primary/5 hover:-translate-y-0.5">
+      <div className="flex items-start justify-between mb-2 sm:mb-3">
+        <div className={`size-9 sm:size-10 rounded-xl ${iconBg} flex items-center justify-center`}>
           <span className={iconColor}>{icon}</span>
         </div>
         {sparkline && sparkline.length >= 2 && (
-          <div className="w-20 h-8 opacity-50 group-hover:opacity-100 transition-opacity">
+          <div className="w-16 h-7 sm:w-20 sm:h-8 opacity-50 group-hover:opacity-100 transition-opacity">
             <Sparkline data={sparkline} color={sparkColor} />
           </div>
         )}
       </div>
-      <p className="text-xs text-muted-foreground font-medium mb-1">{label}</p>
-      <p className={`${mono.className} text-2xl font-medium tabular-nums tracking-tight`}>
+      <p className="text-[11px] sm:text-xs text-muted-foreground font-medium mb-0.5 sm:mb-1">{label}</p>
+      <p className={`${mono.className} text-xl sm:text-2xl font-medium tabular-nums tracking-tight`}>
         <CountUp to={value} fmt={fmt} />
       </p>
-      <p className="text-[11px] text-muted-foreground/70 mt-1.5">{sub}</p>
+      <p className="text-[10px] sm:text-[11px] text-muted-foreground/70 mt-1 sm:mt-1.5">{sub}</p>
     </motion.div>
   );
 }
@@ -167,18 +167,18 @@ export default function StatsPage() {
   })) || [], [t]);
 
   if (loading && !data) return (
-    <div className="h-screen bg-background flex overflow-hidden">
+    <div className="h-screen bg-background flex overflow-hidden pb-[calc(4rem+env(safe-area-inset-bottom))] md:pb-0">
       <AdminSidebar />
       <main className="flex-1 flex flex-col overflow-hidden">
-        <div className="border-b bg-card px-8 py-4 shrink-0"><Skeleton className="h-6 w-32" /></div>
-        <div className="flex-1 p-8 overflow-auto space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            {[1, 2, 3, 4].map(i => <Skeleton key={i} className="h-36 rounded-2xl" />)}
+        <div className="border-b bg-card px-4 sm:px-8 py-4 shrink-0"><Skeleton className="h-6 w-32" /></div>
+        <div className="flex-1 p-4 sm:p-8 overflow-auto space-y-4 sm:space-y-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+            {[1, 2, 3, 4].map(i => <Skeleton key={i} className="h-28 sm:h-36 rounded-2xl" />)}
           </div>
-          <Skeleton className="h-[340px] rounded-2xl" />
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            <Skeleton className="h-72 rounded-2xl" />
-            <Skeleton className="h-72 rounded-2xl" />
+          <Skeleton className="h-[260px] sm:h-[340px] rounded-2xl" />
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4">
+            <Skeleton className="h-60 sm:h-72 rounded-2xl" />
+            <Skeleton className="h-60 sm:h-72 rounded-2xl" />
           </div>
         </div>
       </main>
@@ -186,27 +186,27 @@ export default function StatsPage() {
   );
 
   return (
-    <div className={`${heading.variable} ${mono.variable} h-screen bg-background flex overflow-hidden`}>
+    <div className={`${heading.variable} ${mono.variable} h-screen bg-background flex overflow-hidden pb-[calc(4rem+env(safe-area-inset-bottom))] md:pb-0`}>
       <AdminSidebar />
       <main className="flex-1 flex flex-col overflow-hidden">
 
         {/* ═══ Header ═══ */}
-        <div className="border-b bg-card px-8 py-4 flex items-center justify-between shrink-0">
+        <div className="border-b bg-card px-4 sm:px-8 py-4 flex items-center justify-between shrink-0">
           <div>
-            <h1 className={`${heading.className} text-base font-semibold tracking-tight`}>数据统计</h1>
-            <p className="text-xs text-muted-foreground mt-0.5">最近 7 天运营概览</p>
+            <h1 className={`${heading.className} text-sm sm:text-base font-semibold tracking-tight`}>数据统计</h1>
+            <p className="text-[10px] sm:text-xs text-muted-foreground mt-0.5">最近 7 天运营概览</p>
           </div>
           <Button variant="ghost" size="sm" onClick={load} className="gap-1.5 text-xs text-muted-foreground">
             <RefreshCw className={`size-3.5 ${loading ? "animate-spin" : ""}`} /> 刷新
           </Button>
         </div>
 
-        <motion.div className="flex-1 p-6 lg:p-8 overflow-auto scrollbar-thin"
+        <motion.div className="flex-1 p-4 sm:p-6 lg:p-8 overflow-auto scrollbar-thin"
           variants={stagger} initial="hidden" animate="visible">
           <div className="space-y-6 max-w-[1400px]">
 
             {/* ═══ KPI 卡片 ═══ */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
               <KpiCard icon={<CreditCard className="size-5" />} iconBg="bg-amber-500/10" iconColor="text-amber-500"
                 label="总收入" value={s?.total_revenue || 0} fmt={n => `¥${n.toLocaleString()}`}
                 sparkline={t?.revenue} sparkColor="#f59e0b"
@@ -226,8 +226,8 @@ export default function StatsPage() {
             </div>
 
             {/* ═══ 趋势图 ═══ */}
-            <motion.div variants={fadeUp} className="rounded-2xl border bg-card p-6">
-              <div className="flex items-center justify-between mb-5">
+            <motion.div variants={fadeUp} className="rounded-2xl border bg-card p-4 sm:p-6">
+              <div className="flex items-center justify-between mb-4 sm:mb-5">
                 <h2 className={`${heading.className} text-sm font-semibold`}>
                   {chartTab === "generations" ? "生成量趋势" : chartTab === "revenue" ? "收入趋势" : "新用户趋势"}
                 </h2>
@@ -292,9 +292,9 @@ export default function StatsPage() {
             </motion.div>
 
             {/* ═══ 模型分布 + 号池状态 ═══ */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-              <motion.div variants={fadeUp} className="rounded-2xl border bg-card p-6">
-                <div className="flex items-center gap-2 mb-5">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4">
+              <motion.div variants={fadeUp} className="rounded-2xl border bg-card p-4 sm:p-6">
+                <div className="flex items-center gap-2 mb-4 sm:mb-5">
                   <div className="size-8 rounded-lg bg-violet-500/10 flex items-center justify-center">
                     <PieChart className="size-4 text-violet-500" />
                   </div>
@@ -303,8 +303,8 @@ export default function StatsPage() {
                 {mb.length === 0 ? (
                   <div className="flex items-center justify-center h-48 text-xs text-muted-foreground">尚无生成数据</div>
                 ) : (
-                  <div className="flex items-center gap-5">
-                    <div className="w-[150px] h-[150px] shrink-0">
+                  <div className="flex flex-col sm:flex-row items-center gap-4 sm:gap-5">
+                    <div className="w-[120px] h-[120px] sm:w-[150px] sm:h-[150px] shrink-0">
                       {mounted && (
                         <RPieChart width={150} height={150}>
                           <Pie data={mb} dataKey="count" nameKey="model" cx="50%" cy="50%" innerRadius={38} outerRadius={68} strokeWidth={2} paddingAngle={2}>
@@ -335,8 +335,8 @@ export default function StatsPage() {
                 )}
               </motion.div>
 
-              <motion.div variants={fadeUp} className="rounded-2xl border bg-card p-6">
-                <div className="flex items-center gap-2 mb-5">
+              <motion.div variants={fadeUp} className="rounded-2xl border bg-card p-4 sm:p-6">
+                <div className="flex items-center gap-2 mb-4 sm:mb-5">
                   <div className="size-8 rounded-lg bg-blue-500/10 flex items-center justify-center">
                     <Activity className="size-4 text-blue-500" />
                   </div>
@@ -354,9 +354,9 @@ export default function StatsPage() {
                     </div>
                   </div>
                 )}
-                <div className="grid grid-cols-2 gap-2.5">
+                <div className="grid grid-cols-2 gap-2 sm:gap-2.5">
                   {accountItems.map(item => (
-                    <div key={item.label} className="flex items-center gap-3 p-3 rounded-xl bg-muted/40 hover:bg-muted/70 transition-colors">
+                    <div key={item.label} className="flex items-center gap-2 sm:gap-3 p-2.5 sm:p-3 rounded-xl bg-muted/40 hover:bg-muted/70 transition-colors">
                       <div className="size-9 rounded-lg flex items-center justify-center" style={{ backgroundColor: item.color + "14" }}>
                         <item.icon className="size-4" style={{ color: item.color }} />
                       </div>
@@ -371,8 +371,8 @@ export default function StatsPage() {
             </div>
 
             {/* ═══ 每日生成状态 ═══ */}
-            <motion.div variants={fadeUp} className="rounded-2xl border bg-card p-6">
-              <div className="flex items-center gap-2 mb-5">
+            <motion.div variants={fadeUp} className="rounded-2xl border bg-card p-4 sm:p-6">
+              <div className="flex items-center gap-2 mb-4 sm:mb-5">
                 <div className="size-8 rounded-lg bg-emerald-500/10 flex items-center justify-center">
                   <ImageIcon className="size-4 text-emerald-500" />
                 </div>

@@ -76,24 +76,24 @@ export default function AdminOrdersPage() {
   );
 
   return (
-    <div className={`${heading.variable} ${mono.variable} h-screen bg-background flex overflow-hidden`}>
+    <div className={`${heading.variable} ${mono.variable} h-screen bg-background flex overflow-hidden pb-16 md:pb-0`}>
       <AdminSidebar />
       <main className="flex-1 min-w-0 flex flex-col overflow-hidden">
 
         {/* ═══ Header ═══ */}
-        <div className="border-b bg-card px-8 py-4 flex items-center justify-between shrink-0">
-          <div>
-            <h1 className={`${heading.className} text-base font-semibold tracking-tight`}>订单管理</h1>
-            <p className="text-xs text-muted-foreground mt-0.5">共 <span className="font-semibold text-foreground tabular-nums">{total}</span> 笔订单</p>
+        <div className="border-b bg-card px-4 sm:px-8 py-4 flex items-center justify-between shrink-0">
+          <div className="min-w-0">
+            <h1 className={`${heading.className} text-sm sm:text-base font-semibold tracking-tight`}>订单管理</h1>
+            <p className="text-[10px] sm:text-xs text-muted-foreground mt-0.5">共 <span className="font-semibold text-foreground tabular-nums">{total}</span> 笔订单</p>
           </div>
-          <Button variant="ghost" size="sm" onClick={() => fetchOrders(page)} className="gap-1.5 text-xs text-muted-foreground">
-            <RefreshCw className={`size-3.5 ${loading ? "animate-spin" : ""}`} /> 刷新
+          <Button variant="ghost" size="sm" onClick={() => fetchOrders(page)} className="gap-1 sm:gap-1.5 text-[10px] sm:text-xs text-muted-foreground px-1.5 sm:px-2 shrink-0">
+            <RefreshCw className={`size-3 sm:size-3.5 ${loading ? "animate-spin" : ""}`} /> <span className="hidden sm:inline">刷新</span>
           </Button>
         </div>
 
         {/* ═══ 状态标签 ═══ */}
-        <div className="border-b bg-card px-8 shrink-0">
-          <div className="flex gap-6">
+        <div className="border-b bg-card px-4 sm:px-8 shrink-0 overflow-x-auto">
+          <div className="flex gap-4 sm:gap-6 min-w-max">
             {STATUS_TABS.map(tab => (
               <button key={tab.value} onClick={() => setStatus(tab.value)}
                 className={`py-3 text-sm font-medium border-b-2 transition-all ${
@@ -105,23 +105,23 @@ export default function AdminOrdersPage() {
           </div>
         </div>
 
-        <motion.div className="flex-1 p-6 lg:p-8 overflow-auto scrollbar-thin" variants={stagger} initial="hidden" animate="visible">
+        <motion.div className="flex-1 p-4 sm:p-6 lg:p-8 overflow-auto scrollbar-thin" variants={stagger} initial="hidden" animate="visible">
           <div className="space-y-6 max-w-[1400px]">
 
             {/* ═══ 营收概览（当前页） ═══ */}
-            <motion.div variants={fadeUp} className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <motion.div variants={fadeUp} className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
               {[
                 { label: "本页已付金额", value: `¥${overview.paidAmount.toFixed(2)}`, icon: Wallet, color: "text-emerald-500", bg: "bg-emerald-500/10" },
                 { label: "本页已付订单", value: String(overview.paidCount), icon: Receipt, color: "text-primary", bg: "bg-primary/10" },
                 { label: "本页待支付", value: String(overview.pendingCount), icon: Clock, color: "text-amber-500", bg: "bg-amber-500/10" },
               ].map(item => (
-                <div key={item.label} className="rounded-2xl border bg-card p-5 flex items-center gap-4 hover:shadow-sm transition-shadow">
-                  <div className={`size-11 rounded-xl ${item.bg} flex items-center justify-center shrink-0`}>
-                    <item.icon className={`size-5 ${item.color}`} />
+                <div key={item.label} className="rounded-2xl border bg-card p-4 sm:p-5 flex items-center gap-3 sm:gap-4 hover:shadow-sm transition-shadow">
+                  <div className={`size-10 sm:size-11 rounded-xl ${item.bg} flex items-center justify-center shrink-0`}>
+                    <item.icon className={`size-4 sm:size-5 ${item.color}`} />
                   </div>
                   <div>
-                    <p className="text-xs text-muted-foreground">{item.label}</p>
-                    <p className={`${mono.className} text-xl font-medium tabular-nums mt-0.5`}>{item.value}</p>
+                    <p className="text-[10px] sm:text-xs text-muted-foreground">{item.label}</p>
+                    <p className={`${mono.className} text-lg sm:text-xl font-medium tabular-nums mt-0.5`}>{item.value}</p>
                   </div>
                 </div>
               ))}

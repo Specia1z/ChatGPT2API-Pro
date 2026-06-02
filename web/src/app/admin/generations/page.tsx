@@ -87,55 +87,57 @@ export default function AdminGenerationsPage() {
   const fmtDate = (s: string) => s ? s.slice(5, 16) : "";
 
   if (loading && gens.length === 0) return (
-    <div className="h-screen bg-zinc-50 dark:bg-zinc-950 flex items-center justify-center">
-      <div className="w-8 h-8 border-2 border-zinc-300 dark:border-zinc-700 border-t-zinc-900 dark:border-t-zinc-100 rounded-full animate-spin" />
+    <div className="h-screen bg-background flex items-center justify-center">
+      <div className="w-8 h-8 border-2 border-border border-t-foreground rounded-full animate-spin" />
     </div>
   );
 
   return (
-    <div className="h-screen bg-zinc-50 dark:bg-zinc-950 flex overflow-hidden">
+    <div className="h-screen bg-background flex overflow-hidden pb-[calc(4rem+env(safe-area-inset-bottom))] md:pb-0">
       <AdminSidebar />
       <main className="flex-1 min-w-0 flex flex-col overflow-hidden">
 
         {/* ═══ Header ═══ */}
-        <div className="border-b border-zinc-200/60 dark:border-zinc-800/60 bg-white dark:bg-zinc-900 px-8 py-4 flex items-center justify-between shrink-0">
-          <div className="flex items-center gap-3">
-            <div className="w-1 h-5 rounded-full bg-zinc-900 dark:bg-zinc-100" />
+        <div className="border-b bg-card px-4 sm:px-8 py-4 flex items-center justify-between shrink-0">
+          <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+            <div className="w-1 h-5 rounded-full bg-foreground/20 shrink-0" />
             <div>
               <h1 className="text-sm font-semibold tracking-tight">生图管理</h1>
-              <p className="text-[10px] text-zinc-400 mt-0.5 tracking-wide">
-                共 <span className="font-semibold text-zinc-600 dark:text-zinc-300 tabular-nums">{total}</span> 条记录
+              <p className="text-[10px] text-muted-foreground mt-0.5 tracking-wide">
+                共 <span className="font-semibold text-foreground tabular-nums">{total}</span> 条记录
               </p>
             </div>
           </div>
           <Button variant="ghost" size="sm" onClick={() => { setPage(1); fetchGens(1, false); }}
-            className="gap-1.5 h-7 text-[10px] text-zinc-400 hover:text-zinc-600">
-            <RefreshCw className={`w-3 h-3 ${loading ? "animate-spin" : ""}`} /> 刷新
+            className="gap-1 sm:gap-1.5 h-7 text-[10px] text-muted-foreground hover:text-foreground px-1.5 sm:px-2 shrink-0">
+            <RefreshCw className={`w-3 h-3 ${loading ? "animate-spin" : ""}`} /> <span className="hidden sm:inline">刷新</span>
           </Button>
         </div>
 
-        <div className="flex-1 p-6 overflow-auto scrollbar-thin">
+        <div className="flex-1 p-4 sm:p-6 lg:p-8 overflow-auto scrollbar-thin">
 
-          {/* ═══ Stats strip ═══ */}
-          <div className="flex items-stretch gap-0 mb-5 rounded-2xl border border-zinc-200/60 dark:border-zinc-800/60 bg-white dark:bg-zinc-900 overflow-hidden">
+          {/* ═══ Stats cards ═══ */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3 mb-5">
             {[
-              { label: "总记录", value: total, fill: "#6366f1" },
-              { label: "今日生成", value: stats.todayCount, fill: "#10b981" },
-              { label: "失败", value: stats.failedCount, fill: "#ef4444" },
-              { label: "已分享", value: stats.sharedCount, fill: "#3b82f6" },
-            ].map((item, i) => (
-              <div key={item.label} className="flex-1 relative flex flex-col items-center justify-center py-3.5">
-                <div className="text-lg font-bold tabular-nums tracking-tight" style={{ color: item.fill }}>{item.value}</div>
-                <div className="text-[10px] text-zinc-400 mt-0.5">{item.label}</div>
-                {i < 3 && <div className="absolute right-0 top-3 bottom-3 w-px bg-zinc-100 dark:bg-zinc-800" />}
+              { label: "总记录", value: total, icon: ImageIcon, color: "text-primary", bg: "bg-primary/10" },
+              { label: "今日生成", value: stats.todayCount, icon: RefreshCw, color: "text-emerald-500", bg: "bg-emerald-500/10" },
+              { label: "失败", value: stats.failedCount, icon: X, color: "text-red-500", bg: "bg-red-500/10" },
+              { label: "已分享", value: stats.sharedCount, icon: Share2, color: "text-blue-500", bg: "bg-blue-500/10" },
+            ].map(item => (
+              <div key={item.label} className="rounded-xl border bg-card p-3 sm:p-3.5 hover:shadow-sm transition-shadow">
+                <div className={`size-7 sm:size-8 rounded-lg ${item.bg} flex items-center justify-center mb-1.5 sm:mb-2`}>
+                  <item.icon className={`size-3.5 sm:size-4 ${item.color}`} />
+                </div>
+                <p className="text-base sm:text-lg font-semibold tabular-nums leading-none">{item.value}</p>
+                <p className="text-[9px] sm:text-[10px] text-muted-foreground mt-1 sm:mt-1.5">{item.label}</p>
               </div>
             ))}
           </div>
 
           {/* ═══ Masonry grid ═══ */}
           {gens.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-24 text-zinc-400">
-              <ImageIcon className="w-8 h-8 mb-3 text-zinc-300 dark:text-zinc-600" />
+            <div className="flex flex-col items-center justify-center py-24 text-muted-foreground">
+              <ImageIcon className="w-8 h-8 mb-3 text-muted-foreground/50" />
               <p className="text-xs">暂无生图记录</p>
             </div>
           ) : (
@@ -146,7 +148,7 @@ export default function AdminGenerationsPage() {
                   const isFailed = g.status === "failed";
                   const imgSrc = imageProxyUrl(g) || null;
                   return (
-                    <div key={g.id} className={`group relative break-inside-avoid rounded-xl overflow-hidden bg-white dark:bg-zinc-900 border border-zinc-200/60 dark:border-zinc-800/60 hover:shadow-lg dark:hover:shadow-zinc-900/50 transition-all duration-300 ${isFailed ? "ring-1 ring-red-200 dark:ring-red-500/20" : ""}`}>
+                    <div key={g.id} className={`group relative break-inside-avoid rounded-xl overflow-hidden bg-card border hover:shadow-lg transition-all duration-300 ${isFailed ? "ring-1 ring-red-500/20" : ""}`}>
                       {imgSrc ? (
                         <>
                           <div className="relative cursor-pointer" onClick={() => setPreview(imgSrc)}>
@@ -158,12 +160,12 @@ export default function AdminGenerationsPage() {
                               className={`w-full h-auto block transition-opacity duration-500 ${isLoaded ? "opacity-100" : "opacity-0"}`}
                             />
                             {!isLoaded && (
-                              <div className="absolute inset-0 animate-pulse bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center">
-                                <ImagePlus className="w-5 h-5 text-zinc-300 dark:text-zinc-600" />
+                              <div className="absolute inset-0 animate-pulse bg-muted flex items-center justify-center">
+                                <ImagePlus className="w-5 h-5 text-muted-foreground/50" />
                               </div>
                             )}
                             {/* Hover overlay */}
-                            <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                            <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity duration-200">
                               <div className="absolute top-2 right-2 flex gap-1">
                                 <button className="p-1.5 rounded-lg bg-white/15 hover:bg-white/30 backdrop-blur-sm transition-colors">
                                   <Eye className="w-3 h-3 text-white" />
@@ -183,10 +185,10 @@ export default function AdminGenerationsPage() {
                           </div>
                           {/* Footer info */}
                           <div className="px-2.5 py-2 space-y-1">
-                            <p className="text-[10px] text-zinc-600 dark:text-zinc-400 line-clamp-2 leading-relaxed">{g.prompt || "无提示词"}</p>
-                            <div className="flex items-center gap-1.5 text-[9px] text-zinc-400">
+                            <p className="text-[10px] text-muted-foreground line-clamp-2 leading-relaxed">{g.prompt || "无提示词"}</p>
+                            <div className="flex items-center gap-1.5 text-[9px] text-muted-foreground/70">
                               {g.user_email && <span className="truncate font-mono flex-1">{g.user_email}</span>}
-                              {g.size && <span className="px-1 py-px rounded bg-zinc-100 dark:bg-zinc-800 font-mono shrink-0">{g.size}</span>}
+                              {g.size && <span className="px-1 py-px rounded bg-muted font-mono shrink-0">{g.size}</span>}
                               <span className="shrink-0 tabular-nums">{fmtDate(g.created_at)}</span>
                             </div>
                             {g.shared && (
@@ -209,10 +211,10 @@ export default function AdminGenerationsPage() {
                           </div>
                         </div>
                       ) : (
-                        <div className="aspect-[4/3] flex items-center justify-center bg-zinc-50 dark:bg-zinc-800/50">
+                        <div className="aspect-[4/3] flex items-center justify-center bg-muted">
                           <div className="text-center">
-                            <RefreshCw className="w-5 h-5 animate-spin text-zinc-300 dark:text-zinc-600 mx-auto mb-2" />
-                            <p className="text-[10px] text-zinc-400">生成中...</p>
+                            <RefreshCw className="w-5 h-5 animate-spin text-muted-foreground/50 mx-auto mb-2" />
+                            <p className="text-[10px] text-muted-foreground">生成中...</p>
                           </div>
                         </div>
                       )}
@@ -223,9 +225,10 @@ export default function AdminGenerationsPage() {
 
               {/* Infinite scroll sentinel */}
               <div ref={sentinelRef} className="h-10 flex items-center justify-center mt-4">
-                {loading && gens.length > 0 && <RefreshCw className="w-4 h-4 animate-spin text-zinc-400" />}
-                {!hasMore && gens.length > 0 && <span className="text-[10px] text-zinc-400">已加载全部 {total} 条</span>}
-              </div>
+                {loading && gens.length > 0 && <RefreshCw className="w-4 h-4 animate-spin text-muted-foreground" />}
+                {!hasMore && gens.length > 0 && <span className="text-[10px] text-muted-foreground">已加载全部 {total} 条</span>}
+              </div>{" "}
+              <div className="h-4 sm:h-0" />
             </>
           )}
         </div>
@@ -240,7 +243,7 @@ export default function AdminGenerationsPage() {
 
       {/* ═══ Preview ═══ */}
       <Dialog open={!!preview} onOpenChange={() => setPreview(null)}>
-        <DialogContent className="max-w-[90vw] max-h-[90vh] p-0 bg-black/95 border-zinc-800">
+        <DialogContent className="max-w-[90vw] max-h-[90vh] p-0 bg-black/95 border">
           <button onClick={() => setPreview(null)}
             className="absolute top-4 right-4 z-10 p-2 rounded-full bg-white/10 hover:bg-white/20 transition-colors">
             <X className="w-5 h-5 text-white" />

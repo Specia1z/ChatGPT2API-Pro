@@ -231,3 +231,55 @@
   30%  { opacity: 0; }
   100% { opacity: 1; }
 }
+
+/* ── AI 生成中：渐变柔和边框绕卡片转圈（中性灰阶） ── */
+@property --ai-angle {
+  syntax: "<angle>";
+  initial-value: 0deg;
+  inherits: false;
+}
+@keyframes aiBorderSpin {
+  to { --ai-angle: 360deg; }
+}
+/* 内部柔光呼吸 */
+@keyframes aiGlowBreathe {
+  0%, 100% { opacity: 0.25; transform: scale(0.9); }
+  50%      { opacity: 0.6;  transform: scale(1.05); }
+}
+/* 文字旁脉冲点 */
+@keyframes aiDotPulse {
+  0%, 100% { opacity: 0.3; transform: scale(0.8); }
+  50%      { opacity: 1;   transform: scale(1.15); }
+}
+/* 转圈边框层：conic 渐变 + mask 镂空成边框一圈 */
+.ai-creating-border::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1.5px;
+  background: conic-gradient(
+    from var(--ai-angle),
+    transparent 0deg,
+    rgba(26, 26, 24, 0.05) 60deg,
+    rgba(26, 26, 24, 0.55) 150deg,
+    rgba(26, 26, 24, 0.05) 240deg,
+    transparent 360deg
+  );
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  animation: aiBorderSpin 2.4s linear infinite;
+  pointer-events: none;
+}
+.dark .ai-creating-border::before {
+  background: conic-gradient(
+    from var(--ai-angle),
+    transparent 0deg,
+    rgba(255, 255, 255, 0.05) 60deg,
+    rgba(255, 255, 255, 0.6) 150deg,
+    rgba(255, 255, 255, 0.05) 240deg,
+    transparent 360deg
+  );
+}

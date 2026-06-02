@@ -82,18 +82,18 @@ export default function PlansPage() {
       <main className="flex-1 min-w-0 flex flex-col overflow-hidden">
 
         {/* ═══ Header ═══ */}
-        <div className="border-b bg-card px-8 py-4 flex items-center justify-between shrink-0">
-          <div>
-            <h1 className={`${heading.className} text-base font-semibold tracking-tight`}>套餐管理</h1>
-            <p className="text-xs text-muted-foreground mt-0.5">{plans.length} 个套餐 · 点击星标设置推荐</p>
+        <div className="border-b bg-card px-4 sm:px-8 py-4 flex items-center justify-between shrink-0">
+          <div className="min-w-0">
+            <h1 className={`${heading.className} text-sm sm:text-base font-semibold tracking-tight`}>套餐管理</h1>
+            <p className="text-[10px] sm:text-xs text-muted-foreground mt-0.5">{plans.length} 个套餐 · 点击星标设置推荐</p>
           </div>
-          <Button size="sm" onClick={newPlan} className="gap-1.5 text-xs">
-            <Plus className="size-3.5" /> 新建套餐
+          <Button size="sm" onClick={newPlan} className="gap-1 sm:gap-1.5 text-[10px] sm:text-xs px-1.5 sm:px-2 shrink-0">
+            <Plus className="size-3 sm:size-3.5" /> <span className="hidden sm:inline">新建套餐</span><span className="sm:hidden">新建</span>
           </Button>
         </div>
 
         {/* ═══ 卡片网格 ═══ */}
-        <div className="flex-1 p-6 lg:p-8 overflow-auto scrollbar-thin">
+        <div className="flex-1 p-4 sm:p-6 lg:p-8 overflow-auto scrollbar-thin">
           {plans.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-32">
               <div className="size-14 rounded-2xl bg-muted flex items-center justify-center mb-3">
@@ -102,7 +102,7 @@ export default function PlansPage() {
               <p className="text-sm text-muted-foreground">暂无套餐，点击「新建套餐」创建</p>
             </div>
           ) : (
-            <motion.div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4"
+            <motion.div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4"
               variants={stagger} initial="hidden" animate="visible">
               {plans.sort((a, b) => a.sort_order - b.sort_order).map(p => {
                 const features = parseFeatures(p.features || "[]");
@@ -119,10 +119,10 @@ export default function PlansPage() {
                       </div>
                     )}
 
-                    <div className="p-5">
+                    <div className="p-4 sm:p-5">
                       {/* 名称行 */}
-                      <div className="flex items-center justify-between mb-3">
-                        <div className="flex items-center gap-2 min-w-0">
+                      <div className="flex items-center justify-between mb-2 sm:mb-3">
+                        <div className="flex items-center gap-1.5 sm:gap-2 min-w-0">
                           <button onClick={() => toggleHighlighted(p)}
                             className={`shrink-0 transition-colors ${p.highlighted ? "text-primary" : "text-muted-foreground/40 hover:text-primary"}`}>
                             <Star className={`size-4 ${p.highlighted ? "fill-current" : ""}`} />
@@ -138,36 +138,36 @@ export default function PlansPage() {
                       </div>
 
                       {/* 价格 */}
-                      <div className="flex items-baseline gap-2 mb-4 min-h-[36px]">
+                      <div className="flex items-baseline gap-1.5 sm:gap-2 mb-3 sm:mb-4">
                         {isFree ? (
-                          <span className={`${heading.className} text-2xl font-bold text-emerald-600 dark:text-emerald-400`}>免费</span>
+                          <span className={`${heading.className} text-xl sm:text-2xl font-bold text-emerald-600 dark:text-emerald-400`}>免费</span>
                         ) : (
                           <>
-                            <div className="flex items-baseline">
-                              <span className="text-xs text-muted-foreground mr-0.5">¥</span>
-                              <span className={`${mono.className} text-3xl font-medium tabular-nums tracking-tight`}>{p.price_monthly}</span>
-                              <span className="text-xs text-muted-foreground ml-1">/月</span>
+                            <div className="flex items-baseline flex-wrap">
+                              <span className="text-[10px] sm:text-xs text-muted-foreground mr-0.5">¥</span>
+                              <span className={`${mono.className} text-2xl sm:text-3xl font-medium tabular-nums tracking-tight`}>{p.price_monthly}</span>
+                              <span className="text-[10px] sm:text-xs text-muted-foreground ml-0.5 sm:ml-1">/月</span>
                             </div>
                             {p.price_yearly > 0 && (
-                              <span className={`${mono.className} text-xs text-muted-foreground tabular-nums`}>¥{p.price_yearly}/月<span className="text-[10px]">(年付)</span></span>
+                              <span className={`${mono.className} text-[10px] sm:text-xs text-muted-foreground tabular-nums`}>¥{p.price_yearly}/月<span className="text-[9px] sm:text-[10px]">(年付)</span></span>
                             )}
                           </>
                         )}
                       </div>
 
                       {/* 指标条 */}
-                      <div className="grid grid-cols-3 gap-2 mb-4">
+                      <div className="grid grid-cols-3 gap-1.5 sm:gap-2 mb-3 sm:mb-4">
                         {[
                           { icon: Zap, value: p.concurrency || 1, label: "并发", color: "text-primary", bg: "bg-primary/10" },
                           { icon: Coins, value: p.token_capacity || 50, label: "令牌", color: "text-emerald-500", bg: "bg-emerald-500/10" },
                           { icon: Timer, value: p.token_refill_per_hour || 3, label: "/小时", color: "text-blue-500", bg: "bg-blue-500/10" },
                         ].map(m => (
-                          <div key={m.label} className="rounded-xl bg-muted/40 p-2.5 text-center">
-                            <div className={`size-7 rounded-lg ${m.bg} flex items-center justify-center mx-auto mb-1.5`}>
-                              <m.icon className={`size-3.5 ${m.color}`} />
+                          <div key={m.label} className="rounded-xl bg-muted/40 p-2 sm:p-2.5 text-center">
+                            <div className={`size-6 sm:size-7 rounded-lg ${m.bg} flex items-center justify-center mx-auto mb-1 sm:mb-1.5`}>
+                              <m.icon className={`size-3 sm:size-3.5 ${m.color}`} />
                             </div>
-                            <p className={`${mono.className} text-base font-medium tabular-nums leading-none`}>{m.value}</p>
-                            <p className="text-[9px] text-muted-foreground mt-1">{m.label}</p>
+                            <p className={`${mono.className} text-sm sm:text-base font-medium tabular-nums leading-none`}>{m.value}</p>
+                            <p className="text-[8px] sm:text-[9px] text-muted-foreground mt-0.5 sm:mt-1">{m.label}</p>
                           </div>
                         ))}
                       </div>
@@ -185,7 +185,7 @@ export default function PlansPage() {
                       </div>
 
                       {features.length > 0 && (
-                        <div className="flex flex-wrap gap-1 mb-4">
+                        <div className="flex flex-wrap gap-1 mb-3 sm:mb-4">
                           {features.map((f, i) => (
                             <span key={i} className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-muted text-[10px] text-muted-foreground">
                               <Check className="size-2.5 text-emerald-500" /> {f}
@@ -210,7 +210,7 @@ export default function PlansPage() {
 
               {/* 新建卡 */}
               <motion.button variants={cardPop} onClick={newPlan}
-                className="rounded-2xl border-2 border-dashed flex flex-col items-center justify-center py-12 text-muted-foreground hover:text-foreground hover:border-primary/40 transition-all group min-h-[300px]">
+                className="rounded-2xl border-2 border-dashed flex flex-col items-center justify-center py-8 sm:py-12 text-muted-foreground hover:text-foreground hover:border-primary/40 transition-all group min-h-[220px] sm:min-h-[300px]">
                 <div className="size-12 rounded-2xl bg-muted flex items-center justify-center mb-2 group-hover:bg-primary/10 group-hover:scale-105 transition-all">
                   <Plus className="size-6 group-hover:text-primary transition-colors" />
                 </div>
@@ -227,7 +227,7 @@ export default function PlansPage() {
 
       {/* ═══ 编辑弹窗 ═══ */}
       <Dialog open={!!editing} onOpenChange={() => setEditing(null)}>
-        <DialogContent className={`${heading.variable} ${mono.variable} max-w-lg max-h-[90vh] overflow-y-auto scrollbar-thin`}>
+        <DialogContent className={`${heading.variable} ${mono.variable} max-w-sm sm:max-w-lg max-h-[85vh] sm:max-h-[90vh] overflow-y-auto scrollbar-thin`}>
           <DialogHeader>
             <DialogTitle className={`${heading.className} text-base font-semibold`}>{editing?.id ? "编辑套餐" : "新建套餐"}</DialogTitle>
             <DialogDescription className="sr-only">配置套餐的价格、配额与功能</DialogDescription>

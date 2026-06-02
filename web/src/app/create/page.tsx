@@ -15,6 +15,7 @@ import { Navbar } from "@/components/navbar";
 import { imageProxyUrl } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "@/components/ui/tooltip";
 import { toast } from "sonner";
 
@@ -47,9 +48,6 @@ const FILTER_TABS = [
   { key: "failed" as const, label: "失败", icon: AlertCircle },
 ];
 
-const ACCENTS = ["#06b6d4", "#f59e0b", "#8b5cf6", "#10b981", "#e11d48", "#3b82f6"];
-const accent = (id: number) => ACCENTS[Math.abs(id) % ACCENTS.length];
-
 /* ── Ref image src ────────────────────── */
 // 从裸 base64 的 magic 前缀推断 MIME（FileReader 读出的 dataURL 已被剥掉前缀只剩 base64）
 const b64Mime = (b64: string): string => {
@@ -74,10 +72,11 @@ export default function CreatePage() {
   const [prompt, setPrompt] = useState("");
   const [loading, setLoading] = useState(false);
   const [generations, setGenerations] = useState<any[]>([]);
-  const [preview, setPreview] = useState<string | null>(null);
+  const [previewGen, setPreviewGen] = useState<any>(null);
   const [refImages, setRefImages] = useState<string[]>([]);
   const [fusionMode, setFusionMode] = useState(false);
   const [sizeOpen, setSizeOpen] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<number | null>(null);
   const [size, setSize] = useState("1:1");
   const [hsFilter, setHsFilter] = useState<"all" | "completed" | "failed" | "pending">("all");
   const [revealedIds, setRevealedIds] = useState<Set<string>>(new Set());
@@ -326,7 +325,10 @@ export default function CreatePage() {
     try {
       await api("/api/generations/share", { method: "POST", body: JSON.stringify({ id: g.id, shared: v }) });
       setGenerations(prev => prev.map(x => x.id === g.id ? { ...x, shared: v } : x));
-    } catch {}
+      toast.success(v ? "已分享到灵感广场" : "已取消分享");
+    } catch {
+      toast.error("操作失败，请重试");
+    }
   };
 
   /* ── Derived ── */
@@ -415,7 +417,7 @@ export default function CreatePage() {
               <div
                 className={`absolute -inset-1 rounded-2xl blur-xl ${loading ? "opacity-60" : "opacity-20"}`}
                 style={{
-                  background: "linear-gradient(135deg, #06b6d4, #8b5cf6, #f59e0b, #06b6d4) 0% 50% / 200% 100%",
+                  background: "linear-gradient(135deg, #1a1a18, #9e9d98, #c0bfb8, #1a1a18) 0% 50% / 200% 100%",
                   animation: loading ? "gradientFlow 3s ease-in-out infinite" : "none",
                   willChange: "transform",
                   transform: "translateZ(0)",
@@ -432,8 +434,8 @@ export default function CreatePage() {
                   className="w-full px-5 py-4 bg-transparent text-sm text-[#1a1a18] dark:text-white placeholder:text-[#c0bfb8] dark:placeholder:text-[#4a4a45] resize-none outline-none leading-relaxed"
                 />
                 {/* Bottom bar */}
-                <div className="flex items-center justify-between px-4 pb-3 pt-1">
-                  <div className="flex items-center gap-2">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1.5 sm:gap-2 px-3 sm:px-4 pb-3 pt-1">
+                  <div className="flex items-center flex-wrap gap-1 sm:gap-2">
                     {/* Size pills — common + more dropdown */}
                     <div className="flex items-center gap-1">
                       {SIZES.slice(0, 5).map(s => {
@@ -446,7 +448,7 @@ export default function CreatePage() {
                               : "text-[#9e9d98] dark:text-[#6b6a66] hover:text-[#1a1a18] dark:hover:text-white hover:bg-[#f0efe8] dark:hover:bg-[#252521]"
                           }`}>
                           <Icon className="w-2.5 h-2.5" />
-                          {s.desc}
+                          <span className="hidden sm:inline">{s.desc}</span>
                         </button>
                       );})}
                       <div className="relative">
@@ -468,7 +470,7 @@ export default function CreatePage() {
                         {sizeOpen && (
                           <>
                             <div className="fixed inset-0 z-10" onClick={() => setSizeOpen(false)} />
-                            <div className="absolute left-0 top-full mt-1 z-20 w-[220px] p-2 rounded-xl bg-white dark:bg-[#1a1a18] border border-[#e0dfd8] dark:border-[#2a2a25] shadow-xl grid grid-cols-2 gap-1">
+                            <div className="absolute right-0 sm:left-0 top-full mt-1 z-20 w-[220px] p-2 rounded-xl bg-white dark:bg-[#1a1a18] border border-[#e0dfd8] dark:border-[#2a2a25] shadow-xl grid grid-cols-2 gap-1">
                               {SIZES.slice(5).map(s => {
                                 const Icon = s.icon;
                                 const cur = size === s.id;
@@ -503,17 +505,17 @@ export default function CreatePage() {
                         {refImages.map((img, idx) => (
                           <div key={idx} className="relative">
                             <img src={refImageSrc(img)} className="w-6 h-6 rounded object-cover ring-1 ring-[#e0dfd8] dark:ring-[#2a2a25]" />
-                            <button onClick={() => setRefImages(refImages.filter((_, i) => i !== idx))} className="absolute -top-1 -right-1 w-3 h-3 rounded-full bg-[#e11d48] text-white flex items-center justify-center text-[6px]">×</button>
+                            <button onClick={() => setRefImages(refImages.filter((_, i) => i !== idx))} className="absolute -top-1 -right-1 w-3 h-3 rounded-full bg-[#1a1a18] dark:bg-white text-white dark:text-[#1a1a18] flex items-center justify-center text-[6px]">×</button>
                           </div>
                         ))}
                       </div>
                     )}
                     {refImages.length > 0 && fusionMode && (
-                      <span className="text-[10px] text-[#8b5cf6] font-medium px-1.5 py-0.5 rounded-md bg-[#8b5cf6]/10">融合</span>
+                      <span className="text-[10px] text-[#6b6a66] dark:text-[#9e9d98] font-medium px-1.5 py-0.5 rounded-md bg-[#f0efe8] dark:bg-[#252521]">融合</span>
                     )}
                     <button onClick={() => { setFusionMode(!fusionMode); setRefImages([]); }}
                       className={`flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-medium transition-all ${
-                        fusionMode ? "bg-[#8b5cf6] text-white" : "text-[#9e9d98] dark:text-[#6b6a66] hover:text-[#1a1a18] dark:hover:text-white hover:bg-[#f0efe8] dark:hover:bg-[#252521]"
+                        fusionMode ? "bg-[#1a1a18] dark:bg-white text-white dark:text-[#1a1a18]" : "text-[#9e9d98] dark:text-[#6b6a66] hover:text-[#1a1a18] dark:hover:text-white hover:bg-[#f0efe8] dark:hover:bg-[#252521]"
                       }`}>
                       <ImageIcon className="w-2.5 h-2.5" />
                       {fusionMode ? "融合" : "图生图"}
@@ -531,7 +533,7 @@ export default function CreatePage() {
                       }} />
                   </div>
 
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center justify-end gap-2 shrink-0">
                     {/* Line count */}
                     {lineCount > 1 && (
                       <span className="text-[10px] text-[#9e9d98] dark:text-[#6b6a66] font-mono tabular-nums bg-[#f0efe8] dark:bg-[#252521] px-1.5 py-0.5 rounded-md">
@@ -568,8 +570,8 @@ export default function CreatePage() {
               <span className="text-[10px] text-[#9e9d98] dark:text-[#6b6a66] font-mono">{total || generations.length}</span>
             </div>
             {generations.length > 0 && (
-              <div className="flex items-center gap-1">
-                <div className="flex items-center gap-1 p-0.5 rounded-lg bg-[#f0efe8] dark:bg-[#1f1f1b]">
+              <div className="flex items-center gap-1 overflow-x-auto flex-nowrap max-w-full -mx-2 sm:mx-0 px-2 sm:px-0">
+                <div className="flex items-center gap-1 p-0.5 rounded-lg bg-[#f0efe8] dark:bg-[#1f1f1b] shrink-0">
                   {FILTER_TABS.map(tab => (
                     <button key={tab.key} onClick={() => setHsFilter(tab.key)}
                       className={`flex items-center gap-1 px-2.5 py-1.5 rounded-md text-[10px] font-medium transition-all ${
@@ -614,7 +616,6 @@ export default function CreatePage() {
                   <AnimatePresence>
                   {col.map((g) => {
                     const isRev = revealedIds.has(String(g.id));
-                    const clr = g.id ? accent(g.id) : "#6366f1";
 
                     return (
                       <motion.div
@@ -625,11 +626,11 @@ export default function CreatePage() {
                         transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
                         style={{ willChange: "transform" }}
                         className="group relative rounded-xl overflow-hidden bg-white dark:bg-[#181814] border border-[#e8e7e2] dark:border-[#1f1f1b] cursor-pointer"
-                        onClick={() => { const s = imageProxyUrl(g); if (s) setPreview(s); }}
+                        onClick={() => { if (imageProxyUrl(g)) setPreviewGen(g); }}
                       >
                     {(g.image_url || (g.image_b64 && g.image_b64.length > 100)) ? (
                       <>
-                        <div className="h-[2px]" style={{ backgroundColor: clr }} />
+                        <div className="h-[2px] bg-[#e0dfd8] dark:bg-[#2a2a25]" />
                         {mounted ? (
                           <img src={imageProxyUrl(g)} alt={g.prompt} className="w-full h-auto"
                             onLoad={() => setRevealedIds(prev => { if (prev.has(String(g.id))) return prev; return new Set(prev).add(String(g.id)); })} />
@@ -690,7 +691,7 @@ export default function CreatePage() {
                                 </Tooltip>
                                 <Tooltip>
                                   <TooltipTrigger render={
-                                    <button onClick={e => { e.stopPropagation(); deleteGen(e, g.id); }}
+                                    <button onClick={e => { e.stopPropagation(); setDeleteTarget(g.id); }}
                                       className="p-1 rounded-lg bg-white/15 hover:bg-red-500/50 transition-colors">
                                       <Trash2 className="w-3 h-3 text-white" />
                                     </button>
@@ -703,13 +704,16 @@ export default function CreatePage() {
                         </div>
                       </>
                     ) : g.status === "pending" ? (
-                      <div className="flex flex-col items-center justify-center gap-3 py-16 bg-[#faf9f6] dark:bg-[#181814]">
-                        <div className="relative w-10 h-10">
-                          <div className="absolute inset-0 rounded-full border-2 border-[#e0dfd8] dark:border-[#2a2a25]" />
-                          <div className="absolute inset-0 rounded-full border-2 border-transparent border-t-[#1a1a18] dark:border-t-white animate-spin" />
+                      <div className="ai-creating-border relative flex flex-col items-center justify-center gap-3 py-16 bg-[#faf9f6] dark:bg-[#181814] overflow-hidden">
+                        {/* 内部柔光呼吸 — 暗示 AI 正在生成 */}
+                        <div aria-hidden className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-24 h-24 rounded-full blur-2xl bg-[#1a1a18]/20 dark:bg-white/20"
+                          style={{ animation: "aiGlowBreathe 2.8s ease-in-out infinite" }} />
+                        <div className="relative flex items-center gap-1.5">
+                          <span className="w-1.5 h-1.5 rounded-full bg-[#1a1a18] dark:bg-white"
+                            style={{ animation: "aiDotPulse 1.4s ease-in-out infinite" }} />
+                          <span className="text-[10px] text-[#6b6a66] dark:text-[#9e9d98] font-medium tracking-wide">AI 创作中</span>
                         </div>
-                        <span className="text-[10px] text-[#9e9d98] dark:text-[#8a8985] font-medium tracking-wide">生成中</span>
-                        <span className="text-[10px] text-[#c0bfb8] dark:text-[#4a4a45]">约 10-30 秒</span>
+                        <span className="relative text-[10px] text-[#c0bfb8] dark:text-[#4a4a45]">约 10-30 秒</span>
                       </div>
                     ) : (
                       <div className="flex flex-col items-center justify-center gap-3 py-16 bg-[#faf9f6] dark:bg-[#181814]">
@@ -751,16 +755,68 @@ export default function CreatePage() {
           )}
         </div>
 
+        {/* ═══ Delete Confirm ═══ */}
+        <ConfirmDialog
+          open={deleteTarget !== null}
+          onOpenChange={(open) => { if (!open) setDeleteTarget(null); }}
+          title="删除作品"
+          description="确认删除这张图片？此操作不可撤销。"
+          confirmLabel="删除"
+          variant="destructive"
+          onConfirm={async () => {
+            if (deleteTarget === null) return;
+            await api("/api/generations", { method: "DELETE", body: JSON.stringify({ id: deleteTarget }) }).catch(() => {});
+            colAssignRef.current.delete(deleteTarget);
+            setGenerations((prev) => prev.filter((g) => g.id !== deleteTarget));
+            setDeleteTarget(null);
+            setPreviewGen(null);
+          }}
+        />
+
         {/* ═══ Preview Dialog ═══ */}
-        <Dialog open={!!preview} onOpenChange={() => setPreview(null)}>
-          <DialogContent className="max-w-3xl p-0 bg-transparent border-0 shadow-none [&>button]:hidden">
-            {preview && (
-              <div className="relative">
-                <button onClick={() => setPreview(null)}
-                  className="absolute top-4 right-4 z-10 w-8 h-8 rounded-full bg-black/40 backdrop-blur-sm flex items-center justify-center text-white hover:bg-black/60 transition-colors">
-                  <X className="w-4 h-4" />
-                </button>
-                <img src={preview} className="w-full h-auto rounded-xl shadow-2xl" alt="" />
+        <Dialog open={!!previewGen} onOpenChange={() => setPreviewGen(null)}>
+          <DialogContent className="max-w-3xl p-0 px-3 sm:px-0 bg-transparent border-0 shadow-none [&>button]:hidden">
+            {previewGen && (
+              <div className="bg-white dark:bg-[#181814] rounded-xl overflow-hidden shadow-2xl">
+                {/* Close */}
+                <div className="relative">
+                  <button onClick={() => setPreviewGen(null)}
+                    className="absolute top-3 right-3 md:top-4 md:right-4 z-10 w-9 h-9 md:w-8 md:h-8 rounded-full bg-black/40 backdrop-blur-sm flex items-center justify-center text-white hover:bg-black/60 transition-colors">
+                    <X className="w-4 h-4" />
+                  </button>
+                  <img src={imageProxyUrl(previewGen)} className="w-full h-auto" alt={previewGen.prompt} />
+                </div>
+                {/* Info + Actions */}
+                <div className="p-3 sm:p-4 space-y-2 sm:space-y-3">
+                  <p className="text-xs sm:text-sm text-[#1a1a18] dark:text-white leading-relaxed line-clamp-2 sm:line-clamp-3">{previewGen.prompt}</p>
+                  <div className="flex items-center gap-2">
+                    {previewGen.size && <span className="text-[10px] px-1.5 py-0.5 rounded bg-[#f0efe8] dark:bg-[#252521] text-[#6b6a66] dark:text-[#9e9d98] font-mono">{previewGen.size}</span>}
+                    <span className="text-[10px] text-[#c0bfb8] dark:text-[#4a4a45]">{previewGen.created_at?.slice(5, 16)}</span>
+                  </div>
+                  {/* Action buttons — mobile: icons only, desktop: icon + label */}
+                  <div className="flex items-center gap-1 sm:gap-2 pt-2 sm:pt-3 border-t border-[#e8e7e2] dark:border-[#1f1f1b]">
+                    <button onClick={async (e) => { await toggleShare(e, previewGen); setPreviewGen({ ...previewGen, shared: !previewGen.shared }); }}
+                      className="flex items-center justify-center sm:justify-start gap-0.5 sm:gap-1.5 w-9 sm:w-auto h-9 sm:h-auto px-0 sm:px-3 py-2 sm:py-1.5 rounded-lg text-[11px] font-medium bg-[#f0efe8] dark:bg-[#252521] text-[#6b6a66] dark:text-[#9e9d98] hover:text-[#1a1a18] dark:hover:text-white transition-colors">
+                      <Share2 className="w-4 h-4 sm:w-3.5 sm:h-3.5 shrink-0" />
+                      <span className="hidden sm:inline">{previewGen.shared ? "已分享" : "分享"}</span>
+                    </button>
+                    <button onClick={(e) => { editGen(e, previewGen); setPreviewGen(null); }}
+                      className="flex items-center justify-center sm:justify-start gap-0.5 sm:gap-1.5 w-9 sm:w-auto h-9 sm:h-auto px-0 sm:px-3 py-2 sm:py-1.5 rounded-lg text-[11px] font-medium bg-[#f0efe8] dark:bg-[#252521] text-[#6b6a66] dark:text-[#9e9d98] hover:text-[#1a1a18] dark:hover:text-white transition-colors">
+                      <ImageIcon className="w-4 h-4 sm:w-3.5 sm:h-3.5 shrink-0" />
+                      <span className="hidden sm:inline">编辑</span>
+                    </button>
+                    <button onClick={() => { downloadImg(imageProxyUrl(previewGen), previewGen.id); }}
+                      className="flex items-center justify-center sm:justify-start gap-0.5 sm:gap-1.5 w-9 sm:w-auto h-9 sm:h-auto px-0 sm:px-3 py-2 sm:py-1.5 rounded-lg text-[11px] font-medium bg-[#f0efe8] dark:bg-[#252521] text-[#6b6a66] dark:text-[#9e9d98] hover:text-[#1a1a18] dark:hover:text-white transition-colors">
+                      <Download className="w-4 h-4 sm:w-3.5 sm:h-3.5 shrink-0" />
+                      <span className="hidden sm:inline">下载</span>
+                    </button>
+                    <button onClick={() => { setDeleteTarget(previewGen.id); }}
+                      className="flex items-center justify-center sm:justify-start gap-0.5 sm:gap-1.5 w-9 sm:w-auto h-9 sm:h-auto px-0 sm:px-3 py-2 sm:py-1.5 rounded-lg text-[11px] font-medium text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors ml-auto">
+                      <Trash2 className="w-4 h-4 sm:w-3.5 sm:h-3.5 shrink-0" />
+                      <span className="hidden sm:inline">删除</span>
+                    </button>
+                  </div>
+                </div>
               </div>
             )}
           </DialogContent>

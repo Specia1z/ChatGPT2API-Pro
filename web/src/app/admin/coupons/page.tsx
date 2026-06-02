@@ -51,9 +51,9 @@ function CouponCard({ c, onCopy, onDisable, copied }: any) {
         ))}
       </div>
 
-      <div className="p-5 pt-3">
+      <div className="p-4 sm:p-5 pt-3">
         {/* 类型 + 状态 */}
-        <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center justify-between mb-3 sm:mb-4">
           <div className="flex items-center gap-2">
             <div className={`size-8 rounded-xl ${accent.bg} flex items-center justify-center`}>
               <Icon className={`size-4 ${accent.color}`} />
@@ -69,7 +69,7 @@ function CouponCard({ c, onCopy, onDisable, copied }: any) {
         <div className="flex items-center gap-2 mb-4">
           <span className={`${mono.className} text-lg font-medium tracking-[0.12em]`}>{c.code}</span>
           <button onClick={() => onCopy(c.code)}
-            className="size-6 rounded-lg flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition-all opacity-0 group-hover:opacity-100">
+            className="size-6 rounded-lg flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition-all opacity-100 sm:opacity-0 sm:group-hover:opacity-100">
             {copied === c.code ? <Check className="size-3 text-emerald-500" /> : <Copy className="size-3" />}
           </button>
         </div>
@@ -199,7 +199,7 @@ export default function CouponsPage() {
   );
 
   return (
-    <div className={`${heading.variable} ${mono.variable} h-screen bg-background flex overflow-hidden`}>
+    <div className={`${heading.variable} ${mono.variable} h-screen bg-background flex overflow-hidden pb-[calc(4rem+env(safe-area-inset-bottom))] md:pb-0`}>
       <AdminSidebar />
       <main className="flex-1 min-w-0 flex flex-col overflow-hidden">
 

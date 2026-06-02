@@ -45,17 +45,17 @@ function Card({ id, icon: Icon, color, bg, title, desc, action, children }: {
     <motion.section id={id} initial={{ opacity: 0, y: 12 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true, margin: "-80px" }}
       transition={{ duration: 0.4, ease: [0.25, 0.46, 0.45, 0.94] }}
       className="scroll-mt-6 rounded-2xl border bg-card overflow-hidden">
-      <div className="px-6 py-4 border-b flex items-center gap-3">
-        <div className={`size-9 rounded-xl ${bg} flex items-center justify-center shrink-0`}>
-          <Icon className={`size-[18px] ${color}`} />
+      <div className="px-4 sm:px-6 py-3 sm:py-4 border-b flex items-center gap-3">
+        <div className={`size-8 sm:size-9 rounded-xl ${bg} flex items-center justify-center shrink-0`}>
+          <Icon className={`size-4 sm:size-[18px] ${color}`} />
         </div>
         <div className="min-w-0 flex-1">
           <h2 className={`${heading.className} text-sm font-semibold`}>{title}</h2>
-          <p className="text-xs text-muted-foreground mt-0.5">{desc}</p>
+          <p className="text-[10px] sm:text-xs text-muted-foreground mt-0.5">{desc}</p>
         </div>
         {action}
       </div>
-      <div className="p-6">{children}</div>
+      <div className="p-4 sm:p-6">{children}</div>
     </motion.section>
   );
 }
@@ -148,14 +148,14 @@ export default function SettingsPage() {
               {/* ═══ 站点信息 ═══ */}
               <Card id="site" icon={Globe} color="text-blue-500" bg="bg-blue-500/10" title="站点信息" desc="标题、描述、Logo 与默认套餐">
                 <div className="space-y-4">
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div className="space-y-1.5"><Label>站点标题</Label><Input value={cfg?.site_title || ""} onChange={e => update("site_title", e.target.value)} className="text-sm" /></div>
                     <div className="space-y-1.5"><Label>副标题</Label><Input value={cfg?.site_subtitle || ""} onChange={e => update("site_subtitle", e.target.value)} className="text-sm" /></div>
                   </div>
                   <div className="space-y-1.5"><Label>站点描述</Label>
                     <textarea value={cfg?.site_description || ""} onChange={e => update("site_description", e.target.value)} rows={2} className="w-full rounded-lg border bg-background px-3 py-2 text-sm outline-none resize-none focus:ring-2 focus:ring-primary/20" />
                   </div>
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div className="space-y-1.5"><Label>新用户默认套餐</Label>
                       <select value={cfg?.default_plan_id || 0} onChange={e => update("default_plan_id", +e.target.value)}
                         className="w-full h-8 rounded-lg border bg-background px-2.5 text-sm outline-none focus:ring-2 focus:ring-primary/20">
@@ -207,7 +207,7 @@ export default function SettingsPage() {
                 action={<Switch checked={cfg?.checkin_enabled} onCheckedChange={v => update("checkin_enabled", v)} />}>
                 {cfg?.checkin_enabled ? (
                   <div className="space-y-4">
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div className="space-y-1.5"><Label>基础积分</Label><Input type="number" value={cfg?.checkin_base || 10} onChange={e => update("checkin_base", +e.target.value)} className={inputCls} /></div>
                       <div className="space-y-1.5"><Label>连续奖励 / 天</Label><Input type="number" value={cfg?.checkin_streak_bonus || 5} onChange={e => update("checkin_streak_bonus", +e.target.value)} className={inputCls} /></div>
                     </div>
@@ -227,7 +227,7 @@ export default function SettingsPage() {
               <Card id="security" icon={Shield} color="text-primary" bg="bg-primary/10" title="安全验证" desc="Cloudflare Turnstile 人机验证"
                 action={<Switch checked={cfg?.cf_turnstile_enabled} onCheckedChange={v => update("cf_turnstile_enabled", v)} />}>
                 {cfg?.cf_turnstile_enabled ? (
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div className="space-y-1.5"><Label>Site Key</Label><Input value={cfg?.cf_turnstile_site_key || ""} onChange={e => update("cf_turnstile_site_key", e.target.value)} className={inputCls} /></div>
                     <div className="space-y-1.5"><Label>Secret Key</Label><Input type="password" value={cfg?.cf_turnstile_secret_key || ""} onChange={e => update("cf_turnstile_secret_key", e.target.value)} className={inputCls} /></div>
                   </div>
@@ -280,11 +280,11 @@ export default function SettingsPage() {
                 action={<Switch checked={cfg?.alipay_enabled} onCheckedChange={v => update("alipay_enabled", v)} />}>
                 {cfg?.alipay_enabled ? (
                   <div className="space-y-4">
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div className="space-y-1.5"><Label>支付宝 APP ID</Label><Input value={cfg?.alipay_app_id || ""} onChange={e => update("alipay_app_id", e.target.value)} placeholder="202100..." className={inputCls} /></div>
                       <div className="space-y-1.5"><Label>异步通知 URL</Label><Input value={cfg?.alipay_notify_url || ""} onChange={e => update("alipay_notify_url", e.target.value)} placeholder="留空则使用轮询查询" className={inputCls} /></div>
                     </div>
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div className="space-y-1.5"><Label>应用私钥（RSA2）</Label><textarea value={cfg?.alipay_app_private_key || ""} onChange={e => update("alipay_app_private_key", e.target.value)} rows={4} placeholder="-----BEGIN RSA PRIVATE KEY-----" className={taCls} /></div>
                       <div className="space-y-1.5"><Label>支付宝公钥</Label><textarea value={cfg?.alipay_alipay_public_key || ""} onChange={e => update("alipay_alipay_public_key", e.target.value)} rows={4} placeholder="-----BEGIN PUBLIC KEY-----" className={taCls} /></div>
                     </div>
@@ -294,7 +294,7 @@ export default function SettingsPage() {
 
               {/* ═══ 存储清理 ═══ */}
               <Card id="storage" icon={Database} color="text-violet-500" bg="bg-violet-500/10" title="本地存储清理" desc="定期清理过期的本地图片文件">
-                <div className="grid grid-cols-2 gap-4 items-start">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-start">
                   <div className="space-y-1.5">
                     <Label>文件保留天数</Label>
                     <Input type="number" min={0} max={365} value={cfg?.storage_cleanup_days ?? 0} onChange={e => update("storage_cleanup_days", +e.target.value)} className={inputCls} />

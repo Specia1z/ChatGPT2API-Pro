@@ -70,26 +70,26 @@ export default function StoragePage() {
   );
 
   return (
-    <div className={`${heading.variable} ${mono.variable} h-screen bg-background flex overflow-hidden`}>
+    <div className={`${heading.variable} ${mono.variable} h-screen bg-background flex overflow-hidden pb-[calc(4rem+env(safe-area-inset-bottom))] md:pb-0`}>
       <AdminSidebar />
       <main className="flex-1 min-w-0 flex flex-col overflow-hidden">
 
         {/* ═══ Header ═══ */}
-        <div className="border-b bg-card px-8 py-4 flex items-center justify-between shrink-0">
-          <div className="flex items-center gap-3">
-            <div className={`size-9 rounded-xl ${current.bg} flex items-center justify-center`}>
-              <current.icon className={`size-5 ${current.text}`} />
+        <div className="border-b bg-card px-4 sm:px-8 py-4 flex items-start sm:items-center justify-between shrink-0 gap-2">
+          <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+            <div className={`size-8 sm:size-9 rounded-xl ${current.bg} flex items-center justify-center shrink-0`}>
+              <current.icon className={`size-4 sm:size-5 ${current.text}`} />
             </div>
             <div>
-              <h1 className={`${heading.className} text-base font-semibold tracking-tight`}>存储配置</h1>
-              <p className="text-xs text-muted-foreground mt-0.5">当前：{current.label} · 切换不影响存量图片</p>
+              <h1 className={`${heading.className} text-sm sm:text-base font-semibold tracking-tight`}>存储配置</h1>
+              <p className="text-[10px] sm:text-xs text-muted-foreground mt-0.5">当前：{current.label} · 切换不影响存量图片</p>
             </div>
           </div>
-          <div className="flex items-center gap-2.5">
-            {saved && <span className="flex items-center gap-1 text-xs text-emerald-500"><Check className="size-3.5" /> 已保存</span>}
-            <Button onClick={save} disabled={saving} className="gap-1.5">
-              {saving ? <Loader2 className="size-4 animate-spin" /> : <ShieldCheck className="size-4" />}
-              {saving ? "保存中..." : "保存配置"}
+          <div className="flex items-center gap-1.5 sm:gap-2.5 shrink-0">
+            {saved && <span className="hidden sm:flex items-center gap-1 text-xs text-emerald-500"><Check className="size-3.5" /> 已保存</span>}
+            <Button onClick={save} disabled={saving} className="gap-1 sm:gap-1.5 text-[10px] sm:text-xs px-1.5 sm:px-2 h-7 sm:h-9">
+              {saving ? <Loader2 className="size-3 sm:size-4 animate-spin" /> : <ShieldCheck className="size-3 sm:size-4" />}
+              {saving ? "..." : "保存"}
             </Button>
           </div>
         </div>
@@ -98,7 +98,7 @@ export default function StoragePage() {
         <div className="flex-1 grid grid-cols-1 lg:grid-cols-[300px_1fr] min-h-0 overflow-hidden">
 
           {/* 左栏：存储类型选择 */}
-          <div className="border-r bg-card/40 p-5 overflow-auto scrollbar-thin">
+          <div className="border-b lg:border-b-0 lg:border-r bg-card/40 p-4 sm:p-5 overflow-auto scrollbar-thin">
             <p className={`${heading.className} text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3 px-1`}>存储方式</p>
             <div className="space-y-2">
               {STORAGE_TYPES.map((t, i) => {
@@ -146,7 +146,7 @@ export default function StoragePage() {
           </div>
 
           {/* 右栏：配置详情 */}
-          <div className="overflow-auto scrollbar-thin p-6 lg:p-8">
+          <div className="overflow-auto scrollbar-thin p-4 sm:p-6 lg:p-8">
             {/* PLACEHOLDER_CONFIG */}
             <motion.div key={cfg.type} variants={fadeUp} initial="hidden" animate="visible" className="max-w-2xl">
               {/* 配置标题 */}
@@ -161,7 +161,7 @@ export default function StoragePage() {
               </div>
 
               {cfg.type === "database" && (
-                <div className="rounded-2xl border bg-card p-6">
+                <div className="rounded-2xl border bg-card p-4 sm:p-6">
                   <div className="flex items-center gap-2 mb-4">
                     <Check className="size-4 text-emerald-500" />
                     <span className="text-sm font-medium">无需额外配置</span>
@@ -186,7 +186,7 @@ export default function StoragePage() {
               )}
 
               {cfg.type === "local" && (
-                <div className="rounded-2xl border bg-card p-6 space-y-5">
+                <div className="rounded-2xl border bg-card p-4 sm:p-6 space-y-4 sm:space-y-5">
                   <div className="flex items-center gap-2">
                     <Server className="size-4 text-amber-500" />
                     <h3 className="text-sm font-semibold">本地文件系统配置</h3>
@@ -203,13 +203,13 @@ export default function StoragePage() {
               )}
 
               {cfg.type === "s3" && (
-                <div className="rounded-2xl border bg-card p-6 space-y-5">
-                  <div className="flex items-center justify-between">
+                <div className="rounded-2xl border bg-card p-4 sm:p-6 space-y-4 sm:space-y-5">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                     <div className="flex items-center gap-2">
-                      <Cloud className="size-4 text-primary" />
+                      <Cloud className="size-4 text-primary shrink-0" />
                       <h3 className="text-sm font-semibold">S3 兼容存储配置</h3>
                     </div>
-                    <label className="flex items-center gap-2 cursor-pointer">
+                    <label className="flex items-center gap-2 cursor-pointer self-start sm:self-auto">
                       <Switch checked={!!cfg.s3_use_ssl} onCheckedChange={v => setCfg({ ...cfg, s3_use_ssl: v })} />
                       <span className="text-xs font-medium text-muted-foreground">启用 SSL</span>
                     </label>

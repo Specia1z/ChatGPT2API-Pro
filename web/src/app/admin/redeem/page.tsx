@@ -7,6 +7,7 @@ import {
   Plus, Copy, Check, Gift, Package, Ban, Eye, Ticket,
   CheckCircle, XCircle, AlertCircle, RefreshCw,
 } from "lucide-react";
+import { AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
 import { AdminSidebar } from "@/components/admin-sidebar";
@@ -111,31 +112,31 @@ export default function RedeemPage() {
   );
 
   return (
-    <div className={`${heading.variable} ${mono.variable} h-screen bg-background flex overflow-hidden`}>
+    <div className={`${heading.variable} ${mono.variable} h-screen bg-background flex overflow-hidden pb-16 md:pb-0`}>
       <AdminSidebar />
       <main className="flex-1 min-w-0 flex flex-col overflow-hidden">
 
         {/* ═══ Header ═══ */}
-        <div className="border-b bg-card px-8 py-4 flex items-center justify-between shrink-0">
-          <div>
-            <h1 className={`${heading.className} text-base font-semibold tracking-tight`}>兑换码管理</h1>
-            <p className="text-xs text-muted-foreground mt-0.5">{codes.length} 个兑换码</p>
+        <div className="border-b bg-card px-4 sm:px-8 py-4 flex items-center justify-between shrink-0">
+          <div className="min-w-0">
+            <h1 className={`${heading.className} text-sm sm:text-base font-semibold tracking-tight`}>兑换码管理</h1>
+            <p className="text-[10px] sm:text-xs text-muted-foreground mt-0.5">{codes.length} 个兑换码</p>
           </div>
-          <div className="flex items-center gap-2">
-            <Button variant="ghost" size="sm" onClick={refresh} className="gap-1.5 text-xs text-muted-foreground">
-              <RefreshCw className="size-3.5" /> 刷新
+          <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+            <Button variant="ghost" size="sm" onClick={refresh} className="gap-1 sm:gap-1.5 text-[10px] sm:text-xs text-muted-foreground px-1.5 sm:px-2">
+              <RefreshCw className="size-3 sm:size-3.5" /> <span className="hidden sm:inline">刷新</span>
             </Button>
-            <Button size="sm" onClick={() => { setGenResult(null); setShowGen(true); }} className="gap-1.5 text-xs">
-              <Plus className="size-3.5" /> 生成兑换码
+            <Button size="sm" onClick={() => { setGenResult(null); setShowGen(true); }} className="gap-1 sm:gap-1.5 text-[10px] sm:text-xs px-1.5 sm:px-2">
+              <Plus className="size-3 sm:size-3.5" /> <span className="hidden sm:inline">生成兑换码</span><span className="sm:hidden">生成</span>
             </Button>
           </div>
         </div>
 
         <motion.div className="flex-1 overflow-auto scrollbar-thin" variants={stagger} initial="hidden" animate="visible">
-          <div className="p-6 lg:p-8 space-y-6">
+          <div className="p-4 sm:p-6 lg:p-8 space-y-4 sm:space-y-6">
 
             {/* ═══ 统计卡 ═══ */}
-            <motion.div variants={fadeUp} className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+            <motion.div variants={fadeUp} className="grid grid-cols-2 sm:grid-cols-5 gap-2 sm:gap-3">
               {[
                 { label: "总计", value: stats.total, icon: Ticket, color: "text-foreground", bg: "bg-muted" },
                 { label: "可用", value: stats.active, icon: CheckCircle, color: "text-emerald-500", bg: "bg-emerald-500/10" },
@@ -143,12 +144,12 @@ export default function RedeemPage() {
                 { label: "已过期", value: stats.expired, icon: AlertCircle, color: "text-red-500", bg: "bg-red-500/10" },
                 { label: "已禁用", value: stats.disabled, icon: Ban, color: "text-muted-foreground", bg: "bg-muted" },
               ].map(item => (
-                <div key={item.label} className="rounded-xl border bg-card p-3.5 hover:shadow-sm transition-shadow">
-                  <div className={`size-8 rounded-lg ${item.bg} flex items-center justify-center mb-2`}>
-                    <item.icon className={`size-4 ${item.color}`} />
+                <div key={item.label} className="rounded-xl border bg-card p-3 sm:p-3.5 hover:shadow-sm transition-shadow">
+                  <div className={`size-7 sm:size-8 rounded-lg ${item.bg} flex items-center justify-center mb-1.5 sm:mb-2`}>
+                    <item.icon className={`size-3.5 sm:size-4 ${item.color}`} />
                   </div>
-                  <p className={`${mono.className} text-lg font-medium tabular-nums`}>{item.value}</p>
-                  <p className="text-[10px] text-muted-foreground mt-0.5">{item.label}</p>
+                  <p className={`${mono.className} text-base sm:text-lg font-medium tabular-nums`}>{item.value}</p>
+                  <p className="text-[9px] sm:text-[10px] text-muted-foreground mt-0.5">{item.label}</p>
                 </div>
               ))}
             </motion.div>
@@ -172,7 +173,7 @@ export default function RedeemPage() {
                         <th className="text-left text-[10px] font-medium text-muted-foreground uppercase tracking-wider py-3">状态</th>
                         <th className="text-center text-[10px] font-medium text-muted-foreground uppercase tracking-wider py-3">使用</th>
                         <th className="text-left text-[10px] font-medium text-muted-foreground uppercase tracking-wider py-3">有效期</th>
-                        <th className="text-left text-[10px] font-medium text-muted-foreground uppercase tracking-wider py-3">创建时间</th>
+                        <th className="hidden sm:table-cell text-left text-[10px] font-medium text-muted-foreground uppercase tracking-wider py-3">创建时间</th>
                         <th className="w-20 py-3 pr-5" />
                       </tr>
                     </thead>
@@ -215,13 +216,13 @@ export default function RedeemPage() {
                               </span>
                             </td>
                             <td className={`${mono.className} py-3 text-[11px] text-muted-foreground tabular-nums`}>{rc.expires_at ? rc.expires_at.slice(0, 16) : "永久"}</td>
-                            <td className={`${mono.className} py-3 text-[11px] text-muted-foreground tabular-nums`}>{rc.created_at?.slice(0, 16)}</td>
+                            <td className={`${mono.className} hidden sm:table-cell py-3 text-[11px] text-muted-foreground tabular-nums`}>{rc.created_at?.slice(0, 16)}</td>
                             <td className="py-3 pr-5">
-                              <div className="flex items-center gap-1 justify-end opacity-0 group-hover:opacity-100 transition-opacity">
-                                <Button variant="ghost" size="icon-sm" onClick={() => viewLogs(rc)} title="使用记录"><Eye className="size-3.5" /></Button>
+                              <div className="flex items-center gap-1 justify-end opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
                                 {rc.status && rc.use_count < rc.max_uses && (
                                   <Button variant="ghost" size="icon-sm" className="hover:text-destructive" onClick={() => setDisableTarget(rc)} title="禁用"><Ban className="size-3.5" /></Button>
                                 )}
+                                <Button variant="ghost" size="icon-sm" onClick={() => viewLogs(rc)} title="使用记录"><Eye className="size-3.5" /></Button>
                               </div>
                             </td>
                           </motion.tr>
@@ -238,9 +239,9 @@ export default function RedeemPage() {
 
       {/* ═══ 生成弹窗 ═══ */}
       <Dialog open={showGen} onOpenChange={setShowGen}>
-        <DialogContent className={`${heading.variable} ${mono.variable} max-w-md`}>
+        <DialogContent className={`${heading.variable} ${mono.variable} max-w-sm sm:max-w-md`}>
           <DialogHeader>
-            <DialogTitle className={`${heading.className} text-base font-semibold`}>{genResult ? "生成完成" : "生成兑换码"}</DialogTitle>
+            <DialogTitle className={`${heading.className} text-sm sm:text-base font-semibold`}>{genResult ? "生成完成" : "生成兑换码"}</DialogTitle>
             <DialogDescription className="sr-only">批量生成套餐或积分兑换码</DialogDescription>
           </DialogHeader>
 
@@ -273,38 +274,42 @@ export default function RedeemPage() {
                 ))}
               </div>
 
-              {genType === "plan" ? (
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-1.5 col-span-2">
-                    <label className="text-xs font-medium text-muted-foreground">选择套餐</label>
-                    <select value={genPlanID} onChange={e => setGenPlanID(+e.target.value)}
-                      className="w-full h-8 rounded-lg border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-primary/20">
-                      <option value={0}>请选择</option>
-                      {plans.map(p => <option key={p.id} value={p.id}>{p.name} — ¥{p.price_monthly}/月</option>)}
-                    </select>
-                  </div>
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-medium text-muted-foreground">有效期天数</label>
-                    <Input type="number" min={0} value={genPlanDays} onChange={e => setGenPlanDays(+e.target.value)} className={`${mono.className} text-sm`} />
-                    <p className="text-[10px] text-muted-foreground">0 = 跟随套餐默认</p>
-                  </div>
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-medium text-muted-foreground">可用次数</label>
-                    <Input type="number" min={1} value={genMaxUses} onChange={e => setGenMaxUses(+e.target.value)} className={`${mono.className} text-sm`} />
-                  </div>
-                </div>
-              ) : (
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-medium text-muted-foreground">积分数额</label>
-                    <Input type="number" min={1} value={genPoints} onChange={e => setGenPoints(+e.target.value)} className={`${mono.className} text-sm`} />
-                  </div>
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-medium text-muted-foreground">可用次数</label>
-                    <Input type="number" min={1} value={genMaxUses} onChange={e => setGenMaxUses(+e.target.value)} className={`${mono.className} text-sm`} />
-                  </div>
-                </div>
-              )}
+              <AnimatePresence mode="wait">
+                {genType === "plan" ? (
+                  <motion.div key="plan" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.2 }}
+                    className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1.5 col-span-2">
+                      <label className="text-xs font-medium text-muted-foreground">选择套餐</label>
+                      <select value={genPlanID} onChange={e => setGenPlanID(+e.target.value)}
+                        className="w-full h-8 rounded-lg border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-primary/20">
+                        <option value={0}>请选择</option>
+                        {plans.map(p => <option key={p.id} value={p.id}>{p.name} — ¥{p.price_monthly}/月</option>)}
+                      </select>
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-medium text-muted-foreground">有效期天数</label>
+                      <Input type="number" min={0} value={genPlanDays} onChange={e => setGenPlanDays(+e.target.value)} className={`${mono.className} text-sm`} />
+                      <p className="text-[10px] text-muted-foreground">0 = 跟随套餐默认</p>
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-medium text-muted-foreground">可用次数</label>
+                      <Input type="number" min={1} value={genMaxUses} onChange={e => setGenMaxUses(+e.target.value)} className={`${mono.className} text-sm`} />
+                    </div>
+                  </motion.div>
+                ) : (
+                  <motion.div key="points" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.2 }}
+                    className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-medium text-muted-foreground">积分数额</label>
+                      <Input type="number" min={1} value={genPoints} onChange={e => setGenPoints(+e.target.value)} className={`${mono.className} text-sm`} />
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-medium text-muted-foreground">可用次数</label>
+                      <Input type="number" min={1} value={genMaxUses} onChange={e => setGenMaxUses(+e.target.value)} className={`${mono.className} text-sm`} />
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
 
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1.5">
@@ -328,9 +333,9 @@ export default function RedeemPage() {
 
       {/* ═══ 使用记录弹窗 ═══ */}
       <Dialog open={logsOpen} onOpenChange={setLogsOpen}>
-        <DialogContent className={`${heading.variable} ${mono.variable} max-w-md`}>
+        <DialogContent className={`${heading.variable} ${mono.variable} max-w-sm sm:max-w-md`}>
           <DialogHeader>
-            <DialogTitle className={`${heading.className} text-base font-semibold`}>使用记录</DialogTitle>
+            <DialogTitle className={`${heading.className} text-sm sm:text-base font-semibold`}>使用记录</DialogTitle>
             <DialogDescription className="sr-only">查看该兑换码的使用历史</DialogDescription>
           </DialogHeader>
           {logsTarget && <code className={`${mono.className} block text-sm font-medium bg-muted/50 rounded-lg px-3 py-2 mb-3 tracking-wider`}>{logsTarget.code}</code>}

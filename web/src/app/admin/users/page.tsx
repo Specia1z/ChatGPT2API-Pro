@@ -80,46 +80,46 @@ export default function UsersPage() {
   }, [users, total]);
 
   return (
-    <div className={`${heading.variable} ${mono.variable} h-screen bg-background flex overflow-hidden`}>
+    <div className={`${heading.variable} ${mono.variable} h-screen bg-background flex overflow-hidden pb-[calc(4rem+env(safe-area-inset-bottom))] md:pb-0`}>
       <AdminSidebar />
       <main className="flex-1 min-w-0 flex flex-col overflow-hidden">
 
         {/* ═══ Header ═══ */}
-        <div className="border-b bg-card px-8 py-4 flex items-center justify-between shrink-0">
-          <div>
-            <h1 className={`${heading.className} text-base font-semibold tracking-tight`}>用户管理</h1>
-            <p className="text-xs text-muted-foreground mt-0.5">管理注册用户 · 积分 · 状态</p>
+        <div className="border-b bg-card px-4 sm:px-8 py-4 flex items-center justify-between shrink-0">
+          <div className="min-w-0">
+            <h1 className={`${heading.className} text-sm sm:text-base font-semibold tracking-tight`}>用户管理</h1>
+            <p className="text-[10px] sm:text-xs text-muted-foreground mt-0.5">管理注册用户 · 积分 · 状态</p>
           </div>
-          <Button variant="ghost" size="sm" onClick={fetchUsers} disabled={loading} className="gap-1.5 text-xs text-muted-foreground">
-            <RefreshCw className={`size-3.5 ${loading ? "animate-spin" : ""}`} /> 刷新
+          <Button variant="ghost" size="sm" onClick={fetchUsers} disabled={loading} className="gap-1 sm:gap-1.5 text-[10px] sm:text-xs text-muted-foreground px-1.5 sm:px-2 shrink-0">
+            <RefreshCw className={`size-3 sm:size-3.5 ${loading ? "animate-spin" : ""}`} /> <span className="hidden sm:inline">刷新</span>
           </Button>
         </div>
 
         <motion.div className="flex-1 overflow-auto scrollbar-thin" variants={stagger} initial="hidden" animate="visible">
-          <div className="p-6 lg:p-8 space-y-6">
+          <div className="p-4 sm:p-6 lg:p-8 space-y-4 sm:space-y-6">
 
             {/* ═══ 统计卡 ═══ */}
-            <motion.div variants={fadeUp} className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <motion.div variants={fadeUp} className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
               {[
                 { label: "总用户", value: stats.total, icon: Users, color: "text-primary", bg: "bg-primary/10" },
                 { label: "正常", value: stats.active, icon: UserCheck, color: "text-emerald-500", bg: "bg-emerald-500/10" },
                 { label: "禁用", value: stats.disabled, icon: UserX, color: "text-red-500", bg: "bg-red-500/10" },
               ].map(item => (
-                <div key={item.label} className="rounded-2xl border bg-card p-5 flex items-center gap-4 hover:shadow-sm transition-shadow">
-                  <div className={`size-11 rounded-xl ${item.bg} flex items-center justify-center shrink-0`}>
-                    <item.icon className={`size-5 ${item.color}`} />
+                <div key={item.label} className="rounded-2xl border bg-card p-4 sm:p-5 flex items-center gap-3 sm:gap-4 hover:shadow-sm transition-shadow">
+                  <div className={`size-10 sm:size-11 rounded-xl ${item.bg} flex items-center justify-center shrink-0`}>
+                    <item.icon className={`size-4 sm:size-5 ${item.color}`} />
                   </div>
                   <div>
-                    <p className="text-xs text-muted-foreground">{item.label}</p>
-                    <p className={`${mono.className} text-xl font-medium tabular-nums mt-0.5`}>{item.value}</p>
+                    <p className="text-[10px] sm:text-xs text-muted-foreground">{item.label}</p>
+                    <p className={`${mono.className} text-lg sm:text-xl font-medium tabular-nums mt-0.5`}>{item.value}</p>
                   </div>
                 </div>
               ))}
             </motion.div>
 
             {/* ═══ 工具栏 ═══ */}
-            <motion.div variants={fadeUp} className="flex items-center gap-3">
-              <div className="relative w-64 shrink-0">
+            <motion.div variants={fadeUp} className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-3">
+              <div className="relative w-full sm:w-64 shrink-0">
                 <Search className="size-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
                 <Input value={search} onChange={e => setSearch(e.target.value)} placeholder="搜索邮箱或昵称..." className="pl-9 pr-8 text-xs" />
                 {search && <button onClick={() => setSearch("")} className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"><X className="size-3" /></button>}
@@ -139,7 +139,7 @@ export default function UsersPage() {
                       <th className="text-right text-[10px] font-medium text-muted-foreground uppercase tracking-wider py-3">积分</th>
                       <th className="text-center text-[10px] font-medium text-muted-foreground uppercase tracking-wider py-3">状态</th>
                       <th className="text-left text-[10px] font-medium text-muted-foreground uppercase tracking-wider py-3">订阅到期</th>
-                      <th className="text-left text-[10px] font-medium text-muted-foreground uppercase tracking-wider py-3">注册时间</th>
+                      <th className="hidden sm:table-cell text-left text-[10px] font-medium text-muted-foreground uppercase tracking-wider py-3">注册时间</th>
                       <th className="w-32 py-3 pr-5" />
                     </tr>
                   </thead>
@@ -186,9 +186,9 @@ export default function UsersPage() {
                             </span>
                           </td>
                           <td className={`${mono.className} py-3 text-[11px] text-muted-foreground tabular-nums`}>{u.subscription_expires_at ? u.subscription_expires_at.slice(0, 10) : "—"}</td>
-                          <td className={`${mono.className} py-3 text-[11px] text-muted-foreground tabular-nums`}>{u.created_at?.slice(0, 10) || "—"}</td>
+                          <td className={`${mono.className} hidden sm:table-cell py-3 text-[11px] text-muted-foreground tabular-nums`}>{u.created_at?.slice(0, 10) || "—"}</td>
                           <td className="py-3 pr-5">
-                            <div className="flex items-center justify-end gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <div className="flex items-center justify-end gap-0.5 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
                               <Button variant="ghost" size="icon-sm" onClick={() => { setEditUser(u); setEditName(u.name || ""); }} title="编辑昵称"><Pencil className="size-3.5" /></Button>
                               <Button variant="ghost" size="icon-sm" className="hover:text-amber-500" onClick={() => setResetTarget(u)} title="重置密码"><Key className="size-3.5" /></Button>
                               <Button variant="ghost" size="icon-sm" className="hover:text-emerald-500" onClick={() => { setPointsUser(u); setPointsDelta(0); }} title="调整积分"><Coins className="size-3.5" /></Button>
