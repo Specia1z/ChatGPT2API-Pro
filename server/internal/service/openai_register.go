@@ -53,17 +53,9 @@ type PlatformRegistrar struct {
 func NewPlatformRegistrar(mailCfg model.MailConfig, proxy string) *PlatformRegistrar {
 	jar, _ := cookiejar.New(nil)
 
-	// 构建带 utls Chrome 指纹的 transport
-	var httpTransport http.RoundTripper
-	if proxy != "" {
-		proxyURL, err := url.Parse(proxy)
-		if err != nil {
-			proxyURL = nil
-		}
-		httpTransport = newChromeTransport(proxyURL)
-	} else {
-		httpTransport = newChromeTransport(nil)
-	}
+	// 代理决策与刷新/生图链路统一走 getChromeTransport：
+	// 传入代理 > 环境变量 HTTPS_PROXY/HTTP_PROXY > 直连。后台不填代理即直连。
+	httpTransport := getChromeTransport(proxy)
 
 	return &PlatformRegistrar{
 		session: &http.Client{

@@ -150,9 +150,11 @@ func FetchUserInfo(accessToken, proxyURL string) (*UserInfoResult, error) {
 	return result, nil
 }
 
-// getChromeTransport 创建带 utls 的 transport
+// getChromeTransport 创建带 utls 的 transport。
+// 代理优先级：传入参数 > 环境变量 HTTPS_PROXY/HTTP_PROXY > 直连（无代理）。
+// 注意：不再硬编码兜底代理——后台不配代理即直连，与注册器行为一致；
+// 若部署环境需全局代理，设置 HTTPS_PROXY 环境变量即可。
 func getChromeTransport(proxyURL string) http.RoundTripper {
-	// 优先用传入的代理，否则读环境变量
 	if proxyURL == "" {
 		proxyURL = os.Getenv("HTTPS_PROXY")
 	}
@@ -160,9 +162,14 @@ func getChromeTransport(proxyURL string) http.RoundTripper {
 		proxyURL = os.Getenv("HTTP_PROXY")
 	}
 	if proxyURL == "" {
-		proxyURL = "http://127.0.0.1:10808"
+		// 无代理：直连
+		return newChromeTransportFromURL(nil)
 	}
-	u, _ := url.Parse(proxyURL)
+	u, err := url.Parse(proxyURL)
+	if err != nil {
+		// 代理地址非法时退化为直连，避免因配置错误导致全部请求失败
+		return newChromeTransportFromURL(nil)
+	}
 	return newChromeTransportFromURL(u)
 }
 

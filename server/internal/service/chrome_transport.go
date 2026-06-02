@@ -20,10 +20,7 @@ type chromeRoundTripper struct {
 	ProxyURL *url.URL
 }
 
-func newChromeTransport(proxyURL *url.URL) http.RoundTripper {
-	return &chromeRoundTripper{ProxyURL: proxyURL}
-}
-
+// newChromeTransportFromURL 构建带 utls Chrome 指纹的 transport，proxyURL 为 nil 时直连。
 func newChromeTransportFromURL(proxyURL *url.URL) http.RoundTripper {
 	return &chromeRoundTripper{ProxyURL: proxyURL}
 }
