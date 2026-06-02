@@ -3,9 +3,10 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useAuth } from "@/lib/auth";
-import { Sparkles, User, Wand2, LogOut, Sun, Moon, ChevronRight } from "lucide-react";
+import { Sparkles, User, Wand2, LogOut, Sun, Moon } from "lucide-react";
 import { BASE } from "@/lib/api";
 import { Button } from "@/components/ui/button";
+import { MobileTabBar } from "@/components/mobile-tab-bar";
 
 export function Navbar() {
   const { user, logout } = useAuth();
@@ -33,8 +34,9 @@ export function Navbar() {
   };
 
   return (
+    <>
     <header className="sticky top-0 z-50 border-b border-zinc-200/60 dark:border-white/5 bg-white/70 dark:bg-zinc-950/70 backdrop-blur-2xl">
-      <div className="max-w-6xl mx-auto flex items-center justify-between px-6 h-14">
+      <div className="max-w-6xl mx-auto flex items-center justify-between px-4 md:px-6 h-14">
         {/* ── Logo ── */}
         <Link href="/" className="flex items-center gap-2.5 group shrink-0">
           <div className="w-7 h-7 rounded-md bg-zinc-900 dark:bg-zinc-100 flex items-center justify-center group-hover:bg-zinc-700 dark:group-hover:bg-zinc-300 transition-colors">
@@ -44,11 +46,20 @@ export function Navbar() {
               <span className="text-[9px] font-black text-white dark:text-zinc-900 tracking-tighter">{settings?.site_logo_text || "C2"}</span>
             )}
           </div>
-          <span className="font-semibold text-sm text-zinc-900 dark:text-white">{settings?.site_title || "ChatGPT2API Pro"}</span>
+          <span className="font-semibold text-sm text-zinc-900 dark:text-white truncate max-w-[200px]">{settings?.site_title || "ChatGPT2API Pro"}</span>
         </Link>
 
-        {/* ── Main Nav ── */}
-        <nav className="flex items-center gap-0.5">
+        {/* ── 移动端：仅主题切换（其余入口在底部 Tab 栏） ── */}
+        <button
+          onClick={toggleTheme}
+          className="md:hidden w-9 h-9 rounded-lg flex items-center justify-center text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-all"
+          aria-label="切换明暗主题"
+        >
+          {dark ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+        </button>
+
+        {/* ── Main Nav（桌面端） ── */}
+        <nav className="hidden md:flex items-center gap-0.5">
           <Link
             href="/"
             className="px-2.5 py-1.5 rounded-lg text-[13px] text-zinc-500 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-all"
@@ -151,5 +162,9 @@ export function Navbar() {
         </nav>
       </div>
     </header>
+
+    {/* 移动端底部 Tab 栏（md 以下显示，桌面端隐藏） */}
+    <MobileTabBar />
+    </>
   );
 }
