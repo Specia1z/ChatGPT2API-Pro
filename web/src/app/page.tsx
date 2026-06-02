@@ -131,7 +131,7 @@ function Particles({ count = 20 }: { count?: number }) {
       {particles.map((p, i) => (
         <div
           key={i}
-          className="absolute rounded-full bg-violet-400 dark:bg-violet-500"
+          className="absolute rounded-full bg-zinc-400 dark:bg-zinc-500"
           style={{
             left: `${p.x}%`, top: `${p.y}%`,
             width: p.size, height: p.size,
@@ -156,48 +156,39 @@ function makeParticles(count: number) {
   }));
 }
 
-/* ── Feature card (industrial editorial) ──────────── */
+/* ── Feature card (中性灰阶 · 序号+图标+排版分层) ──────────── */
 
 function FeatureCard({
-  icon: Icon, title, desc, accent, index = 0, inView = false, hero = false,
+  icon: Icon, title, desc, index = 0, inView = false, hero = false,
 }: {
-  icon: any; title: string; desc: string; accent: string;
+  icon: any; title: string; desc: string; accent?: string;
   index?: number; inView?: boolean; hero?: boolean;
 }) {
   return (
     <div
-      className={`group relative rounded-2xl border border-zinc-200/50 dark:border-zinc-800/50 bg-white dark:bg-zinc-900/80 overflow-hidden transition-all duration-500 ${
+      className={`group relative h-full rounded-2xl border border-zinc-200/70 dark:border-zinc-800/70 bg-white dark:bg-zinc-900/80 overflow-hidden transition-all duration-500 ${
         hero
           ? "hover:shadow-2xl hover:shadow-zinc-900/10 dark:hover:shadow-black/30"
           : "hover:shadow-lg hover:shadow-zinc-900/5 dark:hover:shadow-black/20"
-      } hover:-translate-y-0.5`}
+      } hover:-translate-y-0.5 hover:border-zinc-300 dark:hover:border-zinc-700`}
       style={{
         opacity: inView ? 1 : 0,
         transform: inView ? "translateY(0)" : "translateY(40px)",
         transition: `all 0.7s cubic-bezier(0.16, 1, 0.3, 1) ${index * 100}ms`,
       }}
     >
-      {/* Top accent bar — animates on hover */}
-      <div
-        className="h-[3px] w-full transition-all duration-500 ease-out group-hover:h-1"
-        style={{ backgroundColor: accent }}
-      />
+      {/* 顶部细线 — hover 加粗，中性灰 */}
+      <div className="h-px w-full bg-zinc-200 dark:bg-zinc-800 transition-all duration-500 ease-out group-hover:h-[3px] group-hover:bg-zinc-900 dark:group-hover:bg-zinc-100" />
 
       <div className={`relative ${hero ? "p-7" : "p-5"}`}>
-        {/* Background number — large faint index */}
-        <div
-          className="absolute right-3 top-3 text-[72px] font-bold leading-none select-none pointer-events-none"
-          style={{ color: `${accent}0C` }}
-        >
+        {/* 背景大序号 — 极淡灰 */}
+        <div className="absolute right-3 top-3 text-[72px] font-bold leading-none select-none pointer-events-none text-zinc-100 dark:text-zinc-800/60 transition-colors duration-500 group-hover:text-zinc-200/80 dark:group-hover:text-zinc-700/60">
           {String(index + 1).padStart(2, "0")}
         </div>
 
-        {/* Icon */}
-        <div
-          className="relative w-9 h-9 rounded-xl flex items-center justify-center mb-4 transition-all duration-300 group-hover:scale-110 group-hover:-translate-y-0.5"
-          style={{ backgroundColor: `${accent}14` }}
-        >
-          <Icon className="w-[18px] h-[18px]" style={{ color: accent }} />
+        {/* 图标 — 中性底 */}
+        <div className="relative w-9 h-9 rounded-xl flex items-center justify-center mb-4 bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 transition-all duration-300 group-hover:scale-110 group-hover:-translate-y-0.5 group-hover:bg-zinc-900 group-hover:text-white dark:group-hover:bg-zinc-100 dark:group-hover:text-zinc-900">
+          <Icon className="w-[18px] h-[18px]" />
         </div>
 
         <h3 className={`font-semibold text-zinc-900 dark:text-zinc-100 mb-1.5 relative ${hero ? "text-lg" : "text-sm"}`}>
@@ -323,22 +314,22 @@ export default function HomePage() {
 
   /* ── Feature definitions ── */
   const features = [
-    { icon: Palette, title: "无限风格", desc: "从照片级写实到动漫插画，从油画到赛博朋克，数百种艺术风格任你选择", accent: "#e11d48" },
-    { icon: Zap, title: "极速生成", desc: "平均 30 秒完成创作，多任务并发处理，告别漫长等待", accent: "#f59e0b" },
-    { icon: Image, title: "高清输出", desc: "支持 8K 分辨率，细节清晰锐利，可直接用于商业项目", accent: "#10b981" },
-    { icon: MessageCircle, title: "简单易用", desc: "用自然语言描述想法，像聊天一样简单，零学习成本", accent: "#3b82f6" },
-    { icon: Shield, title: "安全可靠", desc: "99.9% 可用率，加密传输，保护你的创作隐私和数据安全", accent: "#8b5cf6" },
-    { icon: Banknote, title: "灵活定价", desc: "从免费体验到企业定制，按需选择方案，随时升级不设限", accent: "#06b6d4" },
+    { icon: Palette, title: "无限风格", desc: "从照片级写实到动漫插画，从油画到赛博朋克，数百种艺术风格任你选择" },
+    { icon: Zap, title: "极速生成", desc: "平均 30 秒完成创作，多任务并发处理，告别漫长等待" },
+    { icon: Image, title: "高清输出", desc: "支持 8K 分辨率，细节清晰锐利，可直接用于商业项目" },
+    { icon: MessageCircle, title: "简单易用", desc: "用自然语言描述想法，像聊天一样简单，零学习成本" },
+    { icon: Shield, title: "安全可靠", desc: "99.9% 可用率，加密传输，保护你的创作隐私和数据安全" },
+    { icon: Banknote, title: "灵活定价", desc: "从免费体验到企业定制，按需选择方案，随时升级不设限" },
   ];
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background pb-16 md:pb-0">
       <Navbar />
 
       {/* ═══════════════════════════════════════
           HERO
           ═══════════════════════════════════════ */}
-      <section className="relative min-h-[90vh] flex items-center overflow-hidden">
+      <section className="relative min-h-[88vh] md:min-h-[90vh] flex items-center overflow-hidden">
         {/* Background */}
         <div className="absolute inset-0 bg-zinc-50 dark:bg-zinc-950" />
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_50%,rgba(161,161,170,0.08)_0%,transparent_60%)]" />
@@ -352,14 +343,14 @@ export default function HomePage() {
         <Particles count={10} />
 
         {/* Content — left-aligned */}
-        <div className="relative w-full max-w-7xl mx-auto px-8 lg:px-16 py-16 z-10">
+        <div className="relative w-full max-w-7xl mx-auto px-5 sm:px-8 lg:px-16 py-16 z-10">
           <div className="max-w-2xl">
             {/* Tag */}
             <div className="mb-6 opacity-0 animate-[heroReveal_0.6s_ease-out_0.1s_forwards]">
               <div className="inline-flex items-center gap-2 rounded-full border border-zinc-200 dark:border-zinc-800 bg-white/60 dark:bg-zinc-900/60 px-3.5 py-1 backdrop-blur-sm">
                 <span className="relative flex h-1.5 w-1.5">
-                  <span className="animate-ping absolute inset-0 rounded-full bg-emerald-400 opacity-75" />
-                  <span className="relative rounded-full h-1.5 w-1.5 bg-emerald-500" />
+                  <span className="animate-ping absolute inset-0 rounded-full bg-zinc-400 dark:bg-zinc-500 opacity-75" />
+                  <span className="relative rounded-full h-1.5 w-1.5 bg-zinc-500 dark:bg-zinc-400" />
                 </span>
                 <span className="text-[11px] font-medium text-zinc-500 dark:text-zinc-400 tracking-wide">
                   AI Image Generation · Open API
@@ -400,7 +391,7 @@ export default function HomePage() {
             </div>
 
             {/* Stats strip */}
-            <div className="flex items-center gap-6 mt-10 opacity-0 animate-[heroReveal_0.6s_ease-out_0.65s_forwards]">
+            <div className="flex flex-wrap items-center gap-x-5 gap-y-3 sm:gap-6 mt-10 opacity-0 animate-[heroReveal_0.6s_ease-out_0.65s_forwards]">
               {[
                 { value: "30s", label: "平均生成" },
                 { value: "8K", label: "最高分辨率" },
@@ -416,7 +407,7 @@ export default function HomePage() {
         </div>
 
         {/* Scroll indicator */}
-        <div className="absolute bottom-8 left-8 lg:left-16 opacity-0 animate-[heroReveal_0.6s_ease-out_0.8s_forwards]">
+        <div className="absolute bottom-8 left-5 sm:left-8 lg:left-16 opacity-0 animate-[heroReveal_0.6s_ease-out_0.8s_forwards]">
           <div className="flex items-center gap-2 text-zinc-400">
             <div className="w-4 h-7 rounded-full border border-zinc-300 dark:border-zinc-700 flex items-start justify-center p-1">
               <div className="w-0.5 h-1.5 rounded-full bg-zinc-400 animate-[scrollDot_2s_ease-in-out_infinite]" />
@@ -431,13 +422,13 @@ export default function HomePage() {
           ═══════════════════════════════════════ */}
       <WaveDivider />
 
-      <section id="features" className="relative py-20 sm:py-24 overflow-hidden bg-white dark:bg-zinc-950">
+      <section id="features" className="relative py-16 sm:py-24 overflow-hidden bg-white dark:bg-zinc-950">
         <Particles count={8} />
 
         <div className="relative max-w-6xl mx-auto px-6" ref={featRef.ref}>
           {/* Section header — left-aligned with decorative diamond */}
           <div
-            className="mb-16 transition-all duration-700"
+            className="mb-10 sm:mb-16 transition-all duration-700"
             style={{
               opacity: featRef.inView ? 1 : 0,
               transform: featRef.inView ? "translateY(0)" : "translateY(30px)",
@@ -453,7 +444,7 @@ export default function HomePage() {
               <div className="inline-flex items-center gap-2 rounded-full border border-zinc-200 dark:border-zinc-800 px-3.5 py-1 text-[11px] font-medium text-zinc-500 dark:text-zinc-400 mb-4 tracking-wide">
                 Why Choose Us
               </div>
-              <h2 className="text-4xl md:text-5xl font-bold tracking-tight text-zinc-900 dark:text-white mb-3">
+              <h2 className="text-3xl sm:text-4xl md:text-5xl font-bold tracking-tight text-zinc-900 dark:text-white mb-3">
                 让创意变为现实
               </h2>
               <p className="text-base text-zinc-500 dark:text-zinc-400 leading-relaxed max-w-xl">
@@ -484,7 +475,7 @@ export default function HomePage() {
           ═══════════════════════════════════════ */}
       <WaveDivider flip className="text-zinc-50 dark:text-zinc-900" />
 
-      <section id="pricing" className="relative py-20 sm:py-24 overflow-hidden bg-zinc-50/50 dark:bg-zinc-900/50">
+      <section id="pricing" className="relative py-16 sm:py-24 overflow-hidden bg-zinc-50/50 dark:bg-zinc-900/50">
         <Particles count={8} />
 
         <div className="relative max-w-5xl mx-auto px-6" ref={priceRef.ref}>
@@ -506,7 +497,7 @@ export default function HomePage() {
               <div className="inline-flex items-center gap-2 rounded-full border border-zinc-200 dark:border-zinc-800 px-3.5 py-1 text-[11px] font-medium text-zinc-500 dark:text-zinc-400 mb-4 tracking-wide">
                 Pricing
               </div>
-              <h2 className="text-4xl md:text-5xl font-bold tracking-tight text-zinc-900 dark:text-white mb-3">
+              <h2 className="text-3xl sm:text-4xl md:text-5xl font-bold tracking-tight text-zinc-900 dark:text-white mb-3">
                 选择适合你的方案
               </h2>
               <p className="text-base text-zinc-500 dark:text-zinc-400 leading-relaxed max-w-xl">
@@ -540,7 +531,7 @@ export default function HomePage() {
                       return Math.max(max, Math.round((1 - p.price_yearly / p.price_monthly) * 100));
                     }, 0);
                     return best > 0 ? (
-                      <span className="ml-1.5 inline-flex items-center rounded-full bg-emerald-100 dark:bg-emerald-500/15 px-1.5 py-0.5 text-[9px] font-bold text-emerald-700 dark:text-emerald-400">
+                      <span className="ml-1.5 inline-flex items-center rounded-full bg-zinc-900 dark:bg-zinc-100 px-1.5 py-0.5 text-[9px] font-bold text-white dark:text-zinc-900">
                         省 {best}%
                       </span>
                     ) : null;
@@ -554,7 +545,6 @@ export default function HomePage() {
           {/* Plan cards */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6">
             {plans.map((p, i) => {
-              const accents = ["#10b981", "#8b5cf6", "#3b82f6"];
               return (
                 <PlanCard
                   key={p.id || i}
@@ -563,7 +553,6 @@ export default function HomePage() {
                   inView={priceRef.inView}
                   delay={i * 100}
                   onBuy={handleBuy}
-                  accent={accents[i] || "#6366f1"}
                   index={i}
                 />
               );
@@ -581,9 +570,9 @@ export default function HomePage() {
         >
           <div className="relative rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-lg overflow-hidden">
             {/* Left gradient accent bar */}
-            <div className="absolute left-0 top-0 bottom-0 w-[3px] bg-gradient-to-b from-violet-500/60 via-blue-500/60 to-emerald-500/60" />
+            <div className="absolute left-0 top-0 bottom-0 w-[3px] bg-gradient-to-b from-zinc-300 via-zinc-500 to-zinc-300 dark:from-zinc-700 dark:via-zinc-400 dark:to-zinc-700" />
 
-            <div className="relative flex items-center gap-6 p-8 sm:p-10">
+            <div className="relative flex items-center gap-6 p-6 sm:p-10">
               {/* ── Text side ── */}
               <div className="flex-1 min-w-0">
                 <div className="w-8 h-8 rounded-lg bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center mb-4">
@@ -720,14 +709,14 @@ export default function HomePage() {
 }
 
 /* ═══════════════════════════════════════════════
-   Plan Card — terminal style
+   Plan Card — 中性灰阶（推荐款靠边框/ring/深色按钮突出，不靠彩色）
    ═══════════════════════════════════════════════ */
 
 function PlanCard({
-  p, billing, inView, delay, onBuy, accent, index,
+  p, billing, inView, delay, onBuy, index,
 }: {
   p: any; billing: string; inView: boolean; delay: number; onBuy: (plan: any) => void;
-  accent: string; index: number;
+  index: number;
 }) {
   const { auto, custom } = buildFeatures(p, billing);
   const allFeatures = [...auto, ...custom.map((t: string) => ({ icon: "Check", text: t }))];
@@ -736,8 +725,8 @@ function PlanCard({
     <div
       className={`relative flex flex-col bg-white dark:bg-zinc-900/80 border rounded-2xl overflow-hidden transition-all duration-500 ${
         p.highlighted
-          ? "border-violet-200 dark:border-violet-500/30 shadow-xl shadow-violet-500/5 scale-[1.03]"
-          : "border-zinc-200/60 dark:border-zinc-800/50 hover:shadow-lg hover:-translate-y-0.5"
+          ? "border-zinc-900 dark:border-zinc-100 ring-1 ring-zinc-900 dark:ring-zinc-100 shadow-xl shadow-zinc-900/10 dark:shadow-black/30 md:scale-[1.03]"
+          : "border-zinc-200/60 dark:border-zinc-800/50 hover:shadow-lg hover:-translate-y-0.5 hover:border-zinc-300 dark:hover:border-zinc-700"
       }`}
       style={{
         opacity: inView ? 1 : 0,
@@ -745,13 +734,13 @@ function PlanCard({
         transition: `all 0.7s cubic-bezier(0.16, 1, 0.3, 1) ${delay}ms`,
       }}
     >
-      {/* Top accent bar */}
-      <div className="h-[3px] w-full shrink-0" style={{ backgroundColor: accent }} />
+      {/* 顶部条 — 推荐款深色实条，其余极淡灰 */}
+      <div className={`h-[3px] w-full shrink-0 ${p.highlighted ? "bg-zinc-900 dark:bg-zinc-100" : "bg-zinc-200 dark:bg-zinc-800"}`} />
 
-      {/* Popular badge */}
+      {/* POPULAR 徽章 — 深色 */}
       {p.highlighted && (
         <div className="absolute top-3 right-3 z-10">
-          <span className="inline-flex items-center rounded-full bg-violet-500/10 text-violet-600 dark:text-violet-400 border border-violet-200 dark:border-violet-500/20 px-2 py-0.5 text-[9px] font-bold tracking-wider">
+          <span className="inline-flex items-center rounded-full bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 px-2 py-0.5 text-[9px] font-bold tracking-wider">
             POPULAR
           </span>
         </div>
@@ -762,7 +751,7 @@ function PlanCard({
 
         <div className="mb-5">
           <div className="flex items-baseline gap-0.5">
-            <span className="text-base font-bold tabular-nums" style={{ color: accent }}>¥</span>
+            <span className="text-base font-bold tabular-nums text-zinc-900 dark:text-zinc-100">¥</span>
             {p.price_monthly === 0 ? (
               <span className="text-4xl font-bold text-zinc-900 dark:text-white tabular-nums">0</span>
             ) : (
@@ -785,7 +774,7 @@ function PlanCard({
             const Icon = iconMap[f.icon] || Check;
             return (
               <li key={j} className="flex items-start gap-2.5">
-                <Icon className="w-3.5 h-3.5 mt-0.5 shrink-0" style={{ color: accent }} />
+                <Icon className="w-3.5 h-3.5 mt-0.5 shrink-0 text-zinc-900 dark:text-zinc-100" />
                 <span className="text-[13px] text-zinc-600 dark:text-zinc-300 leading-relaxed">{f.text}</span>
               </li>
             );
@@ -796,10 +785,9 @@ function PlanCard({
           href={p.price_monthly === 0 ? "/register" : `/subscribe?plan_id=${p.id}&billing=${billing}`}
           className={`inline-flex items-center justify-center w-full rounded-xl text-xs font-semibold h-10 transition-all ${
             p.highlighted
-              ? "text-white border-0 shadow-sm"
+              ? "bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 hover:bg-zinc-800 dark:hover:bg-zinc-200 shadow-sm"
               : "border border-zinc-200 dark:border-zinc-700 text-zinc-600 dark:text-zinc-300 hover:border-zinc-300 dark:hover:border-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100"
           }`}
-          style={p.highlighted ? { backgroundColor: accent } : undefined}
         >
           {p.price_monthly === 0 ? "免费开始" : "立即订阅"}
         </Link>

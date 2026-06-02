@@ -17,8 +17,7 @@ import { UpgradeDialog } from "@/components/upgrade-dialog";
 import { toast } from "sonner";
 import {
   Copy, Check, Key, Plus, Trash2, Zap, Gift, Ticket,
-  RefreshCw, Coins, ChevronRight, Sparkles, Clock, Fuel,
-  Battery, Layers, Timer, Crown, ArrowUpRight,
+  RefreshCw, Coins, Battery, Layers, Timer, Crown, ArrowUpRight, LogOut,
 } from "lucide-react";
 
 const heading = Outfit({ subsets: ["latin"], weight: ["400", "500", "600", "700", "800"], variable: "--font-heading" });
@@ -70,11 +69,12 @@ function useCountdown(tokens: number, cap: number, refill: number) {
 /* ── 主页面 ─────────────────────────────────── */
 
 export default function UserPage() {
-  const { user, token, loading: authLoading } = useAuth();
+  const { user, token, loading: authLoading, logout } = useAuth();
   const router = useRouter();
   const [keys, setKeys] = useState<any[]>([]);
   const [copied, setCopied] = useState<string | null>(null);
   const [tokens, setTokens] = useState<number | null>(null);
+  const [logoutOpen, setLogoutOpen] = useState(false);
   const [checkin, setCheckin] = useState<any>(null);
   const [newKeyName, setNewKeyName] = useState("");
   const [claimCode, setClaimCode] = useState("");
@@ -118,7 +118,7 @@ export default function UserPage() {
   if (!user) return null;
 
   return (
-    <div className={`${heading.variable} ${monoFont.variable} min-h-screen bg-background`}>
+    <div className={`${heading.variable} ${monoFont.variable} min-h-screen bg-background pb-16 md:pb-0`}>
       <Navbar />
 
       <motion.div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8"
@@ -126,20 +126,13 @@ export default function UserPage() {
 
         {/* ═══ 欢迎头部 ═══ */}
         <motion.div variants={fadeUp} className="relative overflow-hidden rounded-2xl border bg-card p-6 sm:p-8">
-          {/* 背景渐变装饰 */}
-          <div aria-hidden className="absolute top-0 right-0 w-72 h-72 rounded-full opacity-[0.07] blur-3xl pointer-events-none"
-            style={{ background: "radial-gradient(circle, hsl(var(--primary)) 0%, transparent 70%)" }} />
-
           <div className="relative flex flex-col sm:flex-row sm:items-center sm:justify-between gap-6">
             <div className="flex items-center gap-5">
-              {/* 头像：渐变环 */}
-              <div className="relative">
-                <div className="absolute -inset-1 rounded-full bg-gradient-to-br from-primary/30 via-primary/10 to-transparent blur-sm" />
-                <div className="relative size-16 sm:size-20 rounded-full bg-muted flex items-center justify-center ring-2 ring-border">
-                  <span className={`${heading.className} text-2xl sm:text-3xl font-bold text-foreground`}>
-                    {(user.name || user.email)[0].toUpperCase()}
-                  </span>
-                </div>
+              {/* 头像 */}
+              <div className="relative size-16 sm:size-20 rounded-full bg-muted flex items-center justify-center ring-1 ring-border">
+                <span className={`${heading.className} text-2xl sm:text-3xl font-bold text-foreground`}>
+                  {(user.name || user.email)[0].toUpperCase()}
+                </span>
               </div>
               <div className="space-y-2">
                 <h1 className={`${heading.className} text-2xl sm:text-3xl font-bold tracking-tight`}>
@@ -156,9 +149,14 @@ export default function UserPage() {
                 </div>
               </div>
             </div>
-            <Button onClick={() => setUpgradeOpen(true)} className="gap-1.5 self-start sm:self-center">
-              {isPro ? "管理订阅" : "升级套餐"} <ArrowUpRight className="size-3.5" />
-            </Button>
+            <div className="flex items-center gap-2 self-start sm:self-center">
+              <Button onClick={() => setUpgradeOpen(true)} className="gap-1.5">
+                {isPro ? "管理订阅" : "升级套餐"} <ArrowUpRight className="size-3.5" />
+              </Button>
+              <Button variant="outline" onClick={() => setLogoutOpen(true)} className="gap-1.5" aria-label="退出登录">
+                <LogOut className="size-3.5" /> <span className="hidden sm:inline">退出</span>
+              </Button>
+            </div>
           </div>
         </motion.div>
 
@@ -190,8 +188,8 @@ export default function UserPage() {
           </div>
 
           {/* 指标卡 */}
-          <StatCard icon={<Zap className="size-4" />} label="恢复速率" value={`${refill}`} unit="/小时" color="text-amber-500" bg="bg-amber-500/10" />
-          <StatCard icon={<Layers className="size-4" />} label="并发任务" value={`${concurrency}`} unit="并发" color="text-blue-500" bg="bg-blue-500/10" />
+          <StatCard icon={<Zap className="size-4" />} label="恢复速率" value={`${refill}`} unit="/小时" />
+          <StatCard icon={<Layers className="size-4" />} label="并发任务" value={`${concurrency}`} unit="并发" />
         </motion.div>
 
         {/* 下个令牌倒计时 */}
@@ -256,7 +254,7 @@ export default function UserPage() {
                           </div>
                           <div className="relative flex items-center gap-1 opacity-50 group-hover:opacity-100 transition-opacity">
                             <Button variant="ghost" size="icon-sm" onClick={() => copyKey(k.api_key)} title="复制">
-                              {copied === k.api_key ? <Check className="text-emerald-500" /> : <Copy />}
+                              {copied === k.api_key ? <Check className="text-foreground" /> : <Copy />}
                             </Button>
                             <Button variant="ghost" size="icon-sm" className="hover:text-destructive" onClick={() => setDeleteId(k.id)} title="删除">
                               <Trash2 />
@@ -275,8 +273,8 @@ export default function UserPage() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="rounded-2xl border bg-card p-6 space-y-4">
                   <div className="flex items-center gap-2">
-                    <div className="size-8 rounded-lg bg-emerald-500/10 flex items-center justify-center">
-                      <Ticket className="size-4 text-emerald-500" />
+                    <div className="size-8 rounded-lg bg-muted flex items-center justify-center">
+                      <Ticket className="size-4 text-muted-foreground" />
                     </div>
                     <span className={`${heading.className} text-sm font-semibold`}>领取优惠券</span>
                   </div>
@@ -303,8 +301,8 @@ export default function UserPage() {
 
                 <div className="rounded-2xl border bg-card p-6 space-y-4">
                   <div className="flex items-center gap-2">
-                    <div className="size-8 rounded-lg bg-violet-500/10 flex items-center justify-center">
-                      <Gift className="size-4 text-violet-500" />
+                    <div className="size-8 rounded-lg bg-muted flex items-center justify-center">
+                      <Gift className="size-4 text-muted-foreground" />
                     </div>
                     <span className={`${heading.className} text-sm font-semibold`}>兑换码</span>
                   </div>
@@ -322,8 +320,8 @@ export default function UserPage() {
               <div className="rounded-2xl border bg-card p-6 space-y-5">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                   <div className="flex items-center gap-3">
-                    <div className="size-10 rounded-xl bg-orange-500/10 flex items-center justify-center">
-                      <RefreshCw className={`size-5 text-orange-500 ${checkin?.done ? "" : "animate-spin"}`} style={{ animationDuration: "3s" }} />
+                    <div className="size-10 rounded-xl bg-muted flex items-center justify-center">
+                      <RefreshCw className={`size-5 text-muted-foreground ${checkin?.done ? "" : "animate-spin"}`} style={{ animationDuration: "3s" }} />
                     </div>
                     <div>
                       <p className={`${heading.className} text-sm font-semibold`}>每日签到</p>
@@ -351,6 +349,9 @@ export default function UserPage() {
       <ConfirmDialog open={deleteId != null} onOpenChange={(o) => { if (!o) setDeleteId(null); }}
         title="删除 API 密钥" description="删除后使用该密钥的应用将立即失效，此操作不可撤销。"
         confirmLabel="删除" variant="destructive" onConfirm={deleteKey} />
+      <ConfirmDialog open={logoutOpen} onOpenChange={setLogoutOpen}
+        title="退出登录" description="确定要退出当前账号吗？"
+        confirmLabel="退出登录" onConfirm={() => { logout(); router.push("/"); }} />
       <UpgradeDialog open={upgradeOpen} onClose={() => setUpgradeOpen(false)}
         currentPlanName={user.plan_name || ""} currentPlanId={(user as any).plan_id || 0} />
     </div>
@@ -359,13 +360,13 @@ export default function UserPage() {
 
 /* ── 指标卡 ─────────────────────────────────── */
 
-function StatCard({ icon, label, value, unit, color, bg }: {
-  icon: React.ReactNode; label: string; value: string; unit: string; color: string; bg: string;
+function StatCard({ icon, label, value, unit }: {
+  icon: React.ReactNode; label: string; value: string; unit: string;
 }) {
   return (
     <div className="rounded-2xl border bg-card p-5 space-y-3 hover:shadow-sm transition-shadow">
-      <div className={`size-9 rounded-xl ${bg} flex items-center justify-center`}>
-        <span className={color}>{icon}</span>
+      <div className="size-9 rounded-xl bg-muted flex items-center justify-center text-muted-foreground">
+        {icon}
       </div>
       <div>
         <p className="text-xs text-muted-foreground">{label}</p>
