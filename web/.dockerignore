@@ -1,0 +1,25 @@
+# 构建产物 / 依赖（容器内重新安装与编译）
+node_modules
+.next
+out
+build
+dist
+
+# 本地环境与日志
+.env
+.env.local
+.env*.local
+npm-debug.log*
+*.log
+
+# 版本控制与编辑器
+.git
+.gitignore
+.vscode
+.idea
+.DS_Store
+
+# 文档与缓存
+*.md
+.next/cache
+tsconfig.tsbuildinfo

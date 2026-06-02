@@ -1,0 +1,194 @@
+"use client";
+
+import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
+import Link from "next/link";
+import { ArrowRight, Mail, Lock, Eye, EyeOff } from "lucide-react";
+import { api, setToken, BASE } from "@/lib/api";
+import { useAuth } from "@/lib/auth";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { toast } from "sonner";
+import { TurnstileWidget } from "@/components/turnstile-widget";
+
+export default function LoginPage() {
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [showPw, setShowPw] = useState(false);
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [mode, setMode] = useState<"user" | "admin">("user");
+  const [turnstileToken, setTurnstileToken] = useState("");
+  const [settings, setSettings] = useState<any>({});
+  const { login: authLogin } = useAuth();
+  const router = useRouter();
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("registered") === "1") {
+      toast.success("注册成功，请登录");
+      window.history.replaceState({}, "", "/login");
+    }
+  }, []);
+
+  useEffect(() => {
+    fetch(`${BASE}/api/settings`)
+      .then((res) => res.json())
+      .then((data) => {
+        if (data?.data) setSettings(data.data);
+      })
+      .catch(() => {});
+  }, []);
+
+  const handleLogin = async () => {
+    if (!email || !password) return;
+    setLoading(true);
+    setError("");
+    try {
+      if (mode === "admin") {
+        const res = await api<any>("/api/admin/login", { method: "POST", body: JSON.stringify({ username: email, password }) });
+        setToken(res.data.token);
+        router.push("/admin");
+      } else {
+        const body: Record<string, string> = { email, password };
+        if (turnstileToken) body.cf_turnstile_token = turnstileToken;
+        const res = await api<any>("/api/auth/login", { method: "POST", body: JSON.stringify(body) });
+        setToken(res.data.token);
+        authLogin(res.data.user, res.data.token);
+        router.push("/");
+      }
+    } catch (e: any) { setError(e.message); }
+    setLoading(false);
+  };
+
+  return (
+    <div className="min-h-screen relative flex items-center justify-center bg-zinc-50 dark:bg-zinc-950 overflow-hidden">
+      {/* Animated bg blobs — neutral */}
+      <div className="absolute inset-0 pointer-events-none overflow-hidden">
+        <div className="absolute -top-1/2 -right-1/4 w-[600px] h-[600px] rounded-full bg-zinc-200/40 dark:bg-zinc-800/30 blur-[120px] animate-[blob1_20s_ease-in-out_infinite]" />
+        <div className="absolute -bottom-1/3 -left-1/4 w-[500px] h-[500px] rounded-full bg-zinc-200/30 dark:bg-zinc-800/20 blur-[100px] animate-[blob2_25s_ease-in-out_infinite]" />
+        <div className="absolute top-1/3 left-1/2 w-[400px] h-[400px] rounded-full bg-zinc-200/20 dark:bg-zinc-800/10 blur-[80px] animate-[blob3_18s_ease-in-out_infinite]" />
+      </div>
+
+      <div className="relative w-full max-w-sm mx-auto px-4">
+        {/* Logo + title */}
+        <div className="text-center mb-8">
+          <Link href="/" className="inline-flex w-10 h-10 rounded-xl bg-zinc-200 dark:bg-zinc-800 items-center justify-center mb-4 hover:bg-zinc-300 dark:hover:bg-zinc-700 transition-colors">
+            {settings?.site_logo_type === "url" || settings?.site_logo_type === "upload" ? (
+              <img src={settings.site_logo_url} alt={settings.site_logo_text || "Logo"} className="w-6 h-6 object-contain" />
+            ) : (
+              <span className="text-sm font-bold text-zinc-900 dark:text-zinc-100">{settings?.site_logo_text || "C2"}</span>
+            )}
+          </Link>
+          <h1 className="text-2xl font-bold tracking-tight text-zinc-900 dark:text-white">
+            {mode === "user" ? "欢迎回来" : "管理员登录"}
+          </h1>
+          <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1.5">
+            {mode === "user" ? "登录你的账号继续创作" : "登录管理后台"}
+          </p>
+        </div>
+
+        {/* Mode switcher */}
+        <div className="flex mb-5 p-1 rounded-xl bg-zinc-100 dark:bg-zinc-800">
+          {(["user", "admin"] as const).map((m) => (
+            <button
+              key={m}
+              onClick={() => setMode(m)}
+              className={`flex-1 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
+                mode === m
+                  ? "bg-white dark:bg-zinc-700 text-zinc-900 dark:text-white shadow-sm"
+                  : "text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300"
+              }`}
+            >
+              {m === "user" ? "用户登录" : "管理员"}
+            </button>
+          ))}
+        </div>
+
+        {/* Form card */}
+        <div className="bg-white dark:bg-zinc-900 border border-zinc-200/60 dark:border-zinc-800/60 rounded-2xl p-6 space-y-4 shadow-xl shadow-zinc-200/20 dark:shadow-zinc-900/30">
+          {/* Email / Username */}
+          <div className="space-y-1.5">
+            <label className="text-[11px] font-medium text-zinc-500 dark:text-zinc-400 flex items-center gap-1.5">
+              <Mail className="w-3 h-3" />
+              {mode === "admin" ? "用户名" : "邮箱"}
+            </label>
+            <Input
+              type={mode === "admin" ? "text" : "email"}
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder={mode === "admin" ? "admin" : "you@example.com"}
+              className="h-10 text-sm"
+              autoFocus
+              onKeyDown={(e) => e.key === "Enter" && handleLogin()}
+            />
+          </div>
+
+          {/* Password */}
+          <div className="space-y-1.5">
+            <label className="text-[11px] font-medium text-zinc-500 dark:text-zinc-400 flex items-center gap-1.5">
+              <Lock className="w-3 h-3" />
+              密码
+            </label>
+            <div className="relative">
+              <Input
+                type={showPw ? "text" : "password"}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="••••••••"
+                className="h-10 text-sm pr-10"
+                onKeyDown={(e) => e.key === "Enter" && handleLogin()}
+              />
+              <button
+                type="button"
+                onClick={() => setShowPw(!showPw)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors"
+              >
+                {showPw ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              </button>
+            </div>
+          </div>
+
+          {/* Error */}
+          {error && (
+            <div className="text-[13px] text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-500/10 rounded-xl px-4 py-2.5 border border-red-100 dark:border-red-500/10">
+              {error}
+            </div>
+          )}
+
+          {/* Turnstile */}
+          {mode === "user" && settings.cf_turnstile_enabled && settings.cf_turnstile_site_key && (
+            <TurnstileWidget siteKey={settings.cf_turnstile_site_key} onToken={setTurnstileToken} />
+          )}
+
+          {/* Submit */}
+          <Button
+            onClick={handleLogin}
+            disabled={loading}
+            className="w-full h-10 text-sm font-semibold gap-2 rounded-xl bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 hover:bg-zinc-800 dark:hover:bg-zinc-200 shadow-none"
+          >
+            {loading ? (
+              <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+            ) : (
+              <ArrowRight className="w-4 h-4" />
+            )}
+            {loading ? "登录中..." : "登录"}
+          </Button>
+
+          {/* Register link */}
+          {mode === "user" && (
+            <p className="text-center text-[13px] text-zinc-500 dark:text-zinc-400 pt-1">
+              没有账号？<Link href="/register" className="font-medium text-zinc-600 dark:text-zinc-300 hover:underline">立即注册</Link>
+            </p>
+          )}
+        </div>
+      </div>
+
+      <style jsx global>{`
+        @keyframes blob1 { 0%,100% { transform: translate(0,0) scale(1); } 33% { transform: translate(30px,-30px) scale(1.05); } 66% { transform: translate(-20px,20px) scale(0.95); } }
+        @keyframes blob2 { 0%,100% { transform: translate(0,0) scale(1); } 33% { transform: translate(-25px,25px) scale(1.08); } 66% { transform: translate(20px,-15px) scale(0.92); } }
+        @keyframes blob3 { 0%,100% { transform: translate(0,0) scale(1); } 50% { transform: translate(15px,-20px) scale(1.1); } }
+      `}</style>
+    </div>
+  );
+}

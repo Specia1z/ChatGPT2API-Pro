@@ -1,0 +1,24 @@
+# 预编译二进制（容器内重新编译 linux/amd64）
+server
+server.exe
+server.exe~
+*.exe
+reset_admin
+
+# 本地环境（密钥由 compose 注入，绝不打包）
+.env
+.env.local
+
+# 本地上传文件（持久化卷管理，不进镜像）
+uploads/
+
+# 版本控制 / 编辑器 / 文档
+.git
+.gitignore
+.vscode
+.idea
+.DS_Store
+*.md
+
+# Go 测试缓存
+*.test

@@ -1,0 +1,48 @@
+# ───── 敏感配置（含密钥，绝不提交）─────
+.env
+.env.local
+.env.prod
+.env*.local
+server/.env
+web/.env.local
+
+# ───── 编译产物 / 二进制 ─────
+server.exe
+server.exe~
+*.exe
+*.exe~
+/server/server
+/server/reset_admin
+
+# ───── 前端依赖与构建 ─────
+node_modules/
+.next/
+out/
+build/
+dist/
+*.tsbuildinfo
+next-env.d.ts
+
+# ───── 本地上传文件（用户图片，不入库）─────
+server/uploads/
+uploads/
+
+# ───── Go ─────
+*.test
+*.out
+
+# ───── 工具 / 编辑器 / 系统 ─────
+.claude/
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+*.log
+npm-debug.log*
+
+# ───── 根目录开发垃圾（旧副本 / 一次性脚本，不入库）─────
+/mysql.go
+/fix-sizes.js
+
+# ───── 备份文件（开发中旧版本快照，不入库）─────
+*.bak

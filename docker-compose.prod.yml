@@ -1,0 +1,98 @@
+# 生产编排：mysql + redis + backend + frontend
+# 对外仅 backend(8080) / frontend(3000) 绑定到 127.0.0.1，由宝塔 Nginx 反代：
+#   /api/ /uploads/ → 127.0.0.1:8080 ；其余 → 127.0.0.1:3000
+# 启动：docker compose -f docker-compose.prod.yml --env-file .env.prod up -d --build
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: c2a-mysql
+    restart: unless-stopped
+    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?需在 .env.prod 设置}
+      MYSQL_DATABASE: ${MYSQL_DB:-chatgpt2api_pro}
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./server/migrations:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-p${MYSQL_ROOT_PASSWORD}"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    networks: [c2a]
+
+  redis:
+    image: redis:7-alpine
+    container_name: c2a-redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes ${REDIS_PASS:+--requirepass ${REDIS_PASS}}
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    networks: [c2a]
+
+  backend:
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+    container_name: c2a-backend
+    restart: unless-stopped
+    environment:
+      PORT: "8080"
+      MYSQL_HOST: mysql
+      MYSQL_PORT: "3306"
+      MYSQL_USER: root
+      MYSQL_PASS: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DB: ${MYSQL_DB:-chatgpt2api_pro}
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      REDIS_PASS: ${REDIS_PASS:-}
+      JWT_SECRET: ${JWT_SECRET:?需在 .env.prod 设置}
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-}
+    volumes:
+      # 本地图片存储：与后台 storage 配置的 local_path=/app/uploads 对应，持久化
+      - uploads:/app/uploads
+    ports:
+      # 仅绑定 localhost，由宝塔 Nginx 反代 /api 与 /uploads 到此
+      - "127.0.0.1:8080:8080"
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8080/api/settings"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    networks: [c2a]
+
+  frontend:
+    build:
+      context: ./web
+      dockerfile: Dockerfile
+    container_name: c2a-frontend
+    restart: unless-stopped
+    environment:
+      PORT: "3000"
+      NODE_ENV: production
+    ports:
+      # 仅绑定 localhost，由宝塔 Nginx 反代 / 到此
+      - "127.0.0.1:3000:3000"
+    depends_on:
+      - backend
+    networks: [c2a]
+
+volumes:
+  mysql_data:
+  redis_data:
+  uploads:
+
+networks:
+  c2a:
+    driver: bridge
