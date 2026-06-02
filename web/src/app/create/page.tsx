@@ -377,7 +377,7 @@ export default function CreatePage() {
 
   return (
     <TooltipProvider>
-      <div className="min-h-screen bg-[#f7f6f3] dark:bg-[#12120f]">
+      <div className="min-h-screen bg-[#f7f6f3] dark:bg-[#12120f] pb-16 md:pb-0">
         <Navbar />
 
         {/* ═══════════════ TOP — Prompt Studio ═══════════════ */}

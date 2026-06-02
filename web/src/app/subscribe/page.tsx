@@ -343,7 +343,7 @@ function SubscribePageInner() {
   );
 
   return (
-    <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950">
+    <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950 pb-16 md:pb-0">
       <Navbar />
       <main className="max-w-2xl mx-auto px-4 py-8">
         {/* Back button */}

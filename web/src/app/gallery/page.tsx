@@ -105,7 +105,7 @@ export default function GalleryPage() {
   );
 
   return (
-    <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950">
+    <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950 pb-16 md:pb-0">
       <Navbar />
 
       {/* Hero — editorial header with diamond */}

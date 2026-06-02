@@ -105,7 +105,7 @@ export function UpgradeDialog({ open, onClose, currentPlanName, currentPlanId, o
 
   return (
     <Dialog open={open} onOpenChange={(v) => { if (!v && screen !== "qr") onClose(); }}>
-      <DialogContent className="max-w-md p-0 gap-0 overflow-hidden [&>button]:hidden" showCloseButton={false}>
+      <DialogContent className="max-w-[calc(100%-2rem)] sm:max-w-md p-0 gap-0 overflow-hidden [&>button]:hidden" showCloseButton={false}>
         <DialogTitle className="sr-only">升级套餐</DialogTitle>
         <DialogDescription className="sr-only">选择套餐并完成支付</DialogDescription>
         {screen === "select" && <SelectScreen />}
@@ -142,7 +142,7 @@ export function UpgradeDialog({ open, onClose, currentPlanName, currentPlanId, o
           )}
         </div>
 
-        <div className="px-6 py-4 space-y-2.5 max-h-[340px] overflow-y-auto scrollbar-thin">
+        <div className="px-6 py-4 space-y-2.5 max-h-[min(340px,50vh)] overflow-y-auto scrollbar-thin">
           {showPlans.length === 0 && (
             <p className="text-sm text-muted-foreground text-center py-8">已是最高套餐</p>
           )}
@@ -179,7 +179,7 @@ export function UpgradeDialog({ open, onClose, currentPlanName, currentPlanId, o
                   )}
                 </div>
 
-                <div className="flex items-center gap-3 text-[11px] text-muted-foreground">
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-muted-foreground">
                   <span className="flex items-center gap-1"><Zap className="size-3" /> 并发 {plan.concurrency}</span>
                   <span className="flex items-center gap-1"><Coins className="size-3" /> {plan.token_capacity} 令牌</span>
                   <span className="flex items-center gap-1"><Clock className="size-3" /> {billing === "yearly" ? (plan.duration_days_yearly > 0 ? plan.duration_days_yearly + "天" : "永久") : plan.duration_days + "天"}</span>
@@ -232,7 +232,7 @@ export function UpgradeDialog({ open, onClose, currentPlanName, currentPlanId, o
             {upgradeData?.remaining_value > 0 && (
               <div className="flex items-center justify-between">
                 <span className="text-muted-foreground">旧套餐抵扣</span>
-                <span className="tabular-nums text-emerald-600 dark:text-emerald-400">-¥{(upgradeData.remaining_value || 0).toFixed(2)}</span>
+                <span className="tabular-nums text-foreground">-¥{(upgradeData.remaining_value || 0).toFixed(2)}</span>
               </div>
             )}
             <div className="flex items-center justify-between border-t pt-2">
