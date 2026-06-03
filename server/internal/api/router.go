@@ -20,6 +20,7 @@ func NewRouter(mysql *store.MySQLStore, redis *store.RedisStore, cleaner *servic
 
 	// 公开
 	mux.HandleFunc("GET /api/plans", h.ListPlans)
+	mux.HandleFunc("GET /api/public/stats", h.PublicStats)
 
 	// 用户公开（限流）
 	mux.Handle("POST /api/auth/register", middleware.RateLimit(http.HandlerFunc(h.UserRegister)))
@@ -37,6 +38,8 @@ func NewRouter(mysql *store.MySQLStore, redis *store.RedisStore, cleaner *servic
 	mux.Handle("POST /api/user/checkin", userAuth(http.HandlerFunc(h.Checkin)))
 	mux.Handle("GET /api/user/checkin/status", userAuth(http.HandlerFunc(h.CheckinStatus)))
 	mux.Handle("GET /api/user/tokens", userAuth(http.HandlerFunc(h.GetUserTokens)))
+mux.Handle("GET /api/user/stats", userAuth(http.HandlerFunc(h.GetUserStats)))
+mux.Handle("POST /api/user/points/exchange", userAuth(http.HandlerFunc(h.ExchangePoints)))
 	mux.Handle("GET /api/generations", userAuth(http.HandlerFunc(h.GetUserGenerations)))
 	mux.Handle("POST /api/generations/share", userAuth(http.HandlerFunc(h.ToggleShare)))
 	mux.HandleFunc("GET /api/images/{id}", h.ServeGenerationImage)

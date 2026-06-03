@@ -9,6 +9,7 @@ services:
     restart: unless-stopped
     command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
     environment:
+      TZ: Asia/Shanghai
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?需在 .env.prod 设置}
       MYSQL_DATABASE: ${MYSQL_DB:-chatgpt2api_pro}
     volumes:
@@ -26,6 +27,8 @@ services:
     container_name: c2a-redis
     restart: unless-stopped
     command: redis-server --appendonly yes ${REDIS_PASS:+--requirepass ${REDIS_PASS}}
+    environment:
+      TZ: Asia/Shanghai
     volumes:
       - redis_data:/data
     healthcheck:
@@ -42,6 +45,7 @@ services:
     container_name: c2a-backend
     restart: unless-stopped
     environment:
+      TZ: Asia/Shanghai
       PORT: "8080"
       MYSQL_HOST: mysql
       MYSQL_PORT: "3306"
@@ -80,6 +84,7 @@ services:
     container_name: c2a-frontend
     restart: unless-stopped
     environment:
+      TZ: Asia/Shanghai
       PORT: "3000"
       NODE_ENV: production
     ports:

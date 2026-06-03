@@ -3,12 +3,13 @@
 import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useRouter } from "next/navigation";
-import {
+import * as LucideIcons from "lucide-react";
+const {
   ImageIcon, Loader2, Wand2, X, Download, Trash2,
   CheckCircle, AlertCircle, Clock, Filter, Share2,
   Square, Monitor, Smartphone, Camera, MonitorDown, Tv, FileText,
-  Zap, Palette,
-} from "lucide-react";
+  Zap, Palette, Sparkles,
+} = LucideIcons;
 import { useAuth } from "@/lib/auth";
 import { api, BASE } from "@/lib/api";
 import { Navbar } from "@/components/navbar";
@@ -39,6 +40,64 @@ const SIZES = [
   { id: "2K", label: "2K", desc: "高清壁纸", icon: Monitor },
   { id: "4K", label: "4K", desc: "超高清", icon: Tv },
   { id: "A4", label: "A4", desc: "文档打印", icon: FileText },
+];
+
+/* ── 图标名称 → 组件映射 ──────────────── */
+const resolveIcon = (name: string) => (LucideIcons as any)[name] || Palette;
+
+/* ── 内置硬编码风格（API 加载失败时回退） ── */
+
+const HARDCODED_STYLES = [
+  { id: "realistic", label: "照片级写实", icon: "Camera", desc: "真实光影·极致细节",
+    hint: "ultra realistic, photorealistic, 8K, detailed, sharp focus, natural lighting, lifelike textures" },
+  { id: "cyberpunk", label: "赛博朋克", icon: "Zap", desc: "霓虹都市·未来科技",
+    hint: "cyberpunk cityscape, neon signs reflecting on wet pavement, rain drenched streets, futuristic skyscrapers, vibrant purple and cyan lighting, dystopian atmosphere, high contrast, blade runner aesthetic" },
+  { id: "anime", label: "日系动漫", icon: "Cat", desc: "赛璐珞风格·明亮色彩",
+    hint: "anime style, cel shading, vibrant colors, manga aesthetic, clean lineart, expressive eyes, studio ghibli inspired backgrounds, soft lighting" },
+  { id: "watercolor", label: "水彩手绘", icon: "Droplets", desc: "柔和晕染·通透质感",
+    hint: "watercolor painting on textured paper, soft color washes, flowing pigments, wet on wet technique, artistic, dreamy atmosphere, visible brush strokes" },
+  { id: "3d", label: "3D 渲染", icon: "Box", desc: "立体逼真·光影追踪",
+    hint: "3D render, octane render, cinematic lighting, ray tracing, detailed textures, subsurface scattering, volumetric fog, hyperrealistic CG" },
+  { id: "ghibli", label: "宫崎骏风", icon: "Ghost", desc: "治愈温暖·手绘质感",
+    hint: "Studio Ghibli inspired, hand painted backgrounds, soft pastel colors, whimsical atmosphere, lush greenery, warm sunlight filtering through trees, nostalgic and heartwarming" },
+  { id: "fantasy", label: "奇幻史诗", icon: "Flame", desc: "魔法世界·史诗氛围",
+    hint: "epic fantasy scene, magical glowing elements, ethereal atmosphere, ancient ruins, floating islands, mystical creatures, dramatic lighting, otherworldly landscapes" },
+  { id: "sketch", label: "素描线稿", icon: "Scan", desc: "黑白线条·精细笔触",
+    hint: "pencil sketch, detailed cross-hatching, charcoal drawing, black and white, fine art, paper texture, academic drawing style, high detail linework" },
+  { id: "oil", label: "油画古典", icon: "Palette", desc: "厚重笔触·大师质感",
+    hint: "oil painting on canvas, impasto technique, thick visible brushstrokes, classical art style, rich warm color palette, renaissance inspired, museum quality" },
+  { id: "pixel", label: "像素复古", icon: "Dice1", desc: "8bit 怀旧·游戏风",
+    hint: "pixel art, retro 8-bit video game style, limited color palette, chunky pixels, blocky sprites, retro gaming aesthetic, NES inspired" },
+  { id: "frost", label: "冰雪奇境", icon: "Snowflake", desc: "晶莹剔透·冬日幻境",
+    hint: "winter wonderland, crystalline ice formations, frost on glass, snow covered landscape, ethereal blue and white palette, sparkling ice crystals, aurora borealis in sky" },
+  { id: "sunset", label: "日落金辉", icon: "Sunset", desc: "金色余晖·温暖氛围",
+    hint: "golden hour photography, warm sunset tones, dramatic orange and pink sky, sun rays piercing through clouds, silhouettes, atmospheric perspective, rich warm glow" },
+  { id: "landscape", label: "山水意境", icon: "Mountain", desc: "水墨山河·自然壮阔",
+    hint: "traditional Chinese ink wash painting, misty mountains layered in fog, pine trees on cliffs, waterfall cascading down rocks, zen atmosphere, negative space, horizontal scroll composition" },
+  { id: "sci-fi", label: "科幻星际", icon: "Telescope", desc: "太空探索·未来科技",
+    hint: "sci-fi spaceship interior or exterior, futuristic technology, holographic displays, sleek minimal design, deep space nebula background, advanced civilization, blade runner meets star trek" },
+  { id: "noir", label: "黑色电影", icon: "Moon", desc: "黑白光影·悬疑氛围",
+    hint: "film noir style, high contrast black and white, dramatic shadows, venetian blind lighting, detective aesthetic, moody atmosphere, rain soaked streets, 1940s style" },
+  { id: "ghostly", label: "灵异诡谲", icon: "Ghost", desc: "幽暗神秘·超自然",
+    hint: "haunted atmosphere, eerie fog, ghostly apparitions, abandoned Gothic mansion, moonlight through broken windows, supernatural, dark and mysterious mood" },
+  { id: "pop-art", label: "波普艺术", icon: "Sparkles", desc: "鲜艳撞色·漫画风格",
+    hint: "pop art style, Andy Warhol inspired, bold vibrant colors, comic book halftone dots, high contrast, repetitive patterns, screen print effect, retro 1960s aesthetic" },
+  { id: "steampunk", label: "蒸汽朋克", icon: "Gem", desc: "维多利亚·机械美学",
+    hint: "steampunk aesthetic, Victorian era machinery, brass and copper gears, steam powered airships, vintage industrial, intricate mechanical details, sepia tone atmosphere" },
+  { id: "minimalist", label: "极简主义", icon: "CircleDot", desc: "少即是多·干净留白",
+    hint: "minimalist design, clean composition, ample negative space, simple geometric shapes, muted color palette, modern aesthetic, zen like simplicity" },
+  { id: "vintage", label: "复古胶片", icon: "Camera", desc: "胶片质感·怀旧色调",
+    hint: "vintage film photography, Kodachrome tones, grainy texture, light leaks, analog warmth, 1970s aesthetic, retro color grading, imperfect and authentic" },
+  { id: "glitch", label: "故障艺术", icon: "Waves", desc: "数字失真·赛博美学",
+    hint: "glitch art, digital distortion, RGB split effect, scan lines, corrupted data aesthetic, vivid neon colors on dark background, cyberpunk digital art" },
+  { id: "ukiyo-e", label: "浮世绘", icon: "CloudSun", desc: "江户风韵·木板套色",
+    hint: "ukiyo-e woodblock print style, Hokusai inspired, bold outlines, flat color areas, wave patterns, traditional Japanese art, cherry blossoms, Mount Fuji, indigo and vermillion palette" },
+  { id: "baroque", label: "巴洛克", icon: "Diamond", desc: "华丽戏剧·暗调光影",
+    hint: "baroque painting style, dramatic chiaroscuro lighting, rich deep colors, ornate details, Caravaggio inspired, tenebrism, religious or mythological scene, 17th century masterpiece" },
+  { id: "chibi", label: "Q版可爱", icon: "Star", desc: "圆润萌系·治愈风格",
+    hint: "chibi art style, cute and adorable, oversized head and eyes, small body, kawaii aesthetic, soft pastel colors, round shapes, manga chibi proportions" },
+  { id: "origami", label: "折纸艺术", icon: "Diamond", desc: "几何折叠·纸艺质感",
+    hint: "origami style, geometric paper folds, crisp creases, textured paper surface, minimalist color scheme, three dimensional paper sculpture, soft studio lighting" },
 ];
 
 const FILTER_TABS = [
@@ -78,6 +137,8 @@ export default function CreatePage() {
   const [sizeOpen, setSizeOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<number | null>(null);
   const [size, setSize] = useState("1:1");
+  const [styles, setStyles] = useState(HARDCODED_STYLES);
+  const [activeStyle, setActiveStyle] = useState<string | null>(null);
   const [hsFilter, setHsFilter] = useState<"all" | "completed" | "failed" | "pending">("all");
   const [revealedIds, setRevealedIds] = useState<Set<string>>(new Set());
   const seenRef = useRef<Set<number>>(new Set());
@@ -201,6 +262,27 @@ export default function CreatePage() {
     finally { loadingMoreRef.current = false; setLoadingMore(false); }
   };
 
+  // 从 API 加载风格预设
+  useEffect(() => {
+    fetch(`${BASE}/api/settings`)
+      .then(r => r.json())
+      .then(d => {
+        const raw = d.data?.style_presets;
+        if (!raw) return;
+        try {
+          const list = JSON.parse(raw).filter((s: any) => s.enabled !== false);
+          if (list.length > 0) {
+            const mapped = list.map((s: any) => ({
+              ...s,
+              icon: resolveIcon(s.icon),
+            }));
+            setStyles(mapped);
+          }
+        } catch {}
+      })
+      .catch(() => {});
+  }, []);
+
   // 生成轮询：拉第 1 页，合并而非覆盖——更新已加载项状态、prepend 新项、刷新 total
   const pollUpdate = async (): Promise<any[]> => {
     const r = await api<any>(`/api/generations?page=1&page_size=${PAGE_SIZE}`);
@@ -230,7 +312,7 @@ export default function CreatePage() {
       // ref_images_b64 只接受裸 base64，过滤掉误入的 URL / 代理路径 / dataURL 前缀
       const refB64 = refImages
         .map(img => img.startsWith("data:") ? img.split(",")[1] || "" : img)
-        .filter(img => img && !img.startsWith("/") && !img.startsWith("http"));
+        .filter(img => img && !img.startsWith("/api/") && !img.startsWith("http"));
       const allIds: number[] = [];
       for (const p of lines) {
         try {
@@ -415,7 +497,7 @@ export default function CreatePage() {
             {/* Prompt textarea — hero element */}
             <div className="relative">
               <div
-                className={`absolute -inset-1 rounded-2xl blur-xl ${loading ? "opacity-60" : "opacity-20"}`}
+                className={`absolute -inset-1 rounded-2xl blur-xl transition-all duration-500 ${loading ? "opacity-60" : "opacity-20"}`}
                 style={{
                   background: "linear-gradient(135deg, #1a1a18, #9e9d98, #c0bfb8, #1a1a18) 0% 50% / 200% 100%",
                   animation: loading ? "gradientFlow 3s ease-in-out infinite" : "none",
@@ -433,7 +515,50 @@ export default function CreatePage() {
                   rows={3}
                   className="w-full px-5 py-4 bg-transparent text-sm text-[#1a1a18] dark:text-white placeholder:text-[#c0bfb8] dark:placeholder:text-[#4a4a45] resize-none outline-none leading-relaxed"
                 />
-                {/* Bottom bar */}
+                {/* 风格模板 */}
+                {!activeStyle ? (
+                  <div className="relative px-3 sm:px-4 pb-2">
+                    {/* 渐变遮罩提示可滚动 */}
+                    <div className="pointer-events-none absolute right-0 top-0 bottom-2 w-8 bg-gradient-to-l from-white dark:from-[#1a1a18] to-transparent z-10" />
+                    <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-thin overscroll-x-contain -mx-1 px-1">
+                      <span className="text-[10px] text-[#c0bfb8] dark:text-[#4a4a45] font-medium shrink-0 mr-0.5">风格</span>
+                      {styles.map(s => {
+                        const Icon = typeof s.icon === "string" ? resolveIcon(s.icon) : s.icon;
+                        return (
+                          <button key={s.id} onClick={() => {
+                            setActiveStyle(s.id);
+                            const cur = prompt.trim();
+                            setPrompt(cur ? `${cur}, ${s.hint}` : s.hint);
+                            inputRef.current?.focus();
+                          }}
+                            className="flex items-center gap-1 px-2.5 py-1.5 sm:px-2 sm:py-1 rounded-lg text-[11px] sm:text-[10px] font-medium text-[#9e9d98] dark:text-[#6b6a66]
+                              hover:text-[#1a1a18] dark:hover:text-white hover:bg-[#f0efe8] dark:hover:bg-[#252521] transition-all shrink-0 border border-transparent hover:border-[#e0dfd8] dark:hover:border-[#2a2a25] touch-manipulation">
+                            <Icon className="w-3.5 h-3.5 sm:w-3 sm:h-3" />
+                            <span className="whitespace-nowrap">{s.label}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2 px-3 sm:px-4 pb-2 flex-wrap">
+                    <div className="flex items-center gap-1.5 px-2.5 py-1.5 sm:px-2 sm:py-1 rounded-lg bg-[#1a1a18] dark:bg-white text-white dark:text-[#1a1a18] text-[11px] sm:text-[10px] font-medium shrink-0">
+                      {(() => {
+                        const s = styles.find(x => x.id === activeStyle);
+                        if (!s) return null;
+                        const Icon = typeof s.icon === "string" ? resolveIcon(s.icon) : s.icon;
+                        return <><Icon className="w-3.5 h-3.5 sm:w-3 sm:h-3" /><span>{s.label}</span></>;
+                      })()}
+                    </div>
+                    <button onClick={() => { setActiveStyle(null); }}
+                      className="text-[11px] sm:text-[10px] text-[#9e9d98] dark:text-[#6b6a66] hover:text-[#1a1a18] dark:hover:text-white transition-colors shrink-0 touch-manipulation">
+                      清除
+                    </button>
+                    <span className="text-[11px] sm:text-[10px] text-[#c0bfb8] dark:text-[#4a4a45] truncate max-w-[160px] sm:max-w-[400px]">
+                      {styles.find(s => s.id === activeStyle)?.desc}
+                    </span>
+                  </div>
+                )}
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1.5 sm:gap-2 px-3 sm:px-4 pb-3 pt-1">
                   <div className="flex items-center flex-wrap gap-1 sm:gap-2">
                     {/* Size pills — common + more dropdown */}
@@ -513,23 +638,35 @@ export default function CreatePage() {
                     {refImages.length > 0 && fusionMode && (
                       <span className="text-[10px] text-[#6b6a66] dark:text-[#9e9d98] font-medium px-1.5 py-0.5 rounded-md bg-[#f0efe8] dark:bg-[#252521]">融合</span>
                     )}
-                    <button onClick={() => { setFusionMode(!fusionMode); setRefImages([]); }}
+                    <button onClick={() => { const next = !fusionMode; setFusionMode(next); setRefImages([]); if (next) fileRef.current?.click(); }}
                       className={`flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-medium transition-all ${
                         fusionMode ? "bg-[#1a1a18] dark:bg-white text-white dark:text-[#1a1a18]" : "text-[#9e9d98] dark:text-[#6b6a66] hover:text-[#1a1a18] dark:hover:text-white hover:bg-[#f0efe8] dark:hover:bg-[#252521]"
                       }`}>
                       <ImageIcon className="w-2.5 h-2.5" />
                       {fusionMode ? "融合" : "图生图"}
                     </button>
-                    <input ref={fileRef} type="file" accept="image/*" multiple className="hidden"
-                      onChange={e => {
-                        const file = e.target?.files?.[0];
-                        if (!file) return;
-                        const reader = new FileReader();
-                        reader.onload = () => {
-                          const b64 = (reader.result as string).split(",")[1] || (reader.result as string);
-                          setRefImages(prev => [...prev, b64]);
-                        };
-                        reader.readAsDataURL(file);
+                    <input ref={fileRef} type="file" accept="image/*,image/heic,image/heif" multiple className="hidden"
+                      onChange={async e => {
+                        const files = e.target?.files;
+                        if (!files || files.length === 0) return;
+                        for (const file of Array.from(files)) {
+                          let imgFile = file;
+                          // HEIC → JPEG 转换
+                          if (/\.heic$/i.test(file.name) || file.type === "image/heic" || file.type === "image/heif") {
+                            try {
+                              const { default: heic2any } = await import("heic2any");
+                              const blob = await heic2any({ blob: file, toType: "image/jpeg" });
+                              imgFile = new File([blob as Blob], file.name.replace(/\.heic$/i, ".jpg"), { type: "image/jpeg" });
+                            } catch { toast.error("HEIC 转换失败"); continue; }
+                          }
+                          const reader = new FileReader();
+                          reader.onload = () => {
+                            const raw = (reader.result as string).split(",")[1] || (reader.result as string);
+                            setRefImages(prev => [...prev, raw]);
+                          };
+                          reader.readAsDataURL(imgFile);
+                        }
+                        e.target.value = "";
                       }} />
                   </div>
 

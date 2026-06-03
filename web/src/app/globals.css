@@ -226,6 +226,11 @@
   100% { background-position: 0% 50%; }
 }
 
+/* ── 风车旋转：conic-gradient 整体旋转，形成彩色叶片轨迹 ── */
+@keyframes windmillSpin {
+  to { transform: rotate(360deg); }
+}
+
 @keyframes reveal {
   0%   { opacity: 0; }
   30%  { opacity: 0; }

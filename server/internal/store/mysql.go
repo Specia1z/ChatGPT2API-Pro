@@ -182,6 +182,11 @@ func (s *MySQLStore) autoMigrate() {
 	s.db.Exec("ALTER TABLE settings ADD COLUMN site_logo_text VARCHAR(32) NOT NULL DEFAULT 'C2'")
 	s.db.Exec("ALTER TABLE settings ADD COLUMN site_logo_url TEXT")
 	s.db.Exec("ALTER TABLE settings ADD COLUMN storage_cleanup_days INT NOT NULL DEFAULT 0")
+	s.db.Exec("ALTER TABLE settings ADD COLUMN points_exchange_rate INT NOT NULL DEFAULT 10 AFTER storage_cleanup_days")
+	s.db.Exec("ALTER TABLE settings ADD COLUMN points_exchange_bonus INT NOT NULL DEFAULT 0 AFTER points_exchange_rate")
+	if !s.columnExists(dbName, "settings", "style_presets") {
+		s.db.Exec("ALTER TABLE settings ADD COLUMN style_presets TEXT AFTER points_exchange_bonus")
+	}
 	s.db.Exec(`CREATE TABLE IF NOT EXISTS orders (
 		id BIGINT AUTO_INCREMENT PRIMARY KEY,
 		order_no VARCHAR(32) NOT NULL UNIQUE,
@@ -1001,8 +1006,8 @@ func (s *MySQLStore) SaveStorageConfig(cfg *model.StorageConfig) error {
 
 func (s *MySQLStore) GetSettings() (*model.Settings, error) {
 	cfg := &model.Settings{}
-	err := s.db.QueryRow(`SELECT site_title, site_subtitle, COALESCE(site_description,''), cf_turnstile_enabled, cf_turnstile_site_key, cf_turnstile_secret_key, COALESCE(default_plan_id,0), COALESCE(banned_words,''), COALESCE(checkin_enabled,1), COALESCE(checkin_base,10), COALESCE(checkin_streak_bonus,5), COALESCE(alipay_enabled,0), COALESCE(alipay_app_id,''), COALESCE(alipay_app_private_key,''), COALESCE(alipay_alipay_public_key,''), COALESCE(alipay_notify_url,''), COALESCE(site_logo_type,'text'), COALESCE(site_logo_text,'C2'), COALESCE(site_logo_url,''), COALESCE(storage_cleanup_days,0) FROM settings WHERE id=1`).
-		Scan(&cfg.SiteTitle, &cfg.SiteSubtitle, &cfg.SiteDescription, &cfg.CFTurnstileEnabled, &cfg.CFTurnstileSiteKey, &cfg.CFTurnstileSecretKey, &cfg.DefaultPlanID, &cfg.BannedWords, &cfg.CheckinEnabled, &cfg.CheckinBase, &cfg.CheckinStreakBonus, &cfg.AlipayEnabled, &cfg.AlipayAppID, &cfg.AlipayAppPrivateKey, &cfg.AlipayPublicKey, &cfg.AlipayNotifyURL, &cfg.SiteLogoType, &cfg.SiteLogoText, &cfg.SiteLogoURL, &cfg.StorageCleanupDays)
+	err := s.db.QueryRow(`SELECT site_title, site_subtitle, COALESCE(site_description,''), cf_turnstile_enabled, cf_turnstile_site_key, cf_turnstile_secret_key, COALESCE(default_plan_id,0), COALESCE(banned_words,''), COALESCE(checkin_enabled,1), COALESCE(checkin_base,10), COALESCE(checkin_streak_bonus,5), COALESCE(alipay_enabled,0), COALESCE(alipay_app_id,''), COALESCE(alipay_app_private_key,''), COALESCE(alipay_alipay_public_key,''), COALESCE(alipay_notify_url,''), COALESCE(site_logo_type,'text'), COALESCE(site_logo_text,'C2'), COALESCE(site_logo_url,''), COALESCE(storage_cleanup_days,0), COALESCE(points_exchange_rate,10), COALESCE(points_exchange_bonus,0), COALESCE(style_presets,'') FROM settings WHERE id=1`).
+		Scan(&cfg.SiteTitle, &cfg.SiteSubtitle, &cfg.SiteDescription, &cfg.CFTurnstileEnabled, &cfg.CFTurnstileSiteKey, &cfg.CFTurnstileSecretKey, &cfg.DefaultPlanID, &cfg.BannedWords, &cfg.CheckinEnabled, &cfg.CheckinBase, &cfg.CheckinStreakBonus, &cfg.AlipayEnabled, &cfg.AlipayAppID, &cfg.AlipayAppPrivateKey, &cfg.AlipayPublicKey, &cfg.AlipayNotifyURL, &cfg.SiteLogoType, &cfg.SiteLogoText, &cfg.SiteLogoURL, &cfg.StorageCleanupDays, &cfg.PointsExchangeRate, &cfg.PointsExchangeBonus, &cfg.StylePresets)
 	if err != nil { return cfg, nil }
 	return cfg, nil
 }
@@ -1021,8 +1026,8 @@ func (s *MySQLStore) SaveSettings(cfg *model.Settings) error {
 			cfg.AlipayPublicKey = existing.AlipayPublicKey
 		}
 	}
-	_, err := s.db.Exec(`UPDATE settings SET site_title=?, site_subtitle=?, site_description=?, cf_turnstile_enabled=?, cf_turnstile_site_key=?, cf_turnstile_secret_key=?, default_plan_id=?, banned_words=?, checkin_enabled=?, checkin_base=?, checkin_streak_bonus=?, alipay_enabled=?, alipay_app_id=?, alipay_app_private_key=?, alipay_alipay_public_key=?, alipay_notify_url=?, site_logo_type=?, site_logo_text=?, site_logo_url=?, storage_cleanup_days=? WHERE id=1`,
-		cfg.SiteTitle, cfg.SiteSubtitle, cfg.SiteDescription, cfg.CFTurnstileEnabled, cfg.CFTurnstileSiteKey, cfg.CFTurnstileSecretKey, cfg.DefaultPlanID, cfg.BannedWords, cfg.CheckinEnabled, cfg.CheckinBase, cfg.CheckinStreakBonus, cfg.AlipayEnabled, cfg.AlipayAppID, cfg.AlipayAppPrivateKey, cfg.AlipayPublicKey, cfg.AlipayNotifyURL, cfg.SiteLogoType, cfg.SiteLogoText, cfg.SiteLogoURL, cfg.StorageCleanupDays)
+	_, err := s.db.Exec(`UPDATE settings SET site_title=?, site_subtitle=?, site_description=?, cf_turnstile_enabled=?, cf_turnstile_site_key=?, cf_turnstile_secret_key=?, default_plan_id=?, banned_words=?, checkin_enabled=?, checkin_base=?, checkin_streak_bonus=?, alipay_enabled=?, alipay_app_id=?, alipay_app_private_key=?, alipay_alipay_public_key=?, alipay_notify_url=?, site_logo_type=?, site_logo_text=?, site_logo_url=?, storage_cleanup_days=?, points_exchange_rate=?, points_exchange_bonus=?, style_presets=? WHERE id=1`,
+		cfg.SiteTitle, cfg.SiteSubtitle, cfg.SiteDescription, cfg.CFTurnstileEnabled, cfg.CFTurnstileSiteKey, cfg.CFTurnstileSecretKey, cfg.DefaultPlanID, cfg.BannedWords, cfg.CheckinEnabled, cfg.CheckinBase, cfg.CheckinStreakBonus, cfg.AlipayEnabled, cfg.AlipayAppID, cfg.AlipayAppPrivateKey, cfg.AlipayPublicKey, cfg.AlipayNotifyURL, cfg.SiteLogoType, cfg.SiteLogoText, cfg.SiteLogoURL, cfg.StorageCleanupDays, cfg.PointsExchangeRate, cfg.PointsExchangeBonus, cfg.StylePresets)
 	return err
 }
 
@@ -1791,6 +1796,16 @@ func (s *MySQLStore) GetStatsTrends(days int) (*model.TrendsData, error) {
 	return td, nil
 }
 
+// GetGenerationsAgeDays 返回最早一条生图记录距今的天数（至少 1）
+func (s *MySQLStore) GetGenerationsAgeDays() int {
+	var days *int
+	s.db.QueryRow("SELECT DATEDIFF(CURDATE(), DATE(MIN(created_at))) FROM generations").Scan(&days)
+	if days == nil || *days < 1 {
+		return 1
+	}
+	return *days
+}
+
 func (s *MySQLStore) GetModelBreakdown() ([]model.ModelBreakdown, error) {
 	rows, err := s.db.Query("SELECT COALESCE(model,'unknown') as m, COUNT(*) FROM generations GROUP BY m ORDER BY COUNT(*) DESC")
 	if err != nil { return nil, err }
@@ -1806,4 +1821,61 @@ func (s *MySQLStore) GetModelBreakdown() ([]model.ModelBreakdown, error) {
 	}
 	if out == nil { out = []model.ModelBreakdown{} }
 	return out, nil
+}
+
+// GetUserStats 返回指定用户的统计概览
+func (s *MySQLStore) GetUserStats(userID int64) (*model.UserStats, error) {
+	var st model.UserStats
+	s.db.QueryRow("SELECT COUNT(*) FROM generations WHERE user_id=?", userID).Scan(&st.TotalGenerations)
+	s.db.QueryRow("SELECT COUNT(*) FROM generations WHERE user_id=? AND DATE(created_at)=CURDATE()", userID).Scan(&st.TodayGenerations)
+	s.db.QueryRow("SELECT COUNT(*) FROM generations WHERE user_id=? AND created_at >= DATE_SUB(CURDATE(), INTERVAL WEEKDAY(CURDATE()) DAY)", userID).Scan(&st.WeekGenerations)
+	s.db.QueryRow("SELECT COUNT(*) FROM generations WHERE user_id=? AND status='completed'", userID).Scan(&st.TotalSuccess)
+	s.db.QueryRow("SELECT COUNT(*) FROM generations WHERE user_id=? AND status='failed'", userID).Scan(&st.TotalFailed)
+	return &st, nil
+}
+
+// GetUserTrends 返回指定用户近 n 天的每日生成趋势
+func (s *MySQLStore) GetUserTrends(userID, days int) ([]model.TrendPoint, error) {
+	startDate := time.Now().AddDate(0, 0, -days+1).Format("2006-01-02")
+	rows, err := s.db.Query("SELECT DATE(created_at) as d, COUNT(*) FROM generations WHERE user_id=? AND created_at >= ? GROUP BY d ORDER BY d", userID, startDate)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	byDate := map[string]float64{}
+	for rows.Next() {
+		var date string
+		var count float64
+		if err := rows.Scan(&date, &count); err != nil {
+			continue
+		}
+		if len(date) >= 10 {
+			date = date[5:10]
+		}
+		byDate[date] = count
+	}
+
+	out := make([]model.TrendPoint, 0, days)
+	now := time.Now()
+	for i := days - 1; i >= 0; i-- {
+		d := now.AddDate(0, 0, -i).Format("01-02")
+		v, ok := byDate[d]
+		if !ok {
+			v = 0
+		}
+		out = append(out, model.TrendPoint{Date: d, Value: v})
+	}
+	return out, nil
+}
+
+// GetUserSuccessRate 返回指定用户今日成功率
+func (s *MySQLStore) GetUserSuccessRate(userID int64) float64 {
+	var total, success int
+	s.db.QueryRow("SELECT COUNT(*) FROM generations WHERE user_id=? AND DATE(created_at)=CURDATE()", userID).Scan(&total)
+	s.db.QueryRow("SELECT COUNT(*) FROM generations WHERE user_id=? AND status='completed' AND DATE(created_at)=CURDATE()", userID).Scan(&success)
+	if total == 0 {
+		return 100
+	}
+	return float64(success) / float64(total) * 100
 }

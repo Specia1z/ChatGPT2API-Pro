@@ -128,7 +128,8 @@ func FetchUserInfo(accessToken, proxyURL string) (*UserInfoResult, error) {
 				if !ok { continue }
 				if fn, _ := lm["feature_name"].(string); fn != "image_gen" { continue }
 				if rem, ok := lm["remaining"].(float64); ok { result.Quota = int(rem) }
-				if ra, ok := lm["reset_after"].(string); ok { result.RestoreAt = ra }
+				if ra, ok := lm["reset_after"].(string); ok { result.RestoreAt = ra
+				} else if rn, ok := lm["reset_after"].(float64); ok { result.RestoreAt = fmt.Sprintf("%.0fs", rn) }
 				result.ImageQuotaUnknown = false
 				break
 			}

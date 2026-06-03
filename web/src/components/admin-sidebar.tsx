@@ -8,7 +8,7 @@ import { Outfit } from "next/font/google";
 import {
   LayoutDashboard, Zap, Shield, Settings, ImageIcon,
   Package, Users, LogOut, Ticket, BarChart3, ChevronRight,
-  ShoppingCart, Tag, Database, Sun, Moon,
+  ShoppingCart, Tag, Database, Sun, Moon, Palette,
   Menu, X,
 } from "lucide-react";
 import { setToken, BASE } from "@/lib/api";
@@ -46,6 +46,7 @@ const navGroups = [
     items: [
       { href: "/admin/storage", icon: Database, label: "存储配置" },
       { href: "/admin/settings", icon: Settings, label: "系统设置" },
+      { href: "/admin/styles", icon: Palette, label: "风格预设" },
       { href: "/admin/generations", icon: ImageIcon, label: "生图管理" },
     ],
   },

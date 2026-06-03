@@ -65,8 +65,11 @@ function RestoreTimer({ value }: { value?: string }) {
     setTick(0);
     let total = 0;
     if (!value) { totalRef.current = 0; return; }
-    if (/^\d+s$/.test(value)) { total = parseInt(value); }
-    else {
+    // "3s" / "5m" / "2h" / "3h30m" / "1h30m30s" 等格式
+    const m = value.match(/^(?:(\d+)h)?(?:(\d+)m)?(?:(\d+)s)?$/);
+    if (m) {
+      total = (parseInt(m[1]||'0')*3600 + parseInt(m[2]||'0')*60 + parseInt(m[3]||'0'));
+    } else {
       const d = new Date(value);
       if (!isNaN(d.getTime())) { total = Math.max(0, Math.floor((d.getTime() - Date.now()) / 1000)); }
       else if (/^\d+$/.test(value)) { const ms = parseInt(value); total = ms > 1e15 ? 0 : Math.max(0, Math.floor((ms - Date.now()) / 1000)); }

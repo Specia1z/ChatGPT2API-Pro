@@ -268,14 +268,15 @@ func (h *Handler) CreateGeneration(w http.ResponseWriter, r *http.Request) {
 
 	// 令牌桶检查 — 原子消耗 count 个令牌（同步，确保返回时已扣减）
 
-	remaining, ok, waitSec, _ := h.Redis.ConsumeToken(userID, capacity, refillRate, count)
-
+	normal, burst, ok, waitSec, _ := h.Redis.ConsumeToken(userID, capacity, refillRate, count)
+	totalRemain := normal + burst
+	
 	if !ok {
-
-		writeJSON(w, 429, model.APIResponse{Code: 429, Message: fmt.Sprintf("令牌不足 (剩余%.0f, 需%d个, 等待%ds)", remaining, count, waitSec)})
-
+	
+		writeJSON(w, 429, model.APIResponse{Code: 429, Message: fmt.Sprintf("令牌不足 (剩余%.0f, 需%d个, 等待%ds)", totalRemain, count, waitSec)})
+	
 		return
-
+	
 	}
 
 

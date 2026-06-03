@@ -219,6 +219,17 @@ export default function SettingsPage() {
                         </div>
                       ))}
                     </div>
+                    <div className="border-t border-border pt-4 mt-2">
+                      <p className="text-xs font-medium text-muted-foreground mb-3">积分兑换突发令牌</p>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div className="space-y-1.5"><Label>兑换比例（积分/个）</Label><Input type="number" min={1} value={cfg?.points_exchange_rate ?? 10} onChange={e => update("points_exchange_rate", +e.target.value)} className={inputCls} placeholder="10" />
+                          <p className="text-[10px] text-muted-foreground">例如 10 = 10 积分换 1 个突发令牌</p>
+                        </div>
+                        <div className="space-y-1.5"><Label>大额赠送（≥50 个时）</Label><Input type="number" min={0} value={cfg?.points_exchange_bonus ?? 0} onChange={e => update("points_exchange_bonus", +e.target.value)} className={inputCls} placeholder="0" />
+                          <p className="text-[10px] text-muted-foreground">每 50 个额外赠送 N 个</p>
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 ) : <p className="text-sm text-muted-foreground">签到功能已关闭，开启后可配置积分奖励规则。</p>}
               </Card>

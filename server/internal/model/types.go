@@ -226,7 +226,21 @@ type Settings struct {
 	SiteLogoType        string `json:"site_logo_type"`              // "text" | "url" | "upload"
 	SiteLogoText        string `json:"site_logo_text"`              // 文本 Logo
 	SiteLogoURL         string `json:"site_logo_url,omitempty"`     // 图片 URL 或 data URI
-	StorageCleanupDays  int    `json:"storage_cleanup_days"`        // 本地文件保留天数，0=不清理
+	StorageCleanupDays  int    `json:"storage_cleanup_days"`
+	PointsExchangeRate  int    `json:"points_exchange_rate"`
+	PointsExchangeBonus int    `json:"points_exchange_bonus"`
+	StylePresets string `json:"style_presets"` // JSON 数组：风格预设
+}
+
+// StylePreset 单个风格预设
+type StylePreset struct {
+	ID      string `json:"id"`
+	Label   string `json:"label"`
+	Icon    string `json:"icon"`
+	Desc    string `json:"desc"`
+	Hint    string `json:"hint"`
+	Enabled bool   `json:"enabled"`
+	Order   int    `json:"order"`
 }
 
 /* ── 支付 ────────────────────────────── */
@@ -395,6 +409,16 @@ type TrendsData struct {
 type ModelBreakdown struct {
 	Model string `json:"model"`
 	Count int    `json:"count"`
+}
+
+/* ── 用户统计 ────────────────────────── */
+
+type UserStats struct {
+	TotalGenerations int `json:"total_generations"`
+	TodayGenerations int `json:"today_generations"`
+	WeekGenerations  int `json:"week_generations"`
+	TotalSuccess     int `json:"total_success"`
+	TotalFailed      int `json:"total_failed"`
 }
 
 

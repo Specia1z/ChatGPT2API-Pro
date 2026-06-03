@@ -156,6 +156,45 @@ function makeParticles(count: number) {
   }));
 }
 
+/* ── Public Stats ──────────────────────────── */
+
+function PublicStats() {
+  const [data, setData] = useState<{ total_generations: number; success_rate: number; avg_daily: number } | null>(null);
+  useEffect(() => {
+    fetch(`${BASE}/api/public/stats`)
+      .then(r => r.json())
+      .then(d => { if (d.data) setData(d.data); })
+      .catch(() => {});
+  }, []);
+  const fmt = (n: number) => n >= 10000 ? (n / 10000).toFixed(1) + "w" : String(Math.round(n));
+  return (
+    <div className="flex flex-wrap items-center gap-x-5 gap-y-3 sm:gap-6 mt-10 opacity-0 animate-[heroReveal_0.6s_ease-out_0.65s_forwards]">
+      {data ? (
+        <>
+          <StatItem value={`${fmt(data.avg_daily)}`} label="日均生成" />
+          <StatItem value={`${data.success_rate.toFixed(1)}%`} label="可用率" />
+          <StatItem value={`${fmt(data.total_generations)}`} label="总生成" />
+        </>
+      ) : (
+        <>
+          <StatItem value="—" label="日均生成" />
+          <StatItem value="—" label="可用率" />
+          <StatItem value="—" label="总生成" />
+        </>
+      )}
+    </div>
+  );
+}
+
+function StatItem({ value, label }: { value: string; label: string }) {
+  return (
+    <div className="flex items-baseline gap-1.5">
+      <span className="text-xl font-bold tabular-nums text-zinc-900 dark:text-zinc-100">{value}</span>
+      <span className="text-[10px] text-zinc-400 tracking-wide">{label}</span>
+    </div>
+  );
+}
+
 /* ── Feature card (中性灰阶 · 序号+图标+排版分层) ──────────── */
 
 function FeatureCard({
@@ -391,18 +430,7 @@ export default function HomePage() {
             </div>
 
             {/* Stats strip */}
-            <div className="flex flex-wrap items-center gap-x-5 gap-y-3 sm:gap-6 mt-10 opacity-0 animate-[heroReveal_0.6s_ease-out_0.65s_forwards]">
-              {[
-                { value: "30s", label: "平均生成" },
-                { value: "8K", label: "最高分辨率" },
-                { value: "99.9%", label: "可用率" },
-              ].map(s => (
-                <div key={s.label} className="flex items-baseline gap-1.5">
-                  <span className="text-xl font-bold tabular-nums text-zinc-900 dark:text-zinc-100">{s.value}</span>
-                  <span className="text-[10px] text-zinc-400 tracking-wide">{s.label}</span>
-                </div>
-              ))}
-            </div>
+            <PublicStats />
           </div>
         </div>
 
