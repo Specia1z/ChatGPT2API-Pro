@@ -93,6 +93,19 @@ export default function UserPage() {
   const [exchangeOpen, setExchangeOpen] = useState(false);
   const [exchangeTokens, setExchangeTokens] = useState(10);
   const [exchanging, setExchanging] = useState(false);
+  const [oldPwd, setOldPwd] = useState("");
+  const [newPwd, setNewPwd] = useState("");
+  const [changingPwd, setChangingPwd] = useState(false);
+  const doChangePwd = async () => {
+    if (!oldPwd || newPwd.length < 6) return;
+    setChangingPwd(true);
+    try {
+      const r = await api("/api/user/change-password", { method: "POST", body: JSON.stringify({ old_password: oldPwd, new_password: newPwd }) });
+      toast.success(r.message || "密码已修改");
+      setOldPwd(""); setNewPwd("");
+    } catch (e: any) { toast.error(e.message || "修改失败"); }
+    setChangingPwd(false);
+  };
 
   useEffect(() => {
     if (authLoading) return;
@@ -265,6 +278,7 @@ export default function UserPage() {
               <TabsTab value="rewards">优惠与兑换</TabsTab>
               <TabsTab value="checkin">每日签到</TabsTab>
               <TabsTab value="stats">用量统计</TabsTab>
+              <TabsTab value="account">账号设置</TabsTab>
             </TabsList>
 
             {/* ── API 密钥 ── */}
@@ -512,6 +526,34 @@ export default function UserPage() {
                   <p className="text-sm">加载中…</p>
                 </div>
               )}
+            </TabsPanel>
+
+            {/* ── 账号设置 ── */}
+            <TabsPanel value="account">
+              <div className="rounded-2xl border bg-card p-6 space-y-5">
+                <div className="flex items-center gap-3">
+                  <div className="size-10 rounded-xl bg-muted flex items-center justify-center">
+                    <Key className="size-5 text-muted-foreground" />
+                  </div>
+                  <div>
+                    <p className={`${heading.className} text-sm font-semibold`}>修改密码</p>
+                    <p className="text-xs text-muted-foreground">设置新的登录密码</p>
+                  </div>
+                </div>
+                <div className="space-y-4 max-w-sm">
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-medium text-muted-foreground">当前密码</label>
+                    <Input type="password" value={oldPwd} onChange={e => setOldPwd(e.target.value)} placeholder="输入当前密码" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-medium text-muted-foreground">新密码</label>
+                    <Input type="password" value={newPwd} onChange={e => setNewPwd(e.target.value)} placeholder="至少 6 位" />
+                  </div>
+                  <Button onClick={doChangePwd} disabled={changingPwd || !oldPwd || !newPwd || newPwd.length < 6}>
+                    {changingPwd ? "修改中..." : "修改密码"}
+                  </Button>
+                </div>
+              </div>
             </TabsPanel>
           </Tabs>
         </motion.div>

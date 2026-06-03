@@ -18,6 +18,46 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
+// POST /api/user/change-password — 用户自行修改密码
+func (h *Handler) ChangePassword(w http.ResponseWriter, r *http.Request) {
+	uid, ok := r.Context().Value(middleware.UserIDKey).(int64)
+	if !ok {
+		writeJSON(w, 401, model.APIResponse{Code: 401, Message: "未登录"})
+		return
+	}
+	var req struct {
+		OldPassword string `json:"old_password"`
+		NewPassword string `json:"new_password"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeJSON(w, 400, model.APIResponse{Code: 400, Message: "参数错误"})
+		return
+	}
+	if req.OldPassword == "" || req.NewPassword == "" {
+		writeJSON(w, 400, model.APIResponse{Code: 400, Message: "密码不能为空"})
+		return
+	}
+	if len(req.NewPassword) < 6 {
+		writeJSON(w, 400, model.APIResponse{Code: 400, Message: "新密码至少 6 位"})
+		return
+	}
+	user, _ := h.MySQL.GetUserByID(uid)
+	if user == nil {
+		writeJSON(w, 404, model.APIResponse{Code: 404, Message: "用户不存在"})
+		return
+	}
+	if bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(req.OldPassword)) != nil {
+		writeJSON(w, 400, model.APIResponse{Code: 400, Message: "旧密码错误"})
+		return
+	}
+	hash, _ := bcrypt.GenerateFromPassword([]byte(req.NewPassword), bcrypt.DefaultCost)
+	if err := h.MySQL.ResetUserPassword(uid, string(hash)); err != nil {
+		writeJSON(w, 500, model.APIResponse{Code: 500, Message: "修改失败"})
+		return
+	}
+	writeJSON(w, 200, model.APIResponse{Code: 200, Message: "密码已修改"})
+}
+
 /* ── 公开路由 ────────────────────────────────────────── */
 
 // POST /api/auth/register
