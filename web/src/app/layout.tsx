@@ -26,6 +26,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="zh-CN" className={cn("font-sans", geist.variable)} suppressHydrationWarning>
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
+        <script src="/config.js" />
       </head>
       <body className="bg-background text-foreground antialiased">
         <AuthProvider><TooltipProvider>{children}</TooltipProvider></AuthProvider>

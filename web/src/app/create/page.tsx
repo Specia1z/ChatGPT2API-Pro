@@ -649,9 +649,9 @@ export default function CreatePage() {
                       onChange={async e => {
                         const files = e.target?.files;
                         if (!files || files.length === 0) return;
+                        const results: string[] = [];
                         for (const file of Array.from(files)) {
                           let imgFile = file;
-                          // HEIC → JPEG 转换
                           if (/\.heic$/i.test(file.name) || file.type === "image/heic" || file.type === "image/heif") {
                             try {
                               const { default: heic2any } = await import("heic2any");
@@ -659,13 +659,15 @@ export default function CreatePage() {
                               imgFile = new File([blob as Blob], file.name.replace(/\.heic$/i, ".jpg"), { type: "image/jpeg" });
                             } catch { toast.error("HEIC 转换失败"); continue; }
                           }
-                          const reader = new FileReader();
-                          reader.onload = () => {
-                            const raw = (reader.result as string).split(",")[1] || (reader.result as string);
-                            setRefImages(prev => [...prev, raw]);
-                          };
-                          reader.readAsDataURL(imgFile);
+                          const raw = await new Promise<string>((resolve, reject) => {
+                            const reader = new FileReader();
+                            reader.onload = () => resolve((reader.result as string).split(",")[1] || (reader.result as string));
+                            reader.onerror = reject;
+                            reader.readAsDataURL(imgFile);
+                          });
+                          results.push(raw);
                         }
+                        setRefImages(prev => [...prev, ...results]);
                         e.target.value = "";
                       }} />
                   </div>

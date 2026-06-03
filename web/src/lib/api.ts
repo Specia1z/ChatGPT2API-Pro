@@ -1,7 +1,9 @@
 // 同源部署（Nginx 统一入口）下留空：所有请求走相对路径 /api，由反代转发到后端，天然无 CORS。
 // 本地开发同样留空，由 next.config.ts 的 rewrites 把 /api 代理到 8080。
-// 仅当前端需跨域直连独立后端时，才在构建期设 NEXT_PUBLIC_API_URL=后端地址。
-export const BASE = process.env.NEXT_PUBLIC_API_URL || "";
+// 运行时可通过 public/config.js 的 window.RUNTIME_API_URL 配置，优先级最高。
+// 构建期可通过 NEXT_PUBLIC_API_URL 注入。
+const runtimeURL = typeof window !== "undefined" ? (window as any).RUNTIME_API_URL : "";
+export const BASE = runtimeURL || process.env.NEXT_PUBLIC_API_URL || "";
 
 let token: string | null = null;
 if (typeof window !== "undefined") {

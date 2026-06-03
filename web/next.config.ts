@@ -3,6 +3,7 @@ import type { NextConfig } from "next";
 const apiURL = process.env.NEXT_PUBLIC_API_URL;
 
 const nextConfig: NextConfig = {
+  turbopack: { root: __dirname },
   // standalone：构建出自包含的最小运行产物，Docker 运行时无需完整 node_modules
   output: "standalone",
   async rewrites() {

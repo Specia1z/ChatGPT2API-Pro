@@ -908,8 +908,8 @@ func (s *MySQLStore) GetLastCheckinStreak(userID int64) (int, error) {
 	if err == sql.ErrNoRows { return 0, nil }
 	if err != nil { return 0, err }
 	// 检查是否昨天签到（连续）
-	today := time.Now().Format("2006-01-02")
-	yesterday := time.Now().AddDate(0, 0, -1).Format("2006-01-02")
+	var today, yesterday string
+	s.db.QueryRow("SELECT CURDATE(), DATE_SUB(CURDATE(), INTERVAL 1 DAY)").Scan(&today, &yesterday)
 	if lastDate != today && lastDate != yesterday {
 		return 0, nil // 断签，重置
 	}
