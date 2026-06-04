@@ -130,6 +130,24 @@ export default function AdminEmailPage() {
             <DomainListCard title="域名黑名单" desc="禁止这些域名的邮箱注册" icon={Globe} field="domain_blacklist"
               items={cfg?.domain_blacklist || []} onAdd={() => openDomainDialog("domain_blacklist")} onRemove={(i: number) => removeListItem("domain_blacklist", i)} />
 
+            {/* Gmail 别名标准化 */}
+            <div className="rounded-2xl border bg-card overflow-hidden">
+              <div className="px-4 sm:px-6 py-3 sm:py-4 border-b flex items-center gap-3">
+                <div className="size-8 rounded-lg bg-blue-500/10 flex items-center justify-center"><Mail className="size-4 text-blue-500" /></div>
+                <div className="min-w-0 flex-1">
+                  <h2 className={`${heading.className} text-sm font-semibold`}>Gmail 别名标准化</h2>
+                  <p className="text-[10px] sm:text-xs text-muted-foreground mt-0.5">自动处理 Gmail 点号（.）和加号（+）别名</p>
+                </div>
+                <Switch checked={!!cfg?.normalize_gmail} onCheckedChange={v => update("normalize_gmail", v)} />
+              </div>
+              <div className="p-4 sm:p-6">
+                <ul className="space-y-1.5 text-xs text-muted-foreground">
+                  <li><code className="font-mono text-foreground">foo.bar@gmail.com</code> → <code className="font-mono text-foreground">foobar@gmail.com</code></li>
+                  <li><code className="font-mono text-foreground">user+tag@gmail.com</code> → <code className="font-mono text-foreground">user@gmail.com</code></li>
+                </ul>
+              </div>
+            </div>
+
             {/* 域名别名 */}
             <div className="rounded-2xl border bg-card overflow-hidden">
               <div className="px-4 sm:px-6 py-3 sm:py-4 border-b flex items-center gap-3">

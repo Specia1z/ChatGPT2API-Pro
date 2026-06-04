@@ -233,6 +233,9 @@ func (s *MySQLStore) autoMigrate() {
 		updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
 		INDEX idx_email (email)
 	) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`)
+	if !s.columnExists(dbName, "users", "ban_reason") {
+		s.db.Exec("ALTER TABLE users ADD COLUMN ban_reason VARCHAR(512) DEFAULT '' AFTER status")
+	}
 
 	s.db.Exec(`CREATE TABLE IF NOT EXISTS user_api_keys (
 		id BIGINT AUTO_INCREMENT PRIMARY KEY,
@@ -809,8 +812,8 @@ func (s *MySQLStore) CreateUser(email, passwordHash, name string) (int64, error)
 
 func (s *MySQLStore) GetUserByEmail(email string) (*model.User, error) {
 	var u model.User
-	err := s.db.QueryRow(`SELECT u.id, u.email, u.password_hash, COALESCE(u.name,''), u.points, u.status, u.plan_id, u.subscription_expires_at, u.cooldown_until, COALESCE(NULLIF(p2.concurrency,0),1), COALESCE(NULLIF(p2.token_capacity,0),50), COALESCE(NULLIF(p2.token_refill_per_hour,0),3), COALESCE(p2.name,''), u.created_at FROM users u LEFT JOIN plans p2 ON (CASE WHEN u.subscription_expires_at IS NOT NULL AND u.subscription_expires_at < NOW() THEN NULL ELSE u.plan_id END) = p2.id WHERE u.email=?`,
-		email).Scan(&u.ID, &u.Email, &u.PasswordHash, &u.Name, &u.Points, &u.Status, &u.PlanID, &u.SubscriptionExpiresAt, &u.CooldownUntil, &u.PlanConcurrency, &u.TokenCapacity, &u.TokenRefillPerHour, &u.PlanName, &u.CreatedAt)
+	err := s.db.QueryRow(`SELECT u.id, u.email, u.password_hash, COALESCE(u.name,''), u.points, u.status, COALESCE(u.ban_reason,''), u.plan_id, u.subscription_expires_at, u.cooldown_until, COALESCE(NULLIF(p2.concurrency,0),1), COALESCE(NULLIF(p2.token_capacity,0),50), COALESCE(NULLIF(p2.token_refill_per_hour,0),3), COALESCE(p2.name,''), u.created_at FROM users u LEFT JOIN plans p2 ON (CASE WHEN u.subscription_expires_at IS NOT NULL AND u.subscription_expires_at < NOW() THEN NULL ELSE u.plan_id END) = p2.id WHERE u.email=?`,
+		email).Scan(&u.ID, &u.Email, &u.PasswordHash, &u.Name, &u.Points, &u.Status, &u.BanReason, &u.PlanID, &u.SubscriptionExpiresAt, &u.CooldownUntil, &u.PlanConcurrency, &u.TokenCapacity, &u.TokenRefillPerHour, &u.PlanName, &u.CreatedAt)
 	if err == sql.ErrNoRows { return nil, nil }
 	if err != nil { return nil, err }
 	return &u, nil
@@ -831,14 +834,14 @@ func (s *MySQLStore) ListUsers(search string, page, pageSize int) ([]model.User,
 	s.db.QueryRow("SELECT COUNT(*) FROM users "+where, args...).Scan(&total)
 
 	args = append(args, pageSize, (page-1)*pageSize)
-	rows, err := s.db.Query("SELECT id, email, password_hash, COALESCE(name,''), points, status, created_at FROM users "+where+" ORDER BY id DESC LIMIT ? OFFSET ?", args...)
+	rows, err := s.db.Query("SELECT id, email, password_hash, COALESCE(name,''), points, status, COALESCE(ban_reason,''), created_at FROM users "+where+" ORDER BY id DESC LIMIT ? OFFSET ?", args...)
 	if err != nil { return nil, 0, err }
 	defer rows.Close()
 
 	var users []model.User
 	for rows.Next() {
 		var u model.User
-		if err := rows.Scan(&u.ID, &u.Email, &u.PasswordHash, &u.Name, &u.Points, &u.Status, &u.CreatedAt); err != nil { continue }
+		if err := rows.Scan(&u.ID, &u.Email, &u.PasswordHash, &u.Name, &u.Points, &u.Status, &u.BanReason, &u.CreatedAt); err != nil { continue }
 		users = append(users, u)
 	}
 	if err := rows.Err(); err != nil {
@@ -865,9 +868,17 @@ func (s *MySQLStore) AddUserPoints(id int64, delta int) (int, error) {
 	return pts, nil
 }
 
-func (s *MySQLStore) ToggleUserStatus(id int64) error {
-	_, err := s.db.Exec("UPDATE users SET status = 1 - status WHERE id=?", id)
-	return err
+func (s *MySQLStore) ToggleUserStatus(id int64, reason string) error {
+	// 先读当前状态
+	var status int
+	s.db.QueryRow("SELECT status FROM users WHERE id=?", id).Scan(&status)
+	// 封禁时设理由，解封时清空
+	if status == 1 && reason != "" {
+		s.db.Exec("UPDATE users SET ban_reason=?, status=0 WHERE id=?", reason, id)
+	} else {
+		s.db.Exec("UPDATE users SET ban_reason='', status=1 WHERE id=?", id)
+	}
+	return nil
 }
 
 // GetTodayCheckin 查询今日签到状态
@@ -921,8 +932,8 @@ func (s *MySQLStore) GetLastCheckinStreak(userID int64) (int, error) {
 
 func (s *MySQLStore) GetUserByID(id int64) (*model.User, error) {
 	var u model.User
-	err := s.db.QueryRow(`SELECT u.id, u.email, u.password_hash, COALESCE(u.name,''), u.points, u.status, u.plan_id, u.subscription_expires_at, u.cooldown_until, COALESCE(NULLIF(p2.concurrency,0),1), COALESCE(NULLIF(p2.token_capacity,0),50), COALESCE(NULLIF(p2.token_refill_per_hour,0),3), COALESCE(p2.name,''), u.created_at FROM users u LEFT JOIN plans p2 ON (CASE WHEN u.subscription_expires_at IS NOT NULL AND u.subscription_expires_at < NOW() THEN NULL ELSE u.plan_id END) = p2.id WHERE u.id=?`,
-		id).Scan(&u.ID, &u.Email, &u.PasswordHash, &u.Name, &u.Points, &u.Status, &u.PlanID, &u.SubscriptionExpiresAt, &u.CooldownUntil, &u.PlanConcurrency, &u.TokenCapacity, &u.TokenRefillPerHour, &u.PlanName, &u.CreatedAt)
+	err := s.db.QueryRow(`SELECT u.id, u.email, u.password_hash, COALESCE(u.name,''), u.points, u.status, COALESCE(u.ban_reason,''), u.plan_id, u.subscription_expires_at, u.cooldown_until, COALESCE(NULLIF(p2.concurrency,0),1), COALESCE(NULLIF(p2.token_capacity,0),50), COALESCE(NULLIF(p2.token_refill_per_hour,0),3), COALESCE(p2.name,''), u.created_at FROM users u LEFT JOIN plans p2 ON (CASE WHEN u.subscription_expires_at IS NOT NULL AND u.subscription_expires_at < NOW() THEN NULL ELSE u.plan_id END) = p2.id WHERE u.id=?`,
+		id).Scan(&u.ID, &u.Email, &u.PasswordHash, &u.Name, &u.Points, &u.Status, &u.BanReason, &u.PlanID, &u.SubscriptionExpiresAt, &u.CooldownUntil, &u.PlanConcurrency, &u.TokenCapacity, &u.TokenRefillPerHour, &u.PlanName, &u.CreatedAt)
 	if err == sql.ErrNoRows { return nil, nil }
 	if err != nil { return nil, err }
 	return &u, nil

@@ -81,7 +81,7 @@ func (h *Handler) SendEmailCode(w http.ResponseWriter, r *http.Request) {
 	// 标准化 Gmail 别名（忽略点号 + 后缀）
 	local := email[:strings.LastIndex(email, "@")]
 	domain := email[strings.LastIndex(email, "@")+1:]
-	if strings.EqualFold(domain, "gmail.com") || strings.EqualFold(domain, "googlemail.com") {
+	if ec.NormalizeGmail && (strings.EqualFold(domain, "gmail.com") || strings.EqualFold(domain, "googlemail.com")) {
 		local = strings.Split(local, "+")[0]       // foo+tag → foo
 		local = strings.ReplaceAll(local, ".", "") // foo.bar → foobar
 		email = local + "@gmail.com"
@@ -140,7 +140,10 @@ func (h *Handler) UserRegister(w http.ResponseWriter, r *http.Request) {
 	if em := req.Email; strings.Contains(em, "@") {
 		local := em[:strings.LastIndex(em, "@")]
 		domain := em[strings.LastIndex(em, "@")+1:]
-		if strings.EqualFold(domain, "gmail.com") || strings.EqualFold(domain, "googlemail.com") {
+		settings, _ := h.MySQL.GetSettings()
+		var ec model.EmailConfig
+		if settings.EmailConfig != "" { json.Unmarshal([]byte(settings.EmailConfig), &ec) }
+		if ec.NormalizeGmail && (strings.EqualFold(domain, "gmail.com") || strings.EqualFold(domain, "googlemail.com")) {
 			local = strings.Split(local, "+")[0]
 			local = strings.ReplaceAll(local, ".", "")
 			req.Email = local + "@gmail.com"
@@ -245,6 +248,12 @@ func (h *Handler) UserLogin(w http.ResponseWriter, r *http.Request) {
 	}
 
 	user, err := h.MySQL.GetUserByEmail(email)
+	if err == nil && user != nil && !user.Status {
+		reason := user.BanReason
+		if reason == "" { reason = "账号已被禁用" }
+		writeJSON(w, 403, model.APIResponse{Code: 403, Message: reason})
+		return
+	}
 	if err != nil || user == nil {
 		newCount, _ := h.Redis.IncrLoginFail(ctx, email)
 		msg := "邮箱或密码错误"

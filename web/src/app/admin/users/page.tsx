@@ -46,6 +46,7 @@ export default function UsersPage() {
   const [pointsDelta, setPointsDelta] = useState(0);
   const [resetTarget, setResetTarget] = useState<any>(null);
   const [toggleTarget, setToggleTarget] = useState<any>(null);
+  const [banReason, setBanReason] = useState("");
 
   const fetchUsers = () => {
     setLoading(true);
@@ -70,8 +71,10 @@ export default function UsersPage() {
   };
   const confirmToggleStatus = async () => {
     if (!toggleTarget) return;
-    try { await api("/api/admin/users/toggle-status", { method: "POST", body: JSON.stringify({ id: toggleTarget.id }) }); toast.success("状态已切换"); setToggleTarget(null); fetchUsers(); }
-    catch (e: any) { toast.error(e.message); }
+    try {
+      await api("/api/admin/users/toggle-status", { method: "POST", body: JSON.stringify({ id: toggleTarget.id, reason: banReason }) });
+      toast.success("状态已切换"); setToggleTarget(null); setBanReason(""); fetchUsers();
+    } catch (e: any) { toast.error(e.message); }
   };
 
   const stats = useMemo(() => {
@@ -327,11 +330,34 @@ export default function UsersPage() {
         confirmLabel="重置" variant="destructive" onConfirm={confirmResetPassword} />
 
       {/* ═══ 状态切换确认 ═══ */}
-      <ConfirmDialog open={!!toggleTarget} onOpenChange={() => setToggleTarget(null)}
-        title={toggleTarget?.status ? "禁用账号" : "启用账号"}
-        description={toggleTarget?.status ? `确定要禁用「${toggleTarget?.name || toggleTarget?.email}」？` : `确定要启用「${toggleTarget?.name || toggleTarget?.email}」？`}
-        confirmLabel={toggleTarget?.status ? "禁用" : "启用"}
-        variant={toggleTarget?.status ? "destructive" : "default"} onConfirm={confirmToggleStatus} />
+      <Dialog open={!!toggleTarget} onOpenChange={() => { setToggleTarget(null); setBanReason(""); }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="text-sm font-semibold">{toggleTarget?.status ? "禁用账号" : "启用账号"}</DialogTitle>
+          </DialogHeader>
+          {toggleTarget?.status ? (
+            <div className="space-y-4">
+              <p className="text-sm text-muted-foreground">确定要禁用「{toggleTarget?.name || toggleTarget?.email}」？</p>
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-muted-foreground">封禁理由（用户登录时将看到此信息）</label>
+                <Input value={banReason} onChange={e => setBanReason(e.target.value)} placeholder="请填写封禁原因..." className="text-sm" />
+              </div>
+              <div className="flex gap-2">
+                <Button variant="outline" className="flex-1" onClick={() => { setToggleTarget(null); setBanReason(""); }}>取消</Button>
+                <Button className="flex-1" onClick={() => { confirmToggleStatus(); }} disabled={!banReason.trim()}>确认禁用</Button>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <p className="text-sm text-muted-foreground">确定要启用「{toggleTarget?.name || toggleTarget?.email}」？</p>
+              <div className="flex gap-2 pt-2">
+                <Button variant="outline" className="flex-1" onClick={() => setToggleTarget(null)}>取消</Button>
+                <Button className="flex-1" onClick={confirmToggleStatus}>确认启用</Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

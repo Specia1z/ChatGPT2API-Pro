@@ -91,9 +91,9 @@ func (h *Handler) AdjustUserPoints(w http.ResponseWriter, r *http.Request) {
 // POST /api/admin/users/toggle-status
 func (h *Handler) ToggleUserStatus(w http.ResponseWriter, r *http.Request) {
 	body, _ := io.ReadAll(r.Body)
-	var req struct{ ID int64 `json:"id"` }
+	var req struct{ ID int64 `json:"id"`; Reason string `json:"reason"` }
 	json.Unmarshal(body, &req)
-	if err := h.MySQL.ToggleUserStatus(req.ID); err != nil {
+	if err := h.MySQL.ToggleUserStatus(req.ID, req.Reason); err != nil {
 		writeJSON(w, 500, model.APIResponse{Code: 500, Message: err.Error()})
 		return
 	}

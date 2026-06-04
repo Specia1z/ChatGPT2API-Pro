@@ -139,6 +139,7 @@ type User struct {
 	Name                 string     `json:"name"`
 	Points               int        `json:"points"`
 	Status               bool       `json:"status"`
+	BanReason            string     `json:"ban_reason,omitempty"`
 	PasswordHash         string     `json:"-"`
 	PlanID               int        `json:"plan_id"`
 	SubscriptionExpiresAt *time.Time `json:"subscription_expires_at"`
@@ -241,6 +242,7 @@ type EmailConfig struct {
 	SMTPUser       string            `json:"smtp_user"`
 	SMTPPass       string            `json:"smtp_pass"`
 	SMTPFrom       string            `json:"smtp_from"`
+	NormalizeGmail bool              `json:"normalize_gmail"` // 标准化 Gmail 点号/+ 别名
 	DomainBlacklist []string         `json:"domain_blacklist"`
 	DomainWhitelist []string         `json:"domain_whitelist"`
 	DomainAliases  map[string]string `json:"domain_aliases"`
