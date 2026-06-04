@@ -185,12 +185,10 @@ func (s *MySQLStore) autoMigrate() {
 	s.db.Exec("ALTER TABLE settings ADD COLUMN points_exchange_rate INT NOT NULL DEFAULT 10 AFTER storage_cleanup_days")
 	s.db.Exec("ALTER TABLE settings ADD COLUMN points_exchange_bonus INT NOT NULL DEFAULT 0 AFTER points_exchange_rate")
 	if !s.columnExists(dbName, "settings", "style_presets") {
-		if !s.columnExists(dbName, "settings", "style_presets") {
 		s.db.Exec("ALTER TABLE settings ADD COLUMN style_presets TEXT AFTER points_exchange_bonus")
 	}
 	if !s.columnExists(dbName, "settings", "email_config") {
 		s.db.Exec("ALTER TABLE settings ADD COLUMN email_config TEXT AFTER style_presets")
-	}
 	}
 	s.db.Exec(`CREATE TABLE IF NOT EXISTS orders (
 		id BIGINT AUTO_INCREMENT PRIMARY KEY,

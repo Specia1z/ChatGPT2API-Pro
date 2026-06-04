@@ -10,6 +10,7 @@ import { AdminSidebar } from "@/components/admin-sidebar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 const heading = Outfit({ subsets: ["latin"], weight: ["400", "500", "600", "700"], variable: "--font-heading" });
 const mono = DM_Mono({ subsets: ["latin"], weight: ["400", "500"], variable: "--font-mono" });
@@ -43,11 +44,24 @@ export default function AdminEmailPage() {
 
   const update = (k: string, v: any) => setCfg((p: any) => ({ ...p, [k]: v }));
 
-  const addListItem = (field: string) => {
-    const val = prompt("输入域名（不含@）：");
-    if (!val) return;
-    const list = [...(cfg?.[field] || []), val.trim()];
-    update(field, list);
+  const [domainField, setDomainField] = useState<string>("");
+  const [domainInput, setDomainInput] = useState("");
+  const [domainDialogOpen, setDomainDialogOpen] = useState(false);
+  const openDomainDialog = (field: string) => { setDomainField(field); setDomainInput(""); setDomainDialogOpen(true); };
+  const confirmDomain = () => {
+    if (!domainInput.trim()) return;
+    update(domainField, [...(cfg?.[domainField] || []), domainInput.trim()]);
+    setDomainDialogOpen(false);
+  };
+
+  const [aliasFrom, setAliasFrom] = useState("");
+  const [aliasTo, setAliasTo] = useState("");
+  const [aliasDialogOpen, setAliasDialogOpen] = useState(false);
+  const openAliasDialog = () => { setAliasFrom(""); setAliasTo(""); setAliasDialogOpen(true); };
+  const confirmAlias = () => {
+    if (!aliasFrom.trim() || !aliasTo.trim()) return;
+    update("domain_aliases", { ...(cfg?.domain_aliases || {}), [aliasFrom.trim()]: aliasTo.trim() });
+    setAliasDialogOpen(false);
   };
 
   const removeListItem = (field: string, idx: number) => {
@@ -86,7 +100,7 @@ export default function AdminEmailPage() {
                   <h2 className={`${heading.className} text-sm font-semibold`}>SMTP 服务</h2>
                   <p className="text-[10px] sm:text-xs text-muted-foreground mt-0.5">用于发送验证码邮件</p>
                 </div>
-                <Switch checked={cfg?.smtp_enabled} onCheckedChange={v => update("smtp_enabled", v)} />
+                <Switch checked={!!cfg?.smtp_enabled} onCheckedChange={v => update("smtp_enabled", v)} />
               </div>
               {cfg?.smtp_enabled && (
                 <div className="p-4 sm:p-6 space-y-4">
@@ -110,11 +124,11 @@ export default function AdminEmailPage() {
 
             {/* 域名白名单 */}
             <DomainListCard title="域名白名单" desc="仅允许这些域名的邮箱注册（留空=不限制）" icon={Shield} field="domain_whitelist"
-              items={cfg?.domain_whitelist || []} onAdd={() => addListItem("domain_whitelist")} onRemove={(i: number) => removeListItem("domain_whitelist", i)} />
+              items={cfg?.domain_whitelist || []} onAdd={() => openDomainDialog("domain_whitelist")} onRemove={(i: number) => removeListItem("domain_whitelist", i)} />
 
             {/* 域名黑名单 */}
             <DomainListCard title="域名黑名单" desc="禁止这些域名的邮箱注册" icon={Globe} field="domain_blacklist"
-              items={cfg?.domain_blacklist || []} onAdd={() => addListItem("domain_blacklist")} onRemove={(i: number) => removeListItem("domain_blacklist", i)} />
+              items={cfg?.domain_blacklist || []} onAdd={() => openDomainDialog("domain_blacklist")} onRemove={(i: number) => removeListItem("domain_blacklist", i)} />
 
             {/* 域名别名 */}
             <div className="rounded-2xl border bg-card overflow-hidden">
@@ -146,13 +160,7 @@ export default function AdminEmailPage() {
                     }} className="text-destructive hover:text-destructive/80 shrink-0"><Trash2 className="size-3.5" /></button>
                   </div>
                 ))}
-                <Button variant="outline" size="sm" className="gap-1.5 text-xs w-full border-dashed" onClick={() => {
-                  const key = prompt("来源域名：");
-                  if (!key) return;
-                  const val = prompt("目标域名：");
-                  if (!val) return;
-                  update("domain_aliases", { ...(cfg?.domain_aliases || {}), [key.trim()]: val.trim() });
-                }}>
+                <Button variant="outline" size="sm" className="gap-1.5 text-xs w-full border-dashed" onClick={openAliasDialog}>
                   <Plus className="size-3.5" /> 添加别名
                 </Button>
               </div>
@@ -160,6 +168,42 @@ export default function AdminEmailPage() {
           </div>
         </motion.div>
       </main>
+
+      {/* 域名输入弹窗 */}
+      <Dialog open={domainDialogOpen} onOpenChange={setDomainDialogOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader><DialogTitle className="text-sm font-semibold">添加域名</DialogTitle></DialogHeader>
+          <div className="space-y-4">
+            <Input value={domainInput} onChange={e => setDomainInput(e.target.value)}
+              placeholder="example.com" className="text-sm" onKeyDown={e => e.key === "Enter" && confirmDomain()} autoFocus />
+            <div className="flex gap-2">
+              <Button variant="outline" className="flex-1" onClick={() => setDomainDialogOpen(false)}>取消</Button>
+              <Button className="flex-1" onClick={confirmDomain}>添加</Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* 别名输入弹窗 */}
+      <Dialog open={aliasDialogOpen} onOpenChange={setAliasDialogOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader><DialogTitle className="text-sm font-semibold">添加域名别名</DialogTitle></DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-1.5">
+              <label className="text-xs text-muted-foreground">来源域名</label>
+              <Input value={aliasFrom} onChange={e => setAliasFrom(e.target.value)} placeholder="googlemail.com" className="text-sm" autoFocus />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-xs text-muted-foreground">目标域名</label>
+              <Input value={aliasTo} onChange={e => setAliasTo(e.target.value)} placeholder="gmail.com" className="text-sm" />
+            </div>
+            <div className="flex gap-2">
+              <Button variant="outline" className="flex-1" onClick={() => setAliasDialogOpen(false)}>取消</Button>
+              <Button className="flex-1" onClick={confirmAlias}>添加</Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

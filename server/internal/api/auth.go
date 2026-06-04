@@ -78,8 +78,15 @@ func (h *Handler) SendEmailCode(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 检查域名
+	// 标准化 Gmail 别名（忽略点号 + 后缀）
+	local := email[:strings.LastIndex(email, "@")]
 	domain := email[strings.LastIndex(email, "@")+1:]
+	if strings.EqualFold(domain, "gmail.com") || strings.EqualFold(domain, "googlemail.com") {
+		local = strings.Split(local, "+")[0]       // foo+tag → foo
+		local = strings.ReplaceAll(local, ".", "") // foo.bar → foobar
+		email = local + "@gmail.com"
+		domain = "gmail.com"
+	}
 	if ec.DomainAliases != nil {
 		if alias, ok := ec.DomainAliases[domain]; ok { domain = alias }
 	}
@@ -129,6 +136,16 @@ func (h *Handler) UserRegister(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	req.Email = strings.TrimSpace(strings.ToLower(req.Email))
+	// 标准化 Gmail 别名（忽略点号 + 后缀）
+	if em := req.Email; strings.Contains(em, "@") {
+		local := em[:strings.LastIndex(em, "@")]
+		domain := em[strings.LastIndex(em, "@")+1:]
+		if strings.EqualFold(domain, "gmail.com") || strings.EqualFold(domain, "googlemail.com") {
+			local = strings.Split(local, "+")[0]
+			local = strings.ReplaceAll(local, ".", "")
+			req.Email = local + "@gmail.com"
+		}
+	}
 	if req.Email == "" || req.Password == "" {
 		writeJSON(w, 400, model.APIResponse{Code: 400, Message: "邮箱和密码不能为空"})
 		return
