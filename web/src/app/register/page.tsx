@@ -17,6 +17,10 @@ export default function RegisterPage() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [turnstileToken, setTurnstileToken] = useState("");
+  const [code, setCode] = useState("");
+  const [codeSent, setCodeSent] = useState(false);
+  const [sendingCode, setSendingCode] = useState(false);
+  const [codeVerified, setCodeVerified] = useState(false);
   const [settings, setSettings] = useState<any>({});
   const router = useRouter();
 
@@ -36,12 +40,24 @@ export default function RegisterPage() {
     try {
       const body: Record<string, string> = { email, password, name: name || email.split("@")[0] };
       if (turnstileToken) body.cf_turnstile_token = turnstileToken;
+      if (smtpEnabled && !codeVerified) {
+        const v = await api("/api/auth/verify-code", { method: "POST", body: JSON.stringify({ email, code }) });
+        if (v.code !== 200) return setError(v.message || "验证码错误");
+        setCodeVerified(true);
+      }
       await api("/api/auth/register", { method: "POST", body: JSON.stringify(body) });
       router.push("/login?registered=1");
     } catch (e: any) { setError(e.message); }
     setLoading(false);
   };
 
+  const smtpEnabled = settings?.email_config ? JSON.parse(settings.email_config).smtp_enabled : false;
+  const sendCode = async () => {
+    if (!email || sendingCode || codeSent) return;
+    setSendingCode(true);
+    try { await api("/api/auth/send-code", { method: "POST", body: JSON.stringify({ email }) }); setCodeSent(true); } catch (e: any) { setError(e.message); }
+    setSendingCode(false);
+  };
   const showTurnstile = settings.cf_turnstile_enabled && settings.cf_turnstile_site_key;
 
   return (
@@ -129,6 +145,23 @@ export default function RegisterPage() {
               </button>
             </div>
           </div>
+
+          {/* Verify code (if SMTP enabled) */}
+          {smtpEnabled && !codeVerified && (
+            <>
+              <div className="space-y-1.5">
+                <label className="text-[11px] font-medium text-zinc-500 dark:text-zinc-400 flex items-center gap-1.5">
+                 验证码
+                </label>
+                <div className="flex gap-2">
+                  <Input value={code} onChange={e => setCode(e.target.value)} placeholder="输入验证码" className="h-10 text-sm flex-1" />
+                  <Button onClick={codeSent ? () => {} : sendCode} disabled={sendingCode || codeSent || !email} variant="outline" className="h-10 text-xs shrink-0">
+                    {codeSent ? "已发送" : sendingCode ? "发送中..." : "发送验证码"}
+                  </Button>
+                </div>
+              </div>
+            </>
+          )}
 
           {/* Error */}
           {error && (
