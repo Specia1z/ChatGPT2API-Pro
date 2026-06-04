@@ -137,12 +137,12 @@ func (h *Handler) UserRegister(w http.ResponseWriter, r *http.Request) {
 	}
 	req.Email = strings.TrimSpace(strings.ToLower(req.Email))
 	// 标准化 Gmail 别名（忽略点号 + 后缀）
+	settings, _ := h.MySQL.GetSettings()
+	var ec model.EmailConfig
+	if settings.EmailConfig != "" { json.Unmarshal([]byte(settings.EmailConfig), &ec) }
 	if em := req.Email; strings.Contains(em, "@") {
 		local := em[:strings.LastIndex(em, "@")]
 		domain := em[strings.LastIndex(em, "@")+1:]
-		settings, _ := h.MySQL.GetSettings()
-		var ec model.EmailConfig
-		if settings.EmailConfig != "" { json.Unmarshal([]byte(settings.EmailConfig), &ec) }
 		if ec.NormalizeGmail && (strings.EqualFold(domain, "gmail.com") || strings.EqualFold(domain, "googlemail.com")) {
 			local = strings.Split(local, "+")[0]
 			local = strings.ReplaceAll(local, ".", "")
@@ -176,14 +176,16 @@ func (h *Handler) UserRegister(w http.ResponseWriter, r *http.Request) {
 	}
 	if h.Redis != nil {
 		regCount, _ := h.Redis.GetRegisterCount(ip)
-		if regCount >= 5 {
+		limit := 5
+		if ec.RegLimitPerIP > 0 { limit = ec.RegLimitPerIP }
+		if regCount >= limit {
 			writeJSON(w, 429, model.APIResponse{Code: 429, Message: "该 IP 今日注册已达上限"})
 			return
 		}
 	}
 
 	// Turnstile 验证
-	settings, _ := h.MySQL.GetSettings()
+	settings, _ = h.MySQL.GetSettings()
 	if settings.CFTurnstileEnabled {
 		ok, vErr := service.VerifyTurnstileToken(req.CfTurnstileToken, settings.CFTurnstileSecretKey)
 		if vErr != nil {

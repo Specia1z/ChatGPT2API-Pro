@@ -243,6 +243,7 @@ type EmailConfig struct {
 	SMTPPass       string            `json:"smtp_pass"`
 	SMTPFrom       string            `json:"smtp_from"`
 	NormalizeGmail bool              `json:"normalize_gmail"` // 标准化 Gmail 点号/+ 别名
+	RegLimitPerIP  int               `json:"reg_limit_per_ip"` // 每 IP 每日注册上限（0=不限制）
 	DomainBlacklist []string         `json:"domain_blacklist"`
 	DomainWhitelist []string         `json:"domain_whitelist"`
 	DomainAliases  map[string]string `json:"domain_aliases"`

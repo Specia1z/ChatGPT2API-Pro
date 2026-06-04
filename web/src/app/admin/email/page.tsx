@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { Outfit, DM_Mono } from "next/font/google";
-import { Mail, Plus, Trash2, Save, RefreshCw, Shield, Globe } from "lucide-react";
+import { Mail, Plus, Trash2, Save, RefreshCw, Shield, Globe, Users } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
 import { AdminSidebar } from "@/components/admin-sidebar";
@@ -130,6 +130,24 @@ export default function AdminEmailPage() {
             <DomainListCard title="域名黑名单" desc="禁止这些域名的邮箱注册" icon={Globe} field="domain_blacklist"
               items={cfg?.domain_blacklist || []} onAdd={() => openDomainDialog("domain_blacklist")} onRemove={(i: number) => removeListItem("domain_blacklist", i)} />
 
+            {/* IP 注册限制 */}
+            <div className="rounded-2xl border bg-card overflow-hidden">
+              <div className="px-4 sm:px-6 py-3 sm:py-4 border-b flex items-center gap-3">
+                <div className="size-8 rounded-lg bg-orange-500/10 flex items-center justify-center"><Users className="size-4 text-orange-500" /></div>
+                <div className="min-w-0 flex-1">
+                  <h2 className={`${heading.className} text-sm font-semibold`}>IP 注册限制</h2>
+                  <p className="text-[10px] sm:text-xs text-muted-foreground mt-0.5">每 IP 每日最多可注册的账号数</p>
+                </div>
+              </div>
+              <div className="p-4 sm:p-6">
+                <div className="max-w-xs">
+                  <Input type="number" min={0} value={cfg?.reg_limit_per_ip ?? 5}
+                    onChange={e => update("reg_limit_per_ip", Math.max(0, +e.target.value))}
+                    placeholder="5" className="text-sm" />
+                  <p className="text-[10px] text-muted-foreground mt-1.5">设为 0 则不限制</p>
+                </div>
+              </div>
+            </div>
             {/* Gmail 别名标准化 */}
             <div className="rounded-2xl border bg-card overflow-hidden">
               <div className="px-4 sm:px-6 py-3 sm:py-4 border-b flex items-center gap-3">
