@@ -74,7 +74,7 @@ function useCountdown(tokens: number, cap: number, refill: number) {
 /* ── 主页面 ─────────────────────────────────── */
 
 export default function UserPage() {
-  const { user, token, loading: authLoading, logout } = useAuth();
+  const { user, token, loading: authLoading, logout, login } = useAuth();
   const router = useRouter();
   const [keys, setKeys] = useState<any[]>([]);
   const [copied, setCopied] = useState<string | null>(null);
@@ -110,12 +110,13 @@ export default function UserPage() {
   useEffect(() => {
     if (authLoading) return;
     if (!user || !token) { router.push("/login"); return; }
-    fetchKeys(); fetchTokens(); fetchCheckin(); fetchCoupons(); fetchUserStats();
+    refreshProfile(); fetchKeys(); fetchTokens(); fetchCheckin(); fetchCoupons(); fetchUserStats();
     const iv = setInterval(fetchTokens, 15000);
     return () => clearInterval(iv);
   }, [user, token, authLoading]);
 
   const fetchUserStats = async () => { try { const r = await api("/api/user/stats"); if (r.data) { setUserStats(r.data); } } catch {} };
+  const refreshProfile = async () => { try { const r = await api("/api/user/profile"); if (r.data && token) { login(r.data, token); } } catch {} };
   const fetchKeys = async () => { try { const r = await api("/api/user/keys"); setKeys(r.data || []); } catch {} };
   const fetchTokens = async () => { try { const r = await api("/api/user/tokens"); if (r.data?.tokens !== undefined) setTokens(r.data.tokens); } catch {} };
   const fetchCheckin = async () => { try { const r = await api("/api/user/checkin/status"); setCheckin(r.data); } catch {} };
@@ -515,7 +516,12 @@ export default function UserPage() {
                       </div>
                       <div className="text-right">
                         <p className={`${monoFont.className} text-lg font-semibold tabular-nums`}>{userStats.plan_name || "免费版"}</p>
-                        <p className="text-[10px] text-muted-foreground">当前套餐</p>
+                        <p className="text-[10px] text-muted-foreground">{userStats.plan_name && userStats.plan_name !== "免费版" ? "当前套餐" : ""}</p>
+                        {user?.subscription_expires_at ? (
+                          <p className="text-[9px] text-muted-foreground/60 mt-0.5">{new Date(user.subscription_expires_at).toLocaleDateString("zh-CN")} 到期</p>
+                        ) : user?.plan_name && user.plan_name !== "免费版" ? (
+                          <p className="text-[9px] text-muted-foreground/60 mt-0.5">永久</p>
+                        ) : null}
                       </div>
                     </div>
                   </div>

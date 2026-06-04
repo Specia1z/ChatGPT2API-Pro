@@ -9,6 +9,8 @@ interface User {
   name: string;
   points: number;
   plan_name?: string;
+  plan_id?: number;
+  subscription_expires_at?: string;
   token_capacity?: number;
   token_refill_per_hour?: number;
   plan_concurrency?: number;
