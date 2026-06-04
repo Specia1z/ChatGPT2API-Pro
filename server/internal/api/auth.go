@@ -73,6 +73,34 @@ func (h *Handler) UserRegister(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// 临时邮箱域名黑名单
+	disposable := []string{
+		"mailinator.com", "guerrillamail.com", "10minutemail.com", "tempmail.com",
+		"throwaway.email", "yopmail.com", "sharklasers.com", "trashmail.com",
+		"mailnator.com", "temp-mail.org", "fakeinbox.com", "dispostable.com",
+		"getairmail.com", "emailondeck.com", "spamgourmet.com", "mailcatch.com",
+	}
+	domain := req.Email[strings.LastIndex(req.Email, "@")+1:]
+	for _, d := range disposable {
+		if strings.EqualFold(domain, d) {
+			writeJSON(w, 403, model.APIResponse{Code: 403, Message: "不支持临时邮箱，请使用真实邮箱注册"})
+			return
+		}
+	}
+
+	// IP 注册频率限制（Redis 基于 IP 每天最多 5 个账号）
+	ip := r.RemoteAddr
+	if strings.Contains(ip, ":") {
+		ip = ip[:strings.LastIndex(ip, ":")] // 去掉端口
+	}
+	if h.Redis != nil {
+		regCount, _ := h.Redis.GetRegisterCount(ip)
+		if regCount >= 5 {
+			writeJSON(w, 429, model.APIResponse{Code: 429, Message: "该 IP 今日注册已达上限"})
+			return
+		}
+	}
+
 	// Turnstile 验证
 	settings, _ := h.MySQL.GetSettings()
 	if settings.CFTurnstileEnabled {
@@ -99,6 +127,11 @@ func (h *Handler) UserRegister(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		writeJSON(w, 500, model.APIResponse{Code: 500, Message: "注册失败"})
 		return
+	}
+
+	// 注册成功，增加 IP 计数
+	if h.Redis != nil {
+		h.Redis.IncrRegisterCount(ip)
 	}
 
 	// 自动创建默认 API Key

@@ -268,3 +268,26 @@ func (r *RedisStore) GetBucketDetail(userID int64, capacity, refillRate int) (fl
 	if tokens > float64(capacity) { tokens = float64(capacity) }
 	return tokens, burst
 }
+
+// GetRegisterCount 查询 IP 今日注册次数
+func (r *RedisStore) GetRegisterCount(ip string) (int, error) {
+	key := "reg_ip:" + ip
+	val, err := r.client.Get(context.Background(), key).Int()
+	if err == redis.Nil { return 0, nil }
+	return val, err
+}
+
+// IncrRegisterCount IP 注册计数+1（TTL 到次日凌晨自动过期）
+func (r *RedisStore) IncrRegisterCount(ip string) error {
+	key := "reg_ip:" + ip
+	ctx := context.Background()
+	n, err := r.client.Incr(ctx, key).Result()
+	if err != nil { return err }
+	if n == 1 {
+		now := time.Now()
+		ttl := time.Date(now.Year(), now.Month(), now.Day(), 23, 59, 59, 0, now.Location()).Sub(now)
+		if ttl < 0 { ttl = time.Second }
+		r.client.Expire(ctx, key, ttl)
+	}
+	return nil
+}
