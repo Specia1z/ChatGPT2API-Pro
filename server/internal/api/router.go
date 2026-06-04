@@ -55,8 +55,8 @@ mux.Handle("POST /api/user/points/exchange", userAuth(http.HandlerFunc(h.Exchang
 	mux.Handle("GET /api/v1/images/generations", apiKeyAuth(http.HandlerFunc(h.GetUserGenerations)))
 	mux.Handle("GET /api/v1/user/tokens", apiKeyAuth(http.HandlerFunc(h.GetUserTokens)))
 
-	// 管理员公开
-	mux.HandleFunc("POST /api/admin/login", h.Login)
+	// 管理员公开（IP限流 + 账号级锁定防刷）
+	mux.Handle("POST /api/admin/login", middleware.RateLimit(http.HandlerFunc(h.Login)))
 
 	// Admin 鉴权
 	mux.Handle("GET /api/accounts", adminAuth(http.HandlerFunc(h.ListAccounts)))
@@ -83,6 +83,7 @@ mux.Handle("POST /api/user/points/exchange", userAuth(http.HandlerFunc(h.Exchang
 	mux.Handle("PUT /api/admin/plans", adminAuth(http.HandlerFunc(h.UpdatePlan)))
 	mux.Handle("DELETE /api/admin/plans", adminAuth(http.HandlerFunc(h.DeletePlan)))
 	mux.Handle("GET /api/admin/users", adminAuth(http.HandlerFunc(h.ListUsers)))
+	mux.Handle("POST /api/admin/users/create", adminAuth(http.HandlerFunc(h.AdminCreateUser)))
 	mux.Handle("POST /api/admin/users/update", adminAuth(http.HandlerFunc(h.UpdateUser)))
 	mux.Handle("POST /api/admin/users/reset-password", adminAuth(http.HandlerFunc(h.ResetUserPassword)))
 	mux.Handle("POST /api/admin/users/points", adminAuth(http.HandlerFunc(h.AdjustUserPoints)))

@@ -50,10 +50,24 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// 防刷：5 次失败锁定 30 分钟（复用 Redis login_fail:{key}）
+	key := "admin:" + req.Username
+	failCount, _ := h.Redis.GetLoginFail(r.Context(), key)
+	if failCount >= 5 {
+		ttl, _ := h.Redis.GetLoginFailTTL(r.Context(), key)
+		writeJSON(w, 429, model.APIResponse{Code: 429, Message: fmt.Sprintf("登录失败次数过多，请 %d 分钟后重试", int(ttl.Minutes())+1)})
+		return
+	}
+
 	if err := bcrypt.CompareHashAndPassword([]byte(admin.PasswordHash), []byte(req.Password)); err != nil {
+		n, _ := h.Redis.IncrLoginFail(r.Context(), key)
+		log.Printf("[admin-login] 失败 username=%s ip=%s 失败次数=%d", req.Username, r.RemoteAddr, n)
 		writeJSON(w, 401, model.APIResponse{Code: 401, Message: "用户名或密码错误"})
 		return
 	}
+
+	// 成功：清除失败计数
+	h.Redis.ResetLoginFail(r.Context(), key)
 
 	tokenBytes := make([]byte, 32)
 	rand.Read(tokenBytes)

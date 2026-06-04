@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { motion } from "framer-motion";
 import { Outfit, DM_Mono } from "next/font/google";
-import { Users, Search, Pencil, Key, Coins, Ban, Check, RefreshCw, X, UserCheck, UserX, Plus, Minus, ArrowRight } from "lucide-react";
+import { Users, Search, Pencil, Key, Coins, Ban, Check, RefreshCw, X, UserCheck, UserX, Plus, Minus, ArrowRight, UserPlus } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
 import { AdminSidebar } from "@/components/admin-sidebar";
@@ -47,6 +47,9 @@ export default function UsersPage() {
   const [resetTarget, setResetTarget] = useState<any>(null);
   const [toggleTarget, setToggleTarget] = useState<any>(null);
   const [banReason, setBanReason] = useState("");
+  const [createOpen, setCreateOpen] = useState(false);
+  const [createForm, setCreateForm] = useState({ email: "", password: "", name: "", points: 0, plan_id: 0, duration_days: 0 });
+  const [plans, setPlans] = useState<any[]>([]);
 
   const fetchUsers = () => {
     setLoading(true);
@@ -69,6 +72,17 @@ export default function UsersPage() {
     try { const res = await api<any>("/api/admin/users/points", { method: "POST", body: JSON.stringify({ id: pointsUser.id, delta: pointsDelta }) }); toast.success(`积分 ${res.data.action}: ${res.data.points}`); setPointsUser(null); fetchUsers(); }
     catch (e: any) { toast.error(e.message); }
   };
+  const doCreate = async () => {
+    if (!createForm.email || !createForm.password) return;
+    try {
+      await api("/api/admin/users/create", { method: "POST", body: JSON.stringify(createForm) });
+      toast.success("用户已创建");
+      setCreateOpen(false);
+      setCreateForm({ email: "", password: "", name: "", points: 0, plan_id: 0, duration_days: 0 });
+      fetchUsers();
+    } catch (e: any) { toast.error(e.message); }
+  };
+
   const confirmToggleStatus = async () => {
     if (!toggleTarget) return;
     try {
@@ -127,6 +141,7 @@ export default function UsersPage() {
                 <Input value={search} onChange={e => setSearch(e.target.value)} placeholder="搜索邮箱或昵称..." className="pl-9 pr-8 text-xs" />
                 {search && <button onClick={() => setSearch("")} className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"><X className="size-3" /></button>}
               </div>
+              <Button size="sm" className="gap-1.5 text-xs shrink-0" onClick={() => setCreateOpen(true)}><Plus className="size-3.5" /> 创建用户</Button>
               <div className="flex-1" />
               <span className={`${mono.className} text-[11px] text-muted-foreground tabular-nums`}>显示 {users.length} / {total}</span>
             </motion.div>
@@ -356,6 +371,52 @@ export default function UsersPage() {
               </div>
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+{/* 创建用户弹窗 */}
+      <Dialog open={createOpen} onOpenChange={setCreateOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader><DialogTitle className="text-sm font-semibold">创建用户</DialogTitle></DialogHeader>
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-muted-foreground">邮箱 *</label>
+                <Input value={createForm.email} onChange={e => setCreateForm(p => ({...p, email: e.target.value}))} placeholder="user@example.com" className="text-sm" />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-muted-foreground">昵称</label>
+                <Input value={createForm.name} onChange={e => setCreateForm(p => ({...p, name: e.target.value}))} placeholder="用户昵称" className="text-sm" />
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-muted-foreground">密码 *</label>
+              <Input type="password" value={createForm.password} onChange={e => setCreateForm(p => ({...p, password: e.target.value}))} placeholder="至少 6 位" className="text-sm" />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-muted-foreground">初始积分</label>
+                <Input type="number" value={createForm.points} onChange={e => setCreateForm(p => ({...p, points: +e.target.value}))} className="text-sm" />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-muted-foreground">套餐</label>
+                <select className="w-full h-9 rounded-lg border bg-background text-sm px-3" value={createForm.plan_id} onChange={e => setCreateForm(p => ({...p, plan_id: +e.target.value}))}>
+                  <option value={0}>无套餐</option>
+                  {plans.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                </select>
+              </div>
+            </div>
+            {createForm.plan_id > 0 && (
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-muted-foreground">订阅天数</label>
+                <Input type="number" value={createForm.duration_days} onChange={e => setCreateForm(p => ({...p, duration_days: +e.target.value}))} className="text-sm" />
+              </div>
+            )}
+            <div className="flex gap-2 pt-2">
+              <Button variant="outline" className="flex-1" onClick={() => setCreateOpen(false)}>取消</Button>
+              <Button className="flex-1" onClick={doCreate} disabled={!createForm.email || !createForm.password}>创建</Button>
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
     </div>

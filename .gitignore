@@ -44,6 +44,9 @@ npm-debug.log*
 /mysql.go
 /fix-sizes.js
 
+# ───── 本地环境特定测试（硬编码本地 DB/Redis，不入 CI）─────
+/server/internal/api/admin_login_test.go
+
 # ───── 备份文件（开发中旧版本快照，不入库）─────
 *.bak
 

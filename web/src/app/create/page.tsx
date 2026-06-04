@@ -128,7 +128,9 @@ export default function CreatePage() {
   const { user, loading: authLoading } = useAuth();
   const router = useRouter();
 
-  const [prompt, setPrompt] = useState("");
+  const [tags, setTags] = useState<string[]>([""]);
+  const [currentInput, setCurrentInput] = useState("");
+  const inputRef2 = useRef<HTMLInputElement>(null);
   const [loading, setLoading] = useState(false);
   const [generations, setGenerations] = useState<any[]>([]);
   const [previewGen, setPreviewGen] = useState<any>(null);
@@ -140,6 +142,23 @@ export default function CreatePage() {
   const [styles, setStyles] = useState(HARDCODED_STYLES);
   const [activeStyle, setActiveStyle] = useState<string | null>(null);
   const [hsFilter, setHsFilter] = useState<"all" | "completed" | "failed" | "pending">("all");
+  const addTag = () => {
+    const v = currentInput.trim();
+    if (!v) return;
+    setTags(prev => [...prev.filter(Boolean), v]);
+    setCurrentInput('');
+    setTimeout(() => inputRef2.current?.focus(), 0);
+  };
+  const removeTag = (idx: number) => {
+    setTags(prev => { const n = prev.filter((_, i) => i !== idx); return n.length === 0 ? [''] : n; });
+  };
+  const editTag = (idx: number) => {
+    const t = tags[idx];
+    if (!t) return;
+    setCurrentInput(t);
+    removeTag(idx);
+  };
+
   const [revealedIds, setRevealedIds] = useState<Set<string>>(new Set());
   const seenRef = useRef<Set<number>>(new Set());
   const fileRef = useRef<HTMLInputElement>(null);
@@ -305,10 +324,10 @@ export default function CreatePage() {
   /* ── Generate ── */
 
   const generate = async () => {
-    if (!prompt.trim() || loading) return;
+    const lines = tags.filter(Boolean);
+    if (lines.length === 0 || loading) return;
     setLoading(true);
     try {
-      const lines = prompt.split("\n").map(s => s.trim()).filter(Boolean);
       // ref_images_b64 只接受裸 base64，过滤掉误入的 URL / 代理路径 / dataURL 前缀
       const refB64 = refImages
         .map(img => img.startsWith("data:") ? img.split(",")[1] || "" : img)
@@ -323,7 +342,7 @@ export default function CreatePage() {
           allIds.push(...(res.data.ids || [res.data.id]));
         } catch (e: any) { toast.error(p.slice(0, 20) + "... " + e.message); }
       }
-      setPrompt("");
+      setCurrentInput(""); setTags([""]);
       setHsFilter("all");
       if (allIds.length === 0) { setLoading(false); return; }
       pollUpdate().catch(() => {});
@@ -371,7 +390,8 @@ export default function CreatePage() {
 
   const editGen = async (e: React.MouseEvent, g: any) => {
     e.stopPropagation();
-    setPrompt(g.prompt);
+    setCurrentInput(g.prompt); setTags([""]);
+    
     setSize(g.size || "1:1");
     setFusionMode(false);
     inputRef.current?.focus();
@@ -394,7 +414,7 @@ export default function CreatePage() {
 
   const retryGen = (e: React.MouseEvent, g: any) => {
     e.stopPropagation();
-    setPrompt(g.prompt); setSize(g.size || "1:1");
+    setCurrentInput(g.prompt); setTags([""]);
     api("/api/generations", { method: "DELETE", body: JSON.stringify({ id: g.id }) }).then(() => {
       colAssignRef.current.delete(g.id);
       setGenerations(prev => prev.filter(x => x.id !== g.id));
@@ -453,7 +473,7 @@ export default function CreatePage() {
     failed: generations.filter(g => g.status === "failed").length,
   };
 
-  const lineCount = prompt.split("\n").filter(s => s.trim()).length;
+  const lineCount = tags.filter(Boolean).length;
   const capacity = (user as any)?.token_capacity || 50;
   const isPro = (user as any)?.plan_name && (user as any).plan_name !== "免费版";
 
@@ -477,7 +497,7 @@ export default function CreatePage() {
                 <div>
                   <h1 className="text-sm font-semibold tracking-tight text-[#1a1a18] dark:text-white">创作</h1>
                   <p className="text-[11px] text-[#a09f9a] dark:text-[#6b6a66] tracking-wide">
-                    {lineCount > 1 ? `${lineCount} 个提示词 · 每行一张` : "AI 图片生成"}
+                    {lineCount > 1 ? `${lineCount} 个提示词 · 空行分隔` : "AI 图片生成"}
                   </p>
                 </div>
               </div>
@@ -506,15 +526,42 @@ export default function CreatePage() {
                 }} />
               <div className="relative rounded-xl border border-[#e0dfd8] dark:border-[#2a2a25] bg-white dark:bg-[#1a1a18]
                 transition-all duration-300 focus-within:border-[#c0bfb8] dark:focus-within:border-[#40403a] focus-within:shadow-lg">
-                <textarea
-                  ref={inputRef}
-                  value={prompt}
-                  onChange={e => setPrompt(e.target.value)}
-                  onKeyDown={e => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) { e.preventDefault(); generate(); } }}
-                  placeholder="描述你脑海中的画面..."
-                  rows={3}
-                  className="w-full px-5 py-4 bg-transparent text-sm text-[#1a1a18] dark:text-white placeholder:text-[#c0bfb8] dark:placeholder:text-[#4a4a45] resize-none outline-none leading-relaxed"
-                />
+                <div className="px-3 py-3 space-y-2 max-h-40 overflow-y-auto scrollbar-thin">
+                  {tags.filter(Boolean).length === 0 && !currentInput && (
+                    <div className="flex items-center gap-2 px-2 py-1.5 text-sm text-[#c0bfb8] dark:text-[#4a4a45]">
+                      <span>输入提示词，按 Enter 添加</span>
+                    </div>
+                  )}
+                  <div className="flex flex-wrap gap-2">
+                    {tags.filter(Boolean).map((tag, i) => (
+                      <span key={i}
+                        onClick={() => editTag(i)}
+                        className="group inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#f0efe8] dark:bg-[#252521]
+                          text-xs sm:text-[11px] text-[#1a1a18] dark:text-white cursor-pointer hover:bg-[#e0dfd8] dark:hover:bg-[#2a2a25] transition-all max-w-full">
+                        <span className="truncate max-w-[280px] sm:max-w-sm">{tag}</span>
+                        <button onClick={e => { e.stopPropagation(); removeTag(i); }}
+                          className="size-3.5 rounded-full flex items-center justify-center text-[#9e9d98] hover:text-[#1a1a18] dark:hover:text-white hover:bg-[#d0cfc8] dark:hover:bg-[#3a3a35] shrink-0 transition-colors">
+                          <svg className="size-2.5" viewBox="0 0 10 10" fill="none"><path d="M2 2l6 6M8 2l-6 6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg>
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <input ref={inputRef2}
+                      value={currentInput}
+                      onChange={e => setCurrentInput(e.target.value)}
+                      onKeyDown={e => {
+                        if (e.key === "Enter") { e.preventDefault(); addTag(); }
+                        if (e.key === "Backspace" && !currentInput && tags.filter(Boolean).length > 0) {
+                          removeTag(tags.filter(Boolean).length - 1);
+                        }
+                        if ((e.ctrlKey || e.metaKey) && e.key === "Enter") { e.preventDefault(); generate(); }
+                      }}
+                      placeholder="输入提示词，Enter 添加..."
+                      className="flex-1 bg-transparent text-sm text-[#1a1a18] dark:text-white placeholder:text-[#c0bfb8] dark:placeholder:text-[#4a4a45] outline-none"
+                    />
+                  </div>
+                </div>
                 {/* 风格模板 */}
                 {!activeStyle ? (
                   <div className="relative px-3 sm:px-4 pb-2">
@@ -527,9 +574,9 @@ export default function CreatePage() {
                         return (
                           <button key={s.id} onClick={() => {
                             setActiveStyle(s.id);
-                            const cur = prompt.trim();
-                            setPrompt(cur ? `${cur}, ${s.hint}` : s.hint);
-                            inputRef.current?.focus();
+                            const v = currentInput.trim();
+                            setCurrentInput(v ? `${v}, ${s.hint}` : s.hint);
+                            inputRef2.current?.focus();
                           }}
                             className="flex items-center gap-1 px-2.5 py-1.5 sm:px-2 sm:py-1 rounded-lg text-[11px] sm:text-[10px] font-medium text-[#9e9d98] dark:text-[#6b6a66]
                               hover:text-[#1a1a18] dark:hover:text-white hover:bg-[#f0efe8] dark:hover:bg-[#252521] transition-all shrink-0 border border-transparent hover:border-[#e0dfd8] dark:hover:border-[#2a2a25] touch-manipulation">
@@ -679,8 +726,8 @@ export default function CreatePage() {
                         {lineCount} 张
                       </span>
                     )}
-                    <span className="text-[10px] text-[#c0bfb8] dark:text-[#4a4a45] font-mono tabular-nums">{prompt.length}</span>
-                    <Button onClick={generate} disabled={loading || !prompt.trim()} size="sm"
+                    <span className="text-[10px] text-[#c0bfb8] dark:text-[#4a4a45] font-mono tabular-nums">{currentInput.length || tags.filter(Boolean).length}</span>
+                    <Button onClick={generate} disabled={loading || !currentInput.trim() && tags.filter(Boolean).length === 0} size="sm"
                       className="h-7 px-3 rounded-lg text-[10px] font-semibold bg-[#1a1a18] dark:bg-white text-white dark:text-[#1a1a18] hover:bg-[#333] dark:hover:bg-[#e0dfd8] disabled:opacity-40 shadow-sm transition-all gap-1.5">
                       {loading ? <Loader2 className="w-3 h-3 animate-spin" /> : <Wand2 className="w-3 h-3" />}
                       {loading ? "生成中..." : "生成"}
@@ -692,7 +739,7 @@ export default function CreatePage() {
 
             {/* Hint */}
             <p className="mt-2 text-[11px] text-[#c0bfb8] dark:text-[#4a4a45] tracking-wide">
-              Ctrl+⏎ 发送 · 每行一个提示词 · 支持图生图与图片融合
+              Ctrl+⏎ 发送 · Enter 添加提示词 · 点击标签可修改 · 支持图生图与图片融合
             </p>
           </div>
         </div>
@@ -744,7 +791,7 @@ export default function CreatePage() {
                 {hsFilter !== "all" ? "无匹配记录" : "开始创作"}
               </p>
               <p className="text-[11px] text-[#c0bfb8] dark:text-[#4a4a45] mt-1">
-                {hsFilter !== "all" ? "切换筛选标签查看其他记录" : "输入提示词，按 ⏎ 生成"}
+                {hsFilter !== "all" ? "切换筛选标签查看其他记录" : "输入提示词，Enter 添加多个"}
               </p>
             </div>
           ) : (

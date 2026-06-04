@@ -28,13 +28,13 @@ func TestPlanLimits(t *testing.T) {
 
 		// 3次成功
 		for i := 0; i < 3; i++ {
-			_, ok, _, err := r.ConsumeToken(uid, capacity, refill, 1)
+			_, _, ok, _, err := r.ConsumeToken(uid, capacity, refill, 1)
 			if err != nil { t.Fatal(err) }
 			if !ok { t.Errorf("第%d次应成功", i+1) }
 		}
 
 		// 第4次应拒绝
-		rem, ok, wait, _ := r.ConsumeToken(uid, capacity, refill, 1)
+		rem, _, ok, wait, _ := r.ConsumeToken(uid, capacity, refill, 1)
 		t.Logf("第4次: 剩余=%.0f ok=%v 等待=%ds", rem, ok, wait)
 		if ok { t.Error("免费套餐第4次应被限流") }
 		if wait != 3600 { t.Errorf("等待应为3600s, got %d", wait) }
@@ -97,7 +97,7 @@ func TestPlanLimits(t *testing.T) {
 		b, _ := json.Marshal(reqBody)
 
 		// 检查令牌
-		_, ok, wait, _ := r.ConsumeToken(uid, capacity, refill, 1)
+		_, _, ok, wait, _ := r.ConsumeToken(uid, capacity, refill, 1)
 		if ok {
 			t.Error("应被拒绝")
 		} else {
@@ -119,7 +119,7 @@ func TestPlanLimits(t *testing.T) {
 		t.Log("等待 3 秒补充...")
 		time.Sleep(3 * time.Second)
 
-		rem, ok, _, _ := r.ConsumeToken(uid, capacity, refill, 1)
+		rem, _, ok, _, _ := r.ConsumeToken(uid, capacity, refill, 1)
 		t.Logf("3秒后: 剩余=%.0f ok=%v", rem, ok)
 		if !ok { t.Errorf("应已补充 ≥1 令牌, refill_rate=%d/h", refill) }
 

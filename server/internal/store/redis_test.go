@@ -22,7 +22,7 @@ func TestTokenBucket(t *testing.T) {
 	s.client.Del(context.Background(), "bucket:99999")
 
 	// ── Test 1: 初始满桶 ──
-	rem, ok, wait, err := s.ConsumeToken(userID, capacity, refillRate, 1)
+	rem, _, ok, wait, err := s.ConsumeToken(userID, capacity, refillRate, 1)
 	if err != nil { t.Fatal(err) }
 	t.Logf("T1 消耗1个 → 剩余=%.0f ok=%v wait=%ds", rem, ok, wait)
 	if !ok { t.Error("初始桶应有令牌") }
@@ -30,13 +30,13 @@ func TestTokenBucket(t *testing.T) {
 
 	// ── Test 2: 连续消耗 9 个（用完桶）──
 	for i := 0; i < 9; i++ {
-		rem, ok, _, _ = s.ConsumeToken(userID, capacity, refillRate, 1)
+		rem, _, ok, _, _ = s.ConsumeToken(userID, capacity, refillRate, 1)
 		t.Logf("T2 消耗 #%d → 剩余=%.0f ok=%v", i+2, rem, ok)
 	}
 	// 此时桶应为空
 
 	// ── Test 3: 再消耗应失败 ──
-	rem, ok, wait, _ = s.ConsumeToken(userID, capacity, refillRate, 1)
+	rem, _, ok, wait, _ = s.ConsumeToken(userID, capacity, refillRate, 1)
 	t.Logf("T3 第11次(桶空) → 剩余=%.0f ok=%v 需等待=%ds", rem, ok, wait)
 	if ok { t.Error("空桶应拒绝消耗") }
 	if wait <= 0 { t.Errorf("应返回等待秒数, got %d", wait) }
@@ -44,7 +44,7 @@ func TestTokenBucket(t *testing.T) {
 	// ── Test 4: 补充后再消耗 ──
 	t.Log("T4 等待 2 秒让令牌补充...")
 	time.Sleep(2 * time.Second)
-	rem, ok, _, _ = s.ConsumeToken(userID, capacity, refillRate, 1)
+	rem, _, ok, _, _ = s.ConsumeToken(userID, capacity, refillRate, 1)
 	t.Logf("T4 补充后 → 剩余=%.0f ok=%v", rem, ok)
 	if !ok { t.Log("2秒不足以补充1个令牌（需~1200s），预期行为") }
 

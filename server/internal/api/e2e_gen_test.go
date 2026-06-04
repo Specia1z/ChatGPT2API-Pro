@@ -50,12 +50,12 @@ func TestE2EGenerationWithPlan(t *testing.T) {
 		capacity, refill := 3, 1
 
 		for i := 1; i <= 3; i++ {
-			rem, ok, _, _ := redis.ConsumeToken(uid, capacity, refill, 1)
+			rem, _, ok, _, _ := redis.ConsumeToken(uid, capacity, refill, 1)
 			t.Logf("请求%d: 剩余=%.0f ok=%v", i, rem, ok)
 			if !ok { t.Errorf("请求%d应通过", i) }
 		}
 
-		rem, ok, wait, _ := redis.ConsumeToken(uid, capacity, refill, 1)
+		rem, _, ok, wait, _ := redis.ConsumeToken(uid, capacity, refill, 1)
 		t.Logf("请求4(超限): 剩余=%.0f ok=%v 等待=%ds", rem, ok, wait)
 		if ok { t.Error("应返回429") }
 
@@ -76,7 +76,7 @@ func TestE2EGenerationWithPlan(t *testing.T) {
 		// 模拟 3 次生图通过
 		passed := 0
 		for i := 0; i < 5; i++ {
-			_, ok, _, _ := redis.ConsumeToken(uid, cap, rate, 1)
+			_, _, ok, _, _ := redis.ConsumeToken(uid, cap, rate, 1)
 			if ok { passed++ }
 		}
 		if passed != 3 { t.Errorf("应通过3次, 实际%d", passed) }

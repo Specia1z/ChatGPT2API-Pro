@@ -823,7 +823,7 @@ func (s *MySQLStore) ListUsers(search string, page, pageSize int) ([]model.User,
 	var conditions []string
 	var args []any
 	if search != "" {
-		conditions = append(conditions, "(email LIKE ? OR name LIKE ?)")
+		conditions = append(conditions, "(u.email LIKE ? OR u.name LIKE ?)")
 		q := "%" + search + "%"
 		args = append(args, q, q)
 	}
@@ -833,21 +833,39 @@ func (s *MySQLStore) ListUsers(search string, page, pageSize int) ([]model.User,
 	var total int
 	s.db.QueryRow("SELECT COUNT(*) FROM users "+where, args...).Scan(&total)
 
-	args = append(args, pageSize, (page-1)*pageSize)
-	rows, err := s.db.Query("SELECT id, email, password_hash, COALESCE(name,''), points, status, COALESCE(ban_reason,''), created_at FROM users "+where+" ORDER BY id DESC LIMIT ? OFFSET ?", args...)
+	allArgs := append([]any{}, args...)
+	allArgs = append(allArgs, pageSize, (page-1)*pageSize)
+	rows, err := s.db.Query(`SELECT u.id, u.email, u.password_hash, COALESCE(u.name,''), u.points, u.status, COALESCE(u.ban_reason,''), u.plan_id, u.subscription_expires_at, COALESCE(p.name,''), u.created_at
+		FROM users u LEFT JOIN plans p ON (CASE WHEN u.subscription_expires_at IS NOT NULL AND u.subscription_expires_at < NOW() THEN NULL ELSE u.plan_id END) = p.id
+		`+where+" ORDER BY u.id DESC LIMIT ? OFFSET ?", allArgs...)
 	if err != nil { return nil, 0, err }
 	defer rows.Close()
 
 	var users []model.User
 	for rows.Next() {
 		var u model.User
-		if err := rows.Scan(&u.ID, &u.Email, &u.PasswordHash, &u.Name, &u.Points, &u.Status, &u.BanReason, &u.CreatedAt); err != nil { continue }
+		if err := rows.Scan(&u.ID, &u.Email, &u.PasswordHash, &u.Name, &u.Points, &u.Status, &u.BanReason, &u.PlanID, &u.SubscriptionExpiresAt, &u.PlanName, &u.CreatedAt); err != nil { continue }
 		users = append(users, u)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, 0, err
 	}
 	return users, total, nil
+}
+
+func (s *MySQLStore) CreateUserWithDetails(email, passwordHash, name string, points int, planID int, durationDays int) (int64, error) {
+	expiresSQL := "NULL"
+	var expiresArgs []any
+	if durationDays > 0 {
+		expiresSQL = "DATE_ADD(NOW(), INTERVAL ? DAY)"
+		expiresArgs = append(expiresArgs, durationDays)
+	}
+	query := fmt.Sprintf("INSERT INTO users (email, password_hash, name, points, plan_id, subscription_expires_at) VALUES (?, ?, ?, ?, ?, %s)", expiresSQL)
+	args := []any{email, passwordHash, name, points, planID}
+	args = append(args, expiresArgs...)
+	res, err := s.db.Exec(query, args...)
+	if err != nil { return 0, err }
+	return res.LastInsertId()
 }
 
 func (s *MySQLStore) UpdateUser(id int64, name string) error {
