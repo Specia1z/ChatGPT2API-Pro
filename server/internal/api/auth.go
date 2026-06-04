@@ -61,6 +61,67 @@ func (h *Handler) ChangePassword(w http.ResponseWriter, r *http.Request) {
 /* ── 公开路由 ────────────────────────────────────────── */
 
 // POST /api/auth/register
+// POST /api/auth/send-code — 发送邮箱验证码
+func (h *Handler) SendEmailCode(w http.ResponseWriter, r *http.Request) {
+	var req struct{ Email string `json:"email"` }
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Email == "" {
+		writeJSON(w, 400, model.APIResponse{Code: 400, Message: "邮箱不能为空"})
+		return
+	}
+	email := strings.TrimSpace(strings.ToLower(req.Email))
+
+	settings, _ := h.MySQL.GetSettings()
+	var ec model.EmailConfig
+	if settings.EmailConfig != "" { json.Unmarshal([]byte(settings.EmailConfig), &ec) }
+	if !ec.SMTPEnabled {
+		writeJSON(w, 400, model.APIResponse{Code: 400, Message: "邮箱验证未开启"})
+		return
+	}
+
+	// 检查域名
+	domain := email[strings.LastIndex(email, "@")+1:]
+	if ec.DomainAliases != nil {
+		if alias, ok := ec.DomainAliases[domain]; ok { domain = alias }
+	}
+	if len(ec.DomainWhitelist) > 0 {
+		allowed := false
+		for _, d := range ec.DomainWhitelist { if strings.EqualFold(domain, d) { allowed = true; break } }
+		if !allowed { writeJSON(w, 403, model.APIResponse{Code: 403, Message: "该邮箱域名不在允许列表中"}); return }
+	}
+	if len(ec.DomainBlacklist) > 0 {
+		for _, d := range ec.DomainBlacklist { if strings.EqualFold(domain, d) { writeJSON(w, 403, model.APIResponse{Code: 403, Message: "该邮箱域名已被禁止"}); return } }
+	}
+
+	// 生成验证码并发送
+	code := service.RandomCode(6)
+	if err := h.Redis.SetEmailCode(email, code); err != nil {
+		writeJSON(w, 500, model.APIResponse{Code: 500, Message: "发送失败"})
+		return
+	}
+	body := fmt.Sprintf("您的验证码是：%s\n\n验证码 10 分钟内有效，请勿泄露给他人。", code)
+	if err := service.SendEmail(&ec, email, "邮箱验证", body); err != nil {
+		log.Printf("[email] send to %s failed: %v", email, err)
+		writeJSON(w, 500, model.APIResponse{Code: 500, Message: "邮件发送失败"})
+		return
+	}
+	writeJSON(w, 200, model.APIResponse{Code: 200, Message: "验证码已发送"})
+}
+
+// POST /api/auth/verify-code — 验证邮箱验证码
+func (h *Handler) VerifyEmailCode(w http.ResponseWriter, r *http.Request) {
+	var req struct{ Email string `json:"email"`; Code string `json:"code"` }
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Email == "" || req.Code == "" {
+		writeJSON(w, 400, model.APIResponse{Code: 400, Message: "参数错误"})
+		return
+	}
+	ok, _ := h.Redis.VerifyEmailCode(req.Email, req.Code)
+	if !ok {
+		writeJSON(w, 400, model.APIResponse{Code: 400, Message: "验证码错误或已过期"})
+		return
+	}
+	writeJSON(w, 200, model.APIResponse{Code: 200, Message: "验证成功"})
+}
+
 func (h *Handler) UserRegister(w http.ResponseWriter, r *http.Request) {
 	var req model.UserRegisterRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {

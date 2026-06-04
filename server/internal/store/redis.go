@@ -291,3 +291,19 @@ func (r *RedisStore) IncrRegisterCount(ip string) error {
 	}
 	return nil
 }
+
+// SetEmailCode 存储邮箱验证码（10 分钟有效）
+func (r *RedisStore) SetEmailCode(email, code string) error {
+	return r.client.Set(context.Background(), "verify:"+email, code, 10*time.Minute).Err()
+}
+
+// VerifyEmailCode 验证邮箱验证码
+func (r *RedisStore) VerifyEmailCode(email, code string) (bool, error) {
+	key := "verify:" + email
+	stored, err := r.client.Get(context.Background(), key).Result()
+	if err == redis.Nil { return false, nil }
+	if err != nil { return false, err }
+	if stored != code { return false, nil }
+	r.client.Del(context.Background(), key)
+	return true, nil
+}

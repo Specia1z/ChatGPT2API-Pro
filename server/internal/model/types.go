@@ -230,6 +230,20 @@ type Settings struct {
 	PointsExchangeRate  int    `json:"points_exchange_rate"`
 	PointsExchangeBonus int    `json:"points_exchange_bonus"`
 	StylePresets string `json:"style_presets"` // JSON 数组：风格预设
+	EmailConfig string `json:"email_config"` // JSON：SMTP+域名规则
+}
+
+// EmailConfig 邮箱验证配置
+type EmailConfig struct {
+	SMTPEnabled    bool              `json:"smtp_enabled"`
+	SMTPHost       string            `json:"smtp_host"`
+	SMTPPort       int               `json:"smtp_port"`
+	SMTPUser       string            `json:"smtp_user"`
+	SMTPPass       string            `json:"smtp_pass"`
+	SMTPFrom       string            `json:"smtp_from"`
+	DomainBlacklist []string         `json:"domain_blacklist"`
+	DomainWhitelist []string         `json:"domain_whitelist"`
+	DomainAliases  map[string]string `json:"domain_aliases"`
 }
 
 // StylePreset 单个风格预设

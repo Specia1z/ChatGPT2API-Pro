@@ -25,6 +25,8 @@ func NewRouter(mysql *store.MySQLStore, redis *store.RedisStore, cleaner *servic
 	// 用户公开（限流）
 	mux.Handle("POST /api/auth/register", middleware.RateLimit(http.HandlerFunc(h.UserRegister)))
 	mux.Handle("POST /api/auth/login", middleware.RateLimit(http.HandlerFunc(h.UserLogin)))
+	mux.HandleFunc("POST /api/auth/send-code", h.SendEmailCode)
+	mux.HandleFunc("POST /api/auth/verify-code", h.VerifyEmailCode)
 
 	// 用户鉴权
 	mux.Handle("GET /api/user/profile", userAuth(http.HandlerFunc(h.UserProfile)))
