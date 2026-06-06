@@ -1057,6 +1057,13 @@ func (s *MySQLStore) IsUserActive(id int64) bool {
 // --- User API Keys ---
 
 func (s *MySQLStore) CreateAPIKey(userID int64, name string) (*model.UserAPIKey, error) {
+	// 每用户 API Key 数量上限，防滥用造数据
+	const maxKeysPerUser = 10
+	var cnt int
+	s.db.QueryRow("SELECT COUNT(*) FROM user_api_keys WHERE user_id=?", userID).Scan(&cnt)
+	if cnt >= maxKeysPerUser {
+		return nil, fmt.Errorf("API Key 数量已达上限（%d 个）", maxKeysPerUser)
+	}
 	key := generateAPIKey()
 	res, err := s.db.Exec(`INSERT INTO user_api_keys (user_id, api_key, name) VALUES (?, ?, ?)`, userID, key, name)
 	if err != nil { return nil, err }
@@ -1083,6 +1090,14 @@ func (s *MySQLStore) ListAPIKeys(userID int64) ([]model.UserAPIKey, error) {
 func (s *MySQLStore) DeleteAPIKey(id, userID int64) error {
 	_, err := s.db.Exec(`DELETE FROM user_api_keys WHERE id=? AND user_id=?`, id, userID)
 	return err
+}
+
+// SetAPIKeyEnabled 启用/禁用单个 API Key（带 user_id 防越权）。禁用后该 Key 立即无法认证。
+func (s *MySQLStore) SetAPIKeyEnabled(id, userID int64, enabled bool) error {
+	res, err := s.db.Exec(`UPDATE user_api_keys SET enabled=? WHERE id=? AND user_id=?`, enabled, id, userID)
+	if err != nil { return err }
+	if n, _ := res.RowsAffected(); n == 0 { return sql.ErrNoRows }
+	return nil
 }
 
 func (s *MySQLStore) UpdateAPIKeyLastUsed(apiKey string) {

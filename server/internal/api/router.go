@@ -2,6 +2,7 @@ package api
 
 import (
 	"net/http"
+	"time"
 
 	"chatgpt2api-pro/internal/middleware"
 	"chatgpt2api-pro/internal/service"
@@ -32,6 +33,7 @@ func NewRouter(mysql *store.MySQLStore, redis *store.RedisStore, cleaner *servic
 	mux.Handle("GET /api/user/keys", userAuth(http.HandlerFunc(h.ListAPIKeys)))
 	mux.Handle("POST /api/user/keys", userAuth(http.HandlerFunc(h.CreateAPIKey)))
 	mux.Handle("DELETE /api/user/keys", userAuth(http.HandlerFunc(h.DeleteAPIKey)))
+	mux.Handle("POST /api/user/keys/toggle", userAuth(http.HandlerFunc(h.ToggleAPIKey)))
 
 	// 生图
 	mux.Handle("POST /api/generations", userAuth(http.HandlerFunc(h.CreateGeneration)))
@@ -53,13 +55,14 @@ mux.Handle("POST /api/user/points/exchange", middleware.RateLimit(userAuth(http.
 	// 公开公告（顶部 Banner）
 	mux.HandleFunc("GET /api/announcements", h.ListActiveAnnouncements)
 
-	// API v1 (API Key 认证，带限流)
-	mux.Handle("POST /api/v1/images/generations", middleware.RateLimit(apiKeyAuth(http.HandlerFunc(h.CreateGeneration))))
-	mux.Handle("GET /api/v1/images/generations", apiKeyAuth(http.HandlerFunc(h.GetUserGenerations)))
-	mux.Handle("GET /api/v1/user/tokens", apiKeyAuth(http.HandlerFunc(h.GetUserTokens)))
+	// API v1 (API Key 认证)：IP 粗限流 + 按 uid 精确限流（防多 IP 绕过）
+	apiUserRL := func(h http.Handler) http.Handler { return middleware.UserRateLimit(redis, 10, time.Second)(h) }
+	mux.Handle("POST /api/v1/images/generations", middleware.RateLimit(apiKeyAuth(apiUserRL(http.HandlerFunc(h.CreateGeneration)))))
+	mux.Handle("GET /api/v1/images/generations", apiKeyAuth(apiUserRL(http.HandlerFunc(h.GetUserGenerations))))
+	mux.Handle("GET /api/v1/user/tokens", apiKeyAuth(apiUserRL(http.HandlerFunc(h.GetUserTokens))))
 
-	// OpenAI 兼容接口（同步返回，标准 /v1 路径，API Key 认证 + 限流）
-	mux.Handle("POST /v1/images/generations", middleware.RateLimit(apiKeyAuth(http.HandlerFunc(h.CreateImageOpenAI))))
+	// OpenAI 兼容接口（同步返回，标准 /v1 路径，API Key 认证 + IP/uid 双限流）
+	mux.Handle("POST /v1/images/generations", middleware.RateLimit(apiKeyAuth(apiUserRL(http.HandlerFunc(h.CreateImageOpenAI)))))
 
 	// 管理员公开（IP限流 + 账号级锁定防刷）
 	mux.Handle("POST /api/admin/login", middleware.RateLimit(http.HandlerFunc(h.Login)))

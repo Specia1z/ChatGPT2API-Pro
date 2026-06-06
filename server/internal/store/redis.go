@@ -302,7 +302,20 @@ func (r *RedisStore) IncrRegisterCount(ip string) error {
 	return nil
 }
 
-// EmailCodeCooldown 返回该邮箱距离可再次发码的剩余时间（>0 表示仍在冷却中）
+// AllowRate 固定窗口限流：在 window 内对 key 计数，超过 limit 返回 false（不放行）。
+// 用于按 API Key/uid 维度限流，避免 IP 限流被多 IP 绕过。Redis 不可用时放行（降级不阻断业务）。
+func (r *RedisStore) AllowRate(key string, limit int, window time.Duration) bool {
+	ctx := context.Background()
+	k := "rl:" + key
+	n, err := r.client.Incr(ctx, k).Result()
+	if err != nil {
+		return true // 降级：Redis 异常不阻断
+	}
+	if n == 1 {
+		r.client.Expire(ctx, k, window)
+	}
+	return int(n) <= limit
+}
 func (r *RedisStore) EmailCodeCooldown(email string) (time.Duration, error) {
 	ttl, err := r.client.TTL(context.Background(), "verify_cd:"+email).Result()
 	if err == redis.Nil { return 0, nil }

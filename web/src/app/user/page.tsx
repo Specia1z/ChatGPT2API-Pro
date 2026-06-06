@@ -21,7 +21,7 @@ import { toast } from "sonner";
 import {
   Copy, Check, Key, Plus, Trash2, Zap, Gift, Ticket,
   RefreshCw, Coins, Battery, Layers, Timer, Crown, ArrowUpRight, LogOut,
-  BarChart3, TrendingUp, CalendarDays, Activity, Loader2,
+  BarChart3, TrendingUp, CalendarDays, Activity, Loader2, Power,
 } from "lucide-react";
 import { Area, AreaChart, ResponsiveContainer, XAxis, YAxis } from "recharts";
 import { Tooltip as RechartsTooltip } from "recharts";
@@ -144,6 +144,7 @@ export default function UserPage() {
   const createKey = async () => { try { await api("/api/user/keys", { method: "POST", body: JSON.stringify({ name: newKeyName || "API Key" }) }); setNewKeyName(""); toast.success("密钥已创建"); fetchKeys(); } catch (e: any) { toast.error(e.message); } };
   const deleteKey = async () => { if (deleteId == null) return; try { await api("/api/user/keys", { method: "DELETE", body: JSON.stringify({ id: deleteId }) }); toast.success("密钥已删除"); fetchKeys(); } catch (e: any) { toast.error(e.message); } finally { setDeleteId(null); } };
   const copyKey = async (k: string) => { await navigator.clipboard.writeText(k); setCopied(k); toast.success("已复制"); setTimeout(() => setCopied(null), 1500); };
+  const toggleKey = async (k: any) => { try { const next = !(k.enabled !== false); await api("/api/user/keys/toggle", { method: "POST", body: JSON.stringify({ id: k.id, enabled: next }) }); toast.success(next ? "已启用" : "已禁用"); fetchKeys(); } catch (e: any) { toast.error(e.message); } };
 
   const capacity = user?.token_capacity || 50;
   const refill = user?.token_refill_per_hour || 3;
@@ -339,6 +340,10 @@ export default function UserPage() {
                           <div className="relative flex items-center gap-1 opacity-50 group-hover:opacity-100 transition-opacity">
                             <Button variant="ghost" size="icon-sm" onClick={() => copyKey(k.api_key)} title="复制">
                               {copied === k.api_key ? <Check className="text-foreground" /> : <Copy />}
+                            </Button>
+                            <Button variant="ghost" size="icon-sm" onClick={() => toggleKey(k)} title={k.enabled === false ? "启用" : "禁用"}
+                              className={k.enabled === false ? "text-emerald-500 hover:text-emerald-600" : "hover:text-amber-500"}>
+                              <Power />
                             </Button>
                             <Button variant="ghost" size="icon-sm" className="hover:text-destructive" onClick={() => setDeleteId(k.id)} title="删除">
                               <Trash2 />

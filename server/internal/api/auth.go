@@ -470,3 +470,24 @@ func (h *Handler) DeleteAPIKey(w http.ResponseWriter, r *http.Request) {
 	h.MySQL.DeleteAPIKey(req.ID, userID)
 	writeJSON(w, 200, model.APIResponse{Code: 200, Message: "已删除"})
 }
+
+// POST /api/user/keys/toggle — 启用/禁用单个 API Key
+func (h *Handler) ToggleAPIKey(w http.ResponseWriter, r *http.Request) {
+	userID := r.Context().Value(middleware.UserIDKey).(int64)
+	body, _ := io.ReadAll(r.Body)
+	var req struct {
+		ID      int64 `json:"id"`
+		Enabled bool  `json:"enabled"`
+	}
+	if err := json.Unmarshal(body, &req); err != nil || req.ID <= 0 {
+		writeJSON(w, 400, model.APIResponse{Code: 400, Message: "参数错误"})
+		return
+	}
+	if err := h.MySQL.SetAPIKeyEnabled(req.ID, userID, req.Enabled); err != nil {
+		writeJSON(w, 404, model.APIResponse{Code: 404, Message: "密钥不存在或无权操作"})
+		return
+	}
+	msg := "已启用"
+	if !req.Enabled { msg = "已禁用" }
+	writeJSON(w, 200, model.APIResponse{Code: 200, Message: msg})
+}

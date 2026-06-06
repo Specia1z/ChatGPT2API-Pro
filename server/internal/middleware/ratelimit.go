@@ -3,9 +3,12 @@ package middleware
 import (
 	"net"
 	"net/http"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
+
+	"chatgpt2api-pro/internal/store"
 )
 
 type rateLimiter struct {
@@ -58,6 +61,28 @@ func RateLimit(next http.Handler) http.Handler {
 		}
 		next.ServeHTTP(w, r)
 	})
+}
+
+// UserRateLimit 按用户维度限流（用于 API Key 认证的接口）。
+// 必须在 ApiKeyAuth/UserAuth 之后，从 context 取 uid；取不到则回退按 IP。
+// 解决 IP 限流被同一 Key 多 IP 绕过的问题。
+func UserRateLimit(redis *store.RedisStore, limit int, window time.Duration) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			var key string
+			if uid, ok := r.Context().Value(UserIDKey).(int64); ok && uid > 0 {
+				key = "uid:" + strconv.FormatInt(uid, 10)
+			} else {
+				key = "ip:" + ClientIP(r)
+			}
+			if redis != nil && !redis.AllowRate(key, limit, window) {
+				w.Header().Set("Retry-After", "1")
+				http.Error(w, `{"code":429,"message":"请求过于频繁，请稍后再试"}`, http.StatusTooManyRequests)
+				return
+			}
+			next.ServeHTTP(w, r)
+		})
+	}
 }
 
 // ClientIP 提取请求的客户端 IP（剥离端口）。
