@@ -48,6 +48,9 @@ mux.Handle("POST /api/user/points/exchange", userAuth(http.HandlerFunc(h.Exchang
 	// 公开画廊
 	mux.HandleFunc("GET /api/gallery", h.ListGallery)
 
+	// 公开公告（顶部 Banner）
+	mux.HandleFunc("GET /api/announcements", h.ListActiveAnnouncements)
+
 	// API v1 (API Key 认证，带限流)
 	mux.Handle("POST /api/v1/images/generations", middleware.RateLimit(apiKeyAuth(http.HandlerFunc(h.CreateGeneration))))
 	mux.Handle("GET /api/v1/images/generations", apiKeyAuth(http.HandlerFunc(h.GetUserGenerations)))
@@ -83,6 +86,12 @@ mux.Handle("POST /api/user/points/exchange", userAuth(http.HandlerFunc(h.Exchang
 	mux.Handle("POST /api/admin/plans", adminAuth(http.HandlerFunc(h.CreatePlan)))
 	mux.Handle("PUT /api/admin/plans", adminAuth(http.HandlerFunc(h.UpdatePlan)))
 	mux.Handle("DELETE /api/admin/plans", adminAuth(http.HandlerFunc(h.DeletePlan)))
+
+	// 公告管理
+	mux.Handle("GET /api/admin/announcements", adminAuth(http.HandlerFunc(h.AdminListAnnouncements)))
+	mux.Handle("POST /api/admin/announcements", adminAuth(http.HandlerFunc(h.CreateAnnouncement)))
+	mux.Handle("PUT /api/admin/announcements", adminAuth(http.HandlerFunc(h.UpdateAnnouncement)))
+	mux.Handle("DELETE /api/admin/announcements", adminAuth(http.HandlerFunc(h.DeleteAnnouncement)))
 	mux.Handle("GET /api/admin/users", adminAuth(http.HandlerFunc(h.ListUsers)))
 	mux.Handle("POST /api/admin/users/create", adminAuth(http.HandlerFunc(h.AdminCreateUser)))
 	mux.Handle("POST /api/admin/users/update", adminAuth(http.HandlerFunc(h.UpdateUser)))

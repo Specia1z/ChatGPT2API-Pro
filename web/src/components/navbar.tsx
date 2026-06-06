@@ -7,6 +7,7 @@ import { Sparkles, User, Wand2, LogOut, Sun, Moon, Terminal } from "lucide-react
 import { BASE } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { MobileTabBar } from "@/components/mobile-tab-bar";
+import { AnnouncementBanner } from "@/components/announcement-banner";
 
 export function Navbar() {
   const { user, logout } = useAuth();
@@ -169,6 +170,9 @@ export function Navbar() {
         </nav>
       </div>
     </header>
+
+    {/* 站点公告 Banner（紧贴 navbar 下方） */}
+    <AnnouncementBanner />
 
     {/* 移动端底部 Tab 栏（md 以下显示，桌面端隐藏） */}
     <MobileTabBar />

@@ -193,6 +193,18 @@ func (s *MySQLStore) autoMigrate() {
 	if !s.columnExists(dbName, "settings", "email_config") {
 		s.db.Exec("ALTER TABLE settings ADD COLUMN email_config TEXT AFTER style_presets")
 	}
+	s.db.Exec(`CREATE TABLE IF NOT EXISTS announcements (
+		id BIGINT AUTO_INCREMENT PRIMARY KEY,
+		title VARCHAR(128) NOT NULL DEFAULT '',
+		content TEXT,
+		type VARCHAR(16) NOT NULL DEFAULT 'info',
+		link VARCHAR(512) DEFAULT '',
+		priority INT NOT NULL DEFAULT 0,
+		enabled TINYINT(1) NOT NULL DEFAULT 1,
+		start_at DATETIME NULL,
+		end_at DATETIME NULL,
+		created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+	) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`)
 	s.db.Exec(`CREATE TABLE IF NOT EXISTS orders (
 		id BIGINT AUTO_INCREMENT PRIMARY KEY,
 		order_no VARCHAR(32) NOT NULL UNIQUE,
