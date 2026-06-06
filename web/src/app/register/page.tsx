@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { ArrowRight, Mail, Lock, User, Eye, EyeOff } from "lucide-react";
+import { ArrowRight, Mail, Lock, User, Eye, EyeOff, Gift } from "lucide-react";
 import { api, BASE } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -21,6 +21,7 @@ export default function RegisterPage() {
   const [countdown, setCountdown] = useState(0);
   const [sendingCode, setSendingCode] = useState(false);
   const [settings, setSettings] = useState<any>({});
+  const [inviteCode, setInviteCode] = useState("");
   const router = useRouter();
 
   useEffect(() => {
@@ -30,6 +31,11 @@ export default function RegisterPage() {
         if (data?.data) setSettings(data.data);
       })
       .catch(() => {});
+    // 从 URL ?ref= 读取邀请码（裂变链接）
+    try {
+      const ref = new URLSearchParams(window.location.search).get("ref");
+      if (ref) setInviteCode(ref.trim().toUpperCase());
+    } catch {}
   }, []);
 
   const handleRegister = async () => {
@@ -42,6 +48,7 @@ export default function RegisterPage() {
       if (smtpEnabled) {
         body.code = code;
       }
+      if (inviteCode) body.invite_code = inviteCode;
       await api("/api/auth/register", { method: "POST", body: JSON.stringify(body) });
       router.push("/login?registered=1");
     } catch (e: any) { setError(e.message); }
@@ -92,6 +99,14 @@ export default function RegisterPage() {
 
         {/* Form card */}
         <div className="bg-white dark:bg-zinc-900 border border-zinc-200/60 dark:border-zinc-800/60 rounded-2xl p-6 space-y-4 shadow-xl shadow-zinc-200/20 dark:shadow-zinc-900/30">
+          {inviteCode && (
+            <div className="flex items-center gap-2 rounded-xl border border-cyan-500/20 bg-cyan-500/[0.06] px-3.5 py-2.5">
+              <Gift className="w-4 h-4 text-cyan-600 dark:text-cyan-400 shrink-0" />
+              <span className="text-[12px] text-cyan-700 dark:text-cyan-300">
+                受邀请注册 · 邀请码 <span className="font-mono font-semibold">{inviteCode}</span>，注册即得积分奖励
+              </span>
+            </div>
+          )}
           {/* Name */}
           <div className="space-y-1.5">
             <label className="text-[11px] font-medium text-zinc-500 dark:text-zinc-400 flex items-center gap-1.5">

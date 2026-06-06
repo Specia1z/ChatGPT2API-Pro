@@ -286,6 +286,14 @@ func (h *Handler) UserRegister(w http.ResponseWriter, r *http.Request) {
 	// 自动创建默认 API Key
 	h.MySQL.CreateAPIKey(id, "Default")
 
+	// 邀请绑定 + 注册奖励（开启且带有效邀请码时）
+	if ic := h.loadInviteConfig(); ic.Enabled && req.InviteCode != "" {
+		inviterID := h.MySQL.GetUserIDByInviteCode(strings.ToUpper(strings.TrimSpace(req.InviteCode)))
+		if inviterID > 0 && inviterID != id {
+			h.MySQL.BindInviteAndReward(inviterID, id, ic.RewardRegInviter, ic.RewardRegInvitee)
+		}
+	}
+
 	writeJSON(w, 200, model.APIResponse{Code: 200, Message: "注册成功", Data: map[string]any{"id": id}})
 }
 

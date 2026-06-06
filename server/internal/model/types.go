@@ -166,6 +166,7 @@ type UserRegisterRequest struct {
 	Password         string `json:"password"`
 	Name             string `json:"name,omitempty"`
 	Code             string `json:"code,omitempty"`
+	InviteCode       string `json:"invite_code,omitempty"`
 	CfTurnstileToken string `json:"cf_turnstile_token,omitempty"`
 }
 
@@ -236,6 +237,25 @@ type Settings struct {
 	BurstTokenCap       int    `json:"burst_token_cap"` // 突发令牌囤积上限（0=不限），防积分兑换无限囤额度
 	StylePresets string `json:"style_presets"` // JSON 数组：风格预设
 	EmailConfig string `json:"email_config"` // JSON：SMTP+域名规则
+	InviteConfig string `json:"invite_config"` // JSON：邀请裂变配置
+}
+
+// InviteConfig 邀请裂变配置（存于 settings.invite_config）
+type InviteConfig struct {
+	Enabled         bool `json:"enabled"`
+	RewardRegInviter   int `json:"reward_reg_inviter"`   // 被邀请人注册成功，邀请人得积分
+	RewardRegInvitee   int `json:"reward_reg_invitee"`   // 被邀请人注册成功，本人得积分
+	RewardRechargeInviter int `json:"reward_recharge_inviter"` // 被邀请人首充，邀请人得积分
+	RewardRechargeInvitee int `json:"reward_recharge_invitee"` // 被邀请人首充，本人得积分
+}
+
+// InviteeItem 邀请战绩列表项（脱敏）
+type InviteeItem struct {
+	MaskedEmail    string `json:"masked_email"`
+	RewardRegister int    `json:"reward_register"`
+	RewardRecharge int    `json:"reward_recharge"`
+	Recharged      bool   `json:"recharged"`
+	CreatedAt      string `json:"created_at"`
 }
 
 // Announcement 站点公告（顶部 Banner 展示）

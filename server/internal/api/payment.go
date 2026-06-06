@@ -239,6 +239,7 @@ func (h *Handler) GetOrderStatus(w http.ResponseWriter, r *http.Request) {
 					if order.CouponCode != "" {
 						h.MySQL.AtomicUseCoupon(order.CouponCode, order.Amount)
 					}
+					h.grantInviteRecharge(order.UserID)
 					order.Status = "paid"
 				}
 			}
@@ -321,6 +322,8 @@ func (h *Handler) AlipayNotify(w http.ResponseWriter, r *http.Request) {
 			h.MySQL.AtomicUseCoupon(order.CouponCode, order.Amount)
 		}
 		}
+		// 邀请首充奖励（幂等，仅被邀请用户首笔付费触发）
+		h.grantInviteRecharge(order.UserID)
 	}
 	http.Error(w, "success", 200)
 }

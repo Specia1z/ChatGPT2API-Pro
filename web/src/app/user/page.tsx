@@ -14,6 +14,7 @@ import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsList, TabsTab, TabsPanel } from "@/components/ui/tabs";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { UpgradeDialog } from "@/components/upgrade-dialog";
+import { InviteCard } from "@/components/invite-card";
 import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "@/components/ui/tooltip";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { toast } from "sonner";
@@ -284,6 +285,7 @@ export default function UserPage() {
             <TabsList className="max-w-full overflow-x-auto scrollbar-hide flex-nowrap">
               <TabsTab value="keys">API 密钥</TabsTab>
               <TabsTab value="rewards">优惠与兑换</TabsTab>
+              <TabsTab value="invite">邀请好友</TabsTab>
               <TabsTab value="checkin">每日签到</TabsTab>
               <TabsTab value="stats">用量统计</TabsTab>
               <TabsTab value="account">账号设置</TabsTab>
@@ -395,6 +397,11 @@ export default function UserPage() {
                   <p className="text-xs text-muted-foreground leading-relaxed">兑换套餐时长或积分，成功后即时到账。</p>
                 </div>
               </div>
+            </TabsPanel>
+
+            {/* ── 邀请好友 ── */}
+            <TabsPanel value="invite">
+              <InviteCard />
             </TabsPanel>
 
             {/* ── 每日签到 ── */}

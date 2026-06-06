@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { Outfit, DM_Mono } from "next/font/google";
-import { Globe, Shield, Save, Gauge, Gift, CreditCard, Database } from "lucide-react";
+import { Globe, Shield, Save, Gauge, Gift, CreditCard, Database, Users } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
 import { AdminSidebar } from "@/components/admin-sidebar";
@@ -18,6 +18,7 @@ const mono = DM_Mono({ subsets: ["latin"], weight: ["400", "500"], variable: "--
 const SECTIONS = [
   { id: "site", label: "站点信息", icon: Globe, color: "text-blue-500", bg: "bg-blue-500/10" },
   { id: "checkin", label: "每日签到", icon: Gift, color: "text-amber-500", bg: "bg-amber-500/10" },
+  { id: "invite", label: "邀请裂变", icon: Users, color: "text-cyan-500", bg: "bg-cyan-500/10" },
   { id: "security", label: "安全验证", icon: Shield, color: "text-primary", bg: "bg-primary/10" },
   { id: "scheduler", label: "生图调度", icon: Gauge, color: "text-emerald-500", bg: "bg-emerald-500/10" },
   { id: "payment", label: "支付配置", icon: CreditCard, color: "text-cyan-500", bg: "bg-cyan-500/10" },
@@ -95,6 +96,12 @@ export default function SettingsPage() {
     setSavingSched(false);
   };
   const update = (k: string, v: any) => setCfg((p: any) => ({ ...p, [k]: v }));
+  // 邀请配置是 JSON 字符串字段：解析为对象编辑，改后序列化回 cfg.invite_config
+  const inviteCfg = (() => { try { return JSON.parse(cfg?.invite_config || "{}"); } catch { return {}; } })();
+  const updateInvite = (k: string, v: any) => {
+    const next = { ...inviteCfg, [k]: v };
+    setCfg((p: any) => ({ ...p, invite_config: JSON.stringify(next) }));
+  };
   const scrollTo = (id: string) => { setActiveSection(id); document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" }); };
 
   const base = cfg?.checkin_base || 10;
@@ -238,6 +245,30 @@ export default function SettingsPage() {
                     </div>
                   </div>
                 ) : <p className="text-sm text-muted-foreground">签到功能已关闭，开启后可配置积分奖励规则。</p>}
+              </Card>
+
+              {/* ═══ 邀请裂变 ═══ */}
+              <Card id="invite" icon={Users} color="text-cyan-500" bg="bg-cyan-500/10" title="邀请裂变" desc="老用户邀请新用户，双方得积分奖励"
+                action={<Switch checked={!!inviteCfg.enabled} onCheckedChange={v => updateInvite("enabled", v)} />}>
+                {inviteCfg.enabled ? (
+                  <div className="space-y-5">
+                    <div>
+                      <p className="text-xs font-medium text-muted-foreground mb-3">注册奖励（被邀请人注册成功即发放）</p>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div className="space-y-1.5"><Label>邀请人得积分</Label><Input type="number" min={0} value={inviteCfg.reward_reg_inviter ?? 0} onChange={e => updateInvite("reward_reg_inviter", +e.target.value)} className={inputCls} placeholder="0" /></div>
+                        <div className="space-y-1.5"><Label>被邀请人得积分</Label><Input type="number" min={0} value={inviteCfg.reward_reg_invitee ?? 0} onChange={e => updateInvite("reward_reg_invitee", +e.target.value)} className={inputCls} placeholder="0" /></div>
+                      </div>
+                    </div>
+                    <div className="border-t border-border pt-4">
+                      <p className="text-xs font-medium text-muted-foreground mb-3">首充奖励（被邀请人首次付费订阅时发放）</p>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div className="space-y-1.5"><Label>邀请人得积分</Label><Input type="number" min={0} value={inviteCfg.reward_recharge_inviter ?? 0} onChange={e => updateInvite("reward_recharge_inviter", +e.target.value)} className={inputCls} placeholder="0" /></div>
+                        <div className="space-y-1.5"><Label>被邀请人得积分</Label><Input type="number" min={0} value={inviteCfg.reward_recharge_invitee ?? 0} onChange={e => updateInvite("reward_recharge_invitee", +e.target.value)} className={inputCls} placeholder="0" /></div>
+                      </div>
+                    </div>
+                    <p className="text-[10px] text-muted-foreground">防刷依赖现有「每 IP 每日注册上限」与邮箱验证；同一被邀请人仅奖励一次。</p>
+                  </div>
+                ) : <p className="text-sm text-muted-foreground">邀请活动已关闭，开启后用户中心将显示专属邀请链接。</p>}
               </Card>
 
               {/* ═══ 安全验证 ═══ */}

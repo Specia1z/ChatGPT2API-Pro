@@ -193,6 +193,10 @@ func (s *MySQLStore) autoMigrate() {
 	if !s.columnExists(dbName, "settings", "email_config") {
 		s.db.Exec("ALTER TABLE settings ADD COLUMN email_config TEXT AFTER style_presets")
 	}
+	// 邀请裂变配置（JSON：开关 + 注册/首充双方积分奖励）
+	if !s.columnExists(dbName, "settings", "invite_config") {
+		s.db.Exec("ALTER TABLE settings ADD COLUMN invite_config TEXT AFTER email_config")
+	}
 	s.db.Exec(`CREATE TABLE IF NOT EXISTS announcements (
 		id BIGINT AUTO_INCREMENT PRIMARY KEY,
 		title VARCHAR(128) NOT NULL DEFAULT '',
@@ -251,6 +255,26 @@ func (s *MySQLStore) autoMigrate() {
 	if !s.columnExists(dbName, "users", "ban_reason") {
 		s.db.Exec("ALTER TABLE users ADD COLUMN ban_reason VARCHAR(512) DEFAULT '' AFTER status")
 	}
+	// 邀请裂变：专属邀请码 + 邀请人绑定。invite_code 用 NULL 默认值——
+	// MySQL 唯一索引允许多个 NULL，避免存量用户空串撞唯一约束（首次访问邀请页时懒生成）。
+	if !s.columnExists(dbName, "users", "invite_code") {
+		s.db.Exec("ALTER TABLE users ADD COLUMN invite_code VARCHAR(12) DEFAULT NULL")
+		s.db.Exec("ALTER TABLE users ADD COLUMN invited_by BIGINT NOT NULL DEFAULT 0")
+		s.db.Exec("CREATE UNIQUE INDEX uniq_invite_code ON users (invite_code)")
+		s.db.Exec("CREATE INDEX idx_invited_by ON users (invited_by)")
+	}
+	// 邀请记录：每次成功邀请一行（含注册奖励与首充奖励，rewarded_recharge 标记首充奖励是否已发）
+	s.db.Exec(`CREATE TABLE IF NOT EXISTS invite_logs (
+		id BIGINT AUTO_INCREMENT PRIMARY KEY,
+		inviter_id BIGINT NOT NULL,
+		invitee_id BIGINT NOT NULL,
+		reward_register INT NOT NULL DEFAULT 0,
+		reward_recharge INT NOT NULL DEFAULT 0,
+		rewarded_recharge TINYINT(1) NOT NULL DEFAULT 0,
+		created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+		UNIQUE KEY uniq_invitee (invitee_id),
+		INDEX idx_inviter (inviter_id)
+	) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`)
 
 	s.db.Exec(`CREATE TABLE IF NOT EXISTS user_api_keys (
 		id BIGINT AUTO_INCREMENT PRIMARY KEY,
@@ -1014,6 +1038,17 @@ func (s *MySQLStore) GetUserByID(id int64) (*model.User, error) {
 	return &u, nil
 }
 
+// IsUserActive 轻量查询用户是否未被封禁（中间件每请求调用，仅查 status 列）。
+// 用户不存在视为未激活（false）。
+func (s *MySQLStore) IsUserActive(id int64) bool {
+	var status bool
+	err := s.db.QueryRow("SELECT status FROM users WHERE id=?", id).Scan(&status)
+	if err != nil {
+		return false
+	}
+	return status
+}
+
 // --- User API Keys ---
 
 func (s *MySQLStore) CreateAPIKey(userID int64, name string) (*model.UserAPIKey, error) {
@@ -1102,8 +1137,8 @@ func (s *MySQLStore) SaveStorageConfig(cfg *model.StorageConfig) error {
 
 func (s *MySQLStore) GetSettings() (*model.Settings, error) {
 	cfg := &model.Settings{}
-	err := s.db.QueryRow(`SELECT site_title, site_subtitle, COALESCE(site_description,''), cf_turnstile_enabled, cf_turnstile_site_key, cf_turnstile_secret_key, COALESCE(default_plan_id,0), COALESCE(banned_words,''), COALESCE(checkin_enabled,1), COALESCE(checkin_base,10), COALESCE(checkin_streak_bonus,5), COALESCE(alipay_enabled,0), COALESCE(alipay_app_id,''), COALESCE(alipay_app_private_key,''), COALESCE(alipay_alipay_public_key,''), COALESCE(alipay_notify_url,''), COALESCE(site_logo_type,'text'), COALESCE(site_logo_text,'C2'), COALESCE(site_logo_url,''), COALESCE(storage_cleanup_days,0), COALESCE(points_exchange_rate,10), COALESCE(points_exchange_bonus,0), COALESCE(burst_token_cap,0), COALESCE(style_presets,''), COALESCE(email_config,'') FROM settings WHERE id=1`).
-		Scan(&cfg.SiteTitle, &cfg.SiteSubtitle, &cfg.SiteDescription, &cfg.CFTurnstileEnabled, &cfg.CFTurnstileSiteKey, &cfg.CFTurnstileSecretKey, &cfg.DefaultPlanID, &cfg.BannedWords, &cfg.CheckinEnabled, &cfg.CheckinBase, &cfg.CheckinStreakBonus, &cfg.AlipayEnabled, &cfg.AlipayAppID, &cfg.AlipayAppPrivateKey, &cfg.AlipayPublicKey, &cfg.AlipayNotifyURL, &cfg.SiteLogoType, &cfg.SiteLogoText, &cfg.SiteLogoURL, &cfg.StorageCleanupDays, &cfg.PointsExchangeRate, &cfg.PointsExchangeBonus, &cfg.BurstTokenCap, &cfg.StylePresets, &cfg.EmailConfig)
+	err := s.db.QueryRow(`SELECT site_title, site_subtitle, COALESCE(site_description,''), cf_turnstile_enabled, cf_turnstile_site_key, cf_turnstile_secret_key, COALESCE(default_plan_id,0), COALESCE(banned_words,''), COALESCE(checkin_enabled,1), COALESCE(checkin_base,10), COALESCE(checkin_streak_bonus,5), COALESCE(alipay_enabled,0), COALESCE(alipay_app_id,''), COALESCE(alipay_app_private_key,''), COALESCE(alipay_alipay_public_key,''), COALESCE(alipay_notify_url,''), COALESCE(site_logo_type,'text'), COALESCE(site_logo_text,'C2'), COALESCE(site_logo_url,''), COALESCE(storage_cleanup_days,0), COALESCE(points_exchange_rate,10), COALESCE(points_exchange_bonus,0), COALESCE(burst_token_cap,0), COALESCE(style_presets,''), COALESCE(email_config,''), COALESCE(invite_config,'') FROM settings WHERE id=1`).
+		Scan(&cfg.SiteTitle, &cfg.SiteSubtitle, &cfg.SiteDescription, &cfg.CFTurnstileEnabled, &cfg.CFTurnstileSiteKey, &cfg.CFTurnstileSecretKey, &cfg.DefaultPlanID, &cfg.BannedWords, &cfg.CheckinEnabled, &cfg.CheckinBase, &cfg.CheckinStreakBonus, &cfg.AlipayEnabled, &cfg.AlipayAppID, &cfg.AlipayAppPrivateKey, &cfg.AlipayPublicKey, &cfg.AlipayNotifyURL, &cfg.SiteLogoType, &cfg.SiteLogoText, &cfg.SiteLogoURL, &cfg.StorageCleanupDays, &cfg.PointsExchangeRate, &cfg.PointsExchangeBonus, &cfg.BurstTokenCap, &cfg.StylePresets, &cfg.EmailConfig, &cfg.InviteConfig)
 	if err != nil { return cfg, nil }
 	return cfg, nil
 }
@@ -1123,8 +1158,8 @@ func (s *MySQLStore) SaveSettings(cfg *model.Settings) error {
 		}
 		cfg.EmailConfig = mergeEmailConfigSecrets(cfg.EmailConfig, existing.EmailConfig)
 	}
-	_, err := s.db.Exec(`UPDATE settings SET site_title=?, site_subtitle=?, site_description=?, cf_turnstile_enabled=?, cf_turnstile_site_key=?, cf_turnstile_secret_key=?, default_plan_id=?, banned_words=?, checkin_enabled=?, checkin_base=?, checkin_streak_bonus=?, alipay_enabled=?, alipay_app_id=?, alipay_app_private_key=?, alipay_alipay_public_key=?, alipay_notify_url=?, site_logo_type=?, site_logo_text=?, site_logo_url=?, storage_cleanup_days=?, points_exchange_rate=?, points_exchange_bonus=?, burst_token_cap=?, style_presets=?, email_config=? WHERE id=1`,
-		cfg.SiteTitle, cfg.SiteSubtitle, cfg.SiteDescription, cfg.CFTurnstileEnabled, cfg.CFTurnstileSiteKey, cfg.CFTurnstileSecretKey, cfg.DefaultPlanID, cfg.BannedWords, cfg.CheckinEnabled, cfg.CheckinBase, cfg.CheckinStreakBonus, cfg.AlipayEnabled, cfg.AlipayAppID, cfg.AlipayAppPrivateKey, cfg.AlipayPublicKey, cfg.AlipayNotifyURL, cfg.SiteLogoType, cfg.SiteLogoText, cfg.SiteLogoURL, cfg.StorageCleanupDays, cfg.PointsExchangeRate, cfg.PointsExchangeBonus, cfg.BurstTokenCap, cfg.StylePresets, cfg.EmailConfig)
+	_, err := s.db.Exec(`UPDATE settings SET site_title=?, site_subtitle=?, site_description=?, cf_turnstile_enabled=?, cf_turnstile_site_key=?, cf_turnstile_secret_key=?, default_plan_id=?, banned_words=?, checkin_enabled=?, checkin_base=?, checkin_streak_bonus=?, alipay_enabled=?, alipay_app_id=?, alipay_app_private_key=?, alipay_alipay_public_key=?, alipay_notify_url=?, site_logo_type=?, site_logo_text=?, site_logo_url=?, storage_cleanup_days=?, points_exchange_rate=?, points_exchange_bonus=?, burst_token_cap=?, style_presets=?, email_config=?, invite_config=? WHERE id=1`,
+		cfg.SiteTitle, cfg.SiteSubtitle, cfg.SiteDescription, cfg.CFTurnstileEnabled, cfg.CFTurnstileSiteKey, cfg.CFTurnstileSecretKey, cfg.DefaultPlanID, cfg.BannedWords, cfg.CheckinEnabled, cfg.CheckinBase, cfg.CheckinStreakBonus, cfg.AlipayEnabled, cfg.AlipayAppID, cfg.AlipayAppPrivateKey, cfg.AlipayPublicKey, cfg.AlipayNotifyURL, cfg.SiteLogoType, cfg.SiteLogoText, cfg.SiteLogoURL, cfg.StorageCleanupDays, cfg.PointsExchangeRate, cfg.PointsExchangeBonus, cfg.BurstTokenCap, cfg.StylePresets, cfg.EmailConfig, cfg.InviteConfig)
 	return err
 }
 
