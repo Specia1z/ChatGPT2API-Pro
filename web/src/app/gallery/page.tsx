@@ -125,24 +125,24 @@ export default function GalleryPage() {
       <div className="border-b border-zinc-200/60 dark:border-zinc-800/60 bg-zinc-50 dark:bg-zinc-900">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-16">
           <div className="flex items-center gap-3 mb-5">
-            <div className="shrink-0 w-10 h-10 rounded-xl bg-zinc-200 dark:bg-zinc-800 flex items-center justify-center">
-              <span className="text-lg font-bold text-zinc-900 dark:text-zinc-100">✦</span>
+            <div className="shrink-0 w-10 h-10 rounded-xl bg-gradient-to-br from-cyan-400 via-violet-500 to-fuchsia-500 flex items-center justify-center shadow-[0_6px_20px_-6px_rgba(99,102,241,0.6)]">
+              <span className="text-lg font-bold text-white">✦</span>
             </div>
-            <div className="h-px flex-1 bg-zinc-200 dark:bg-zinc-800" />
+            <div className="h-px flex-1 bg-gradient-to-r from-zinc-300 to-transparent dark:from-zinc-700" />
           </div>
           <div className="max-w-2xl">
-            <div className="inline-flex items-center gap-1.5 rounded-full border border-zinc-200 dark:border-zinc-800 px-3 py-1 text-[11px] font-medium text-zinc-500 dark:text-zinc-400 mb-4 tracking-wide">
+            <div className="inline-flex items-center gap-1.5 rounded-full border border-cyan-500/20 bg-cyan-500/[0.06] px-3 py-1 text-[11px] font-medium text-cyan-700 dark:text-cyan-300 mb-4 tracking-[0.12em] uppercase">
               <Sparkles className="w-3 h-3" />
               灵感广场
             </div>
-            <h1 className="text-3xl sm:text-4xl font-bold tracking-tight text-zinc-900 dark:text-white mb-3">
+            <h1 className="text-3xl sm:text-4xl font-bold tracking-tight text-zinc-900 dark:text-white mb-3 font-[family-name:var(--font-display)]">
               {settings?.site_title || "探索社区创作"}
             </h1>
             <p className="text-sm text-zinc-500 dark:text-zinc-400 leading-relaxed">
               浏览其他创作者分享的作品，获取灵感
               {total > 0 && (
                 <span className="ml-2 text-zinc-400">
-                  · 共 <span className="font-semibold text-zinc-600 dark:text-zinc-300 tabular-nums">{total}</span> 张
+                  · 共 <span className="font-semibold text-cyan-600 dark:text-cyan-400 tabular-nums">{total}</span> 张
                 </span>
               )}
             </p>
@@ -172,8 +172,8 @@ export default function GalleryPage() {
                     style={{ animation: `galleryCardIn 0.5s ease-out ${Math.min(i, 8) * 50}ms both` }}
                     onClick={() => { setCopied(false); setPreview(item); }}
                   >
-                    {/* Top accent bar — 中性，hover 加深 */}
-                    <div className="h-[2px] w-full bg-zinc-200 dark:bg-zinc-800 transition-colors group-hover:bg-zinc-900 dark:group-hover:bg-zinc-100" />
+                    {/* Top accent bar — hover 变光谱渐变 */}
+                    <div className="h-[2px] w-full bg-zinc-200 dark:bg-zinc-800 transition-all group-hover:bg-gradient-to-r group-hover:from-cyan-400 group-hover:via-violet-500 group-hover:to-fuchsia-500" />
 
                     {/* Image */}
                     <div className="relative">
@@ -214,7 +214,7 @@ export default function GalleryPage() {
                         {item.prompt}
                       </p>
                       <div className="flex items-center gap-1.5 min-w-0">
-                        <div className="w-5 h-5 rounded text-[9px] font-bold flex items-center justify-center shrink-0 bg-zinc-200 dark:bg-zinc-700 text-zinc-700 dark:text-zinc-200">
+                        <div className="w-5 h-5 rounded text-[9px] font-bold flex items-center justify-center shrink-0 bg-gradient-to-br from-cyan-400 to-violet-500 text-white">
                           {(item.user_name || item.user_email || "?")[0]?.toUpperCase()}
                         </div>
                         <span className="text-[11px] text-zinc-500 truncate">
@@ -261,7 +261,7 @@ export default function GalleryPage() {
               <div className="shrink-0 lg:w-[360px] lg:h-full lg:border-l border-white/10 bg-white/[0.04] lg:bg-white/[0.03] backdrop-blur-xl flex flex-col px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-4 lg:p-6 gap-4 max-h-[45vh] lg:max-h-none">
                 {/* 作者 + 时间 */}
                 <div className="flex items-center gap-2.5 shrink-0">
-                  <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0 text-white bg-white/15">
+                  <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0 text-white bg-gradient-to-br from-cyan-400 to-violet-500">
                     <span className="text-xs font-bold">
                       {(preview.user_name || preview.user_email || "?")[0]?.toUpperCase()}
                     </span>
@@ -301,7 +301,7 @@ export default function GalleryPage() {
 
                 {/* 下载 */}
                 <button onClick={() => download(imageProxyUrl(preview))}
-                  className="shrink-0 flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl bg-white/15 hover:bg-white/25 text-white text-sm font-medium transition-colors">
+                  className="shrink-0 flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl text-white text-sm font-medium transition-all bg-[linear-gradient(110deg,#0891b2,#6366f1)] hover:brightness-110 hover:shadow-[0_8px_24px_-6px_rgba(34,211,238,0.6)]">
                   <Download className="w-4 h-4" /> 下载原图
                 </button>
               </div>

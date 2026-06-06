@@ -20,7 +20,7 @@ export function MobileTabBar() {
   const router = useRouter();
 
   return (
-    <nav className="md:hidden fixed bottom-0 inset-x-0 z-50 border-t border-zinc-200/60 dark:border-white/5 bg-white/80 dark:bg-zinc-950/80 backdrop-blur-2xl pb-[env(safe-area-inset-bottom)]">
+    <nav className="md:hidden fixed bottom-0 inset-x-0 z-50 border-t border-zinc-200/60 dark:border-white/5 bg-white/80 dark:bg-[#080a12]/85 backdrop-blur-2xl pb-[env(safe-area-inset-bottom)]">
       <div className="flex items-stretch justify-around h-14">
         {TABS.map((tab) => {
           const Icon = tab.icon;
@@ -40,21 +40,21 @@ export function MobileTabBar() {
               <Icon
                 className={`w-[18px] h-[18px] transition-all duration-200 ${
                   active
-                    ? "text-zinc-900 dark:text-white -translate-y-0.5"
+                    ? "text-cyan-600 dark:text-cyan-300 -translate-y-0.5"
                     : "text-zinc-400 dark:text-zinc-500"
                 }`}
               />
               <span
                 className={`text-[10px] leading-none transition-colors ${
                   active
-                    ? "text-zinc-900 dark:text-white font-medium"
+                    ? "text-cyan-600 dark:text-cyan-300 font-medium"
                     : "text-zinc-400 dark:text-zinc-500"
                 }`}
               >
                 {label}
               </span>
               {active && (
-                <span className="absolute top-0 h-0.5 w-8 rounded-full bg-zinc-900 dark:bg-white" />
+                <span className="absolute top-0 h-0.5 w-8 rounded-full bg-gradient-to-r from-cyan-400 to-violet-400" />
               )}
             </Link>
           );

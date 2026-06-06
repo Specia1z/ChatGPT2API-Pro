@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Zap, Coins, Clock, Check, ArrowRight, Hash, Crown } from "lucide-react";
+import { Zap, Coins, Clock, Check, ArrowRight, Hash } from "lucide-react";
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -54,10 +54,12 @@ export function UpgradeDialog({ open, onClose, currentPlanName, currentPlanId, o
     if (screen === "paid" && countdown <= 0) onClose();
   }, [screen, countdown, onClose]);
 
+  // 升级过滤口径对齐后端：用「裸月/年单价」比较，而非乘时长后的总价。
+  // 后端 UpgradeOrder 即按 price_monthly / price_yearly 判定"只能升到更高价位"。
   const currentPlan = plans.find(p => p.id === currentPlanId);
-  const currentPrice = currentPlan ? (billing === "yearly" ? currentPlan.price_yearly : currentPlan.price_monthly) : 0;
-  const showPlans = currentPrice > 0
-    ? plans.filter(p => (billing === "yearly" ? p.price_yearly : p.price_monthly) > currentPrice)
+  const currentUnit = currentPlan ? (billing === "yearly" ? currentPlan.price_yearly : currentPlan.price_monthly) : 0;
+  const showPlans = (currentPlanId && currentPlanId > 0 && currentUnit > 0)
+    ? plans.filter(p => p.id !== currentPlanId && (billing === "yearly" ? p.price_yearly : p.price_monthly) > currentUnit)
     : plans;
 
   const handleConfirm = async (plan: any) => {
@@ -102,192 +104,183 @@ export function UpgradeDialog({ open, onClose, currentPlanName, currentPlanId, o
       } catch {}
     }, 3000);
   };
-
+  // PLACEHOLDER_RENDER
   return (
     <Dialog open={open} onOpenChange={(v) => { if (!v && screen !== "qr") onClose(); }}>
       <DialogContent className="max-w-[calc(100%-2rem)] sm:max-w-md p-0 gap-0 overflow-hidden [&>button]:hidden" showCloseButton={false}>
         <DialogTitle className="sr-only">升级套餐</DialogTitle>
         <DialogDescription className="sr-only">选择套餐并完成支付</DialogDescription>
-        {screen === "select" && <SelectScreen />}
-        {screen === "loading" && <LoadingScreen />}
-        {screen === "qr" && <QRScreen />}
-        {screen === "paid" && <PaidScreen />}
+
+        {/* ═══ 选择套餐 ═══ */}
+        {screen === "select" && (
+          <div>
+            <div className="px-6 pt-6 pb-4 border-b">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="text-base font-semibold font-[family-name:var(--font-display)]">升级套餐</h2>
+                  <p className="text-xs text-muted-foreground mt-0.5">当前: {currentPlanName || "免费版"}</p>
+                </div>
+                <Button variant="ghost" size="icon-sm" onClick={onClose}>×</Button>
+              </div>
+
+              {/* 月付/年付切换 — 所有用户可见 */}
+              <div className="mt-3 inline-flex items-center rounded-lg bg-muted p-0.5">
+                {(["monthly", "yearly"] as const).map(b => (
+                  <button key={b} onClick={() => { setBilling(b); setSelected(null); }}
+                    className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
+                      billing === b ? "text-white bg-[linear-gradient(110deg,#0891b2,#6366f1)] shadow-sm" : "text-muted-foreground hover:text-foreground"
+                    }`}>
+                    {b === "monthly" ? "月付" : "年付"}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="px-6 py-4 space-y-2.5 max-h-[min(340px,50vh)] overflow-y-auto scrollbar-thin">
+              {showPlans.length === 0 && (
+                <p className="text-sm text-muted-foreground text-center py-8">已是最高套餐</p>
+              )}
+              {showPlans.map((plan) => {
+                const isCurrent = currentPlanId === plan.id;
+                const isSelected = selected?.id === plan.id;
+                const price = billing === "yearly" ? plan.price_yearly : plan.price_monthly;
+                return (
+                  <button key={plan.id} type="button" disabled={isCurrent}
+                    onClick={() => !isCurrent && setSelected(plan)}
+                    className={`relative w-full text-left rounded-xl border p-4 transition-all duration-200 disabled:opacity-40 ${
+                      isSelected
+                        ? "border-cyan-400 bg-cyan-500/5 ring-1 ring-cyan-400 shadow-sm"
+                        : "border-border bg-card hover:border-cyan-300 dark:hover:border-cyan-700/60 hover:shadow-sm"
+                    }`}>
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-semibold">{plan.name}</span>
+                        {isCurrent && <Badge variant="secondary" className="text-[9px] h-4">当前</Badge>}
+                        {plan.highlighted && !isCurrent && <Badge className="text-[9px] h-4 border-0 text-white bg-[linear-gradient(110deg,#0891b2,#6366f1)]">推荐</Badge>}
+                      </div>
+                      <span className={`size-5 rounded-full border-2 flex items-center justify-center transition-all ${
+                        isSelected ? "border-cyan-400 bg-cyan-400" : "border-border"
+                      }`}>
+                        {isSelected && <Check className="size-3 text-white" />}
+                      </span>
+                    </div>
+
+                    <div className="flex items-baseline gap-1 mb-2">
+                      <span className="text-2xl font-bold tabular-nums font-[family-name:var(--font-display)]">¥{price}</span>
+                      <span className="text-xs text-muted-foreground">/月</span>
+                      {billing === "yearly" && plan.price_monthly > price && (
+                        <span className="text-xs text-muted-foreground line-through ml-1">¥{plan.price_monthly}</span>
+                      )}
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-muted-foreground">
+                      <span className="flex items-center gap-1"><Zap className="size-3 text-cyan-500/70" /> 并发 {plan.concurrency}</span>
+                      <span className="flex items-center gap-1"><Coins className="size-3 text-cyan-500/70" /> {plan.token_capacity} 令牌</span>
+                      <span className="flex items-center gap-1"><Clock className="size-3 text-cyan-500/70" /> {billing === "yearly" ? (plan.duration_days_yearly > 0 ? plan.duration_days_yearly + "天" : "永久") : plan.duration_days + "天"}</span>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+
+            <div className="px-6 pb-6 pt-2">
+              <Button disabled={!selected} onClick={() => handleConfirm(selected)} className="w-full h-10 gap-2 text-white bg-[linear-gradient(110deg,#0891b2,#6366f1)] hover:brightness-110 disabled:opacity-40">
+                {selected ? `升级至 ${selected.name}` : "选择套餐"}
+                <ArrowRight className="size-4" />
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {/* ═══ 计价 loading ═══ */}
+        {screen === "loading" && (
+          <div className="flex flex-col items-center py-16 px-6">
+            <div className="size-12 rounded-full border-2 border-muted border-t-cyan-500 animate-spin mb-5" />
+            <p className="text-sm text-muted-foreground">正在计算升级价格…</p>
+          </div>
+        )}
+
+        {/* ═══ 扫码支付 ═══ */}
+        {screen === "qr" && (
+          <div>
+            <div className="px-6 pt-6 pb-4 border-b">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-base font-semibold font-[family-name:var(--font-display)]">扫码支付</h3>
+                  <p className="text-xs text-muted-foreground mt-0.5">支付宝 · 升级 {selected?.name}</p>
+                </div>
+                <Button variant="ghost" size="icon-sm" onClick={onClose}>×</Button>
+              </div>
+            </div>
+
+            <div className="px-6 py-5 space-y-5">
+              <div className="space-y-2 text-sm">
+                {upgradeData?.original_price != null && (
+                  <div className="flex items-center justify-between">
+                    <span className="text-muted-foreground">套餐原价</span>
+                    <span className="tabular-nums text-muted-foreground line-through">¥{(upgradeData.original_price || 0).toFixed(2)}</span>
+                  </div>
+                )}
+                {upgradeData?.remaining_value > 0 && (
+                  <div className="flex items-center justify-between">
+                    <span className="text-muted-foreground">旧套餐抵扣</span>
+                    <span className="tabular-nums text-emerald-600 dark:text-emerald-400">-¥{(upgradeData.remaining_value || 0).toFixed(2)}</span>
+                  </div>
+                )}
+                <div className="flex items-center justify-between border-t pt-2">
+                  <span className="font-medium">实付</span>
+                  <span className="text-xl font-bold tabular-nums font-[family-name:var(--font-display)]">¥{(order?.amount || 0).toFixed(2)}</span>
+                </div>
+              </div>
+
+              <div className="rounded-xl border bg-muted/30 p-5 flex flex-col items-center">
+                <div className="p-2 bg-white rounded-lg shadow-sm">
+                  <QRCanvas text={qrCode || ""} />
+                </div>
+                <div className="mt-3 flex items-center gap-2">
+                  <span className="relative flex size-2">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75" />
+                    <span className="relative inline-flex rounded-full size-2 bg-cyan-500" />
+                  </span>
+                  <span className="text-xs text-muted-foreground">等待支付</span>
+                </div>
+              </div>
+
+              {order?.order_no && (
+                <div className="flex items-center justify-center gap-1.5 text-[10px] text-muted-foreground/60">
+                  <Hash className="size-2.5" /> <span className="font-mono">{order.order_no}</span>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* ═══ 支付成功 ═══ */}
+        {screen === "paid" && (
+          <div className="flex flex-col items-center py-14 px-6">
+            <div className="relative mb-5">
+              <div className="size-16 rounded-full bg-emerald-50 dark:bg-emerald-500/10 flex items-center justify-center"
+                style={{ animation: "successPop 0.5s cubic-bezier(0.16,1,0.3,1)" }}>
+                <Check className="size-7 text-emerald-500" style={{ animation: "successCheck 0.4s ease-out 0.1s both" }} />
+              </div>
+              <div className="absolute inset-0 rounded-full border border-emerald-200 dark:border-emerald-500/20"
+                style={{ animation: "successRing 2s ease-out 0.3s infinite" }} />
+            </div>
+            <h3 className="text-base font-semibold mb-1 font-[family-name:var(--font-display)]">升级成功</h3>
+            <p className="text-sm text-muted-foreground mb-6">{selected?.name || ""} 已开通</p>
+            <div className="w-full max-w-[160px] space-y-2">
+              <div className="flex items-center justify-between text-xs text-muted-foreground">
+                <span>即将关闭</span>
+                <span className="font-mono tabular-nums">{countdown}s</span>
+              </div>
+              <div className="w-full h-1 rounded-full bg-muted overflow-hidden">
+                <div className="h-full rounded-full transition-all duration-1000 ease-linear bg-[linear-gradient(110deg,#0891b2,#6366f1)]"
+                  style={{ width: `${((3 - countdown) / 3) * 100}%` }} />
+              </div>
+            </div>
+          </div>
+        )}
       </DialogContent>
     </Dialog>
   );
-
-  function SelectScreen() {
-    return (
-      <div>
-        <div className="px-6 pt-6 pb-4 border-b">
-          <div className="flex items-center justify-between">
-            <div>
-              <h2 className="text-base font-semibold">升级套餐</h2>
-              <p className="text-xs text-muted-foreground mt-0.5">当前: {currentPlanName || "免费版"}</p>
-            </div>
-            <Button variant="ghost" size="icon-sm" onClick={onClose}>×</Button>
-          </div>
-
-          {currentPlanId !== undefined && currentPlanId > 0 && (
-            <div className="mt-3 inline-flex items-center rounded-lg bg-muted p-0.5">
-              {(["monthly", "yearly"] as const).map(b => (
-                <button key={b} onClick={() => { setBilling(b); setSelected(null); }}
-                  className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
-                    billing === b ? "bg-background text-foreground shadow-sm" : "text-muted-foreground"
-                  }`}>
-                  {b === "monthly" ? "月付" : "年付"}
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-
-        <div className="px-6 py-4 space-y-2.5 max-h-[min(340px,50vh)] overflow-y-auto scrollbar-thin">
-          {showPlans.length === 0 && (
-            <p className="text-sm text-muted-foreground text-center py-8">已是最高套餐</p>
-          )}
-          {showPlans.map((plan) => {
-            const isCurrent = currentPlanId === plan.id;
-            const isSelected = selected?.id === plan.id;
-            const price = billing === "yearly" ? plan.price_yearly : plan.price_monthly;
-            return (
-              <button key={plan.id} type="button" disabled={isCurrent}
-                onClick={() => !isCurrent && setSelected(plan)}
-                className={`relative w-full text-left rounded-xl border p-4 transition-all duration-200 disabled:opacity-40 ${
-                  isSelected
-                    ? "border-primary bg-primary/5 ring-1 ring-primary shadow-sm"
-                    : "border-border bg-card hover:border-foreground/20 hover:shadow-sm"
-                }`}>
-                <div className="flex items-center justify-between mb-2">
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm font-semibold">{plan.name}</span>
-                    {isCurrent && <Badge variant="secondary" className="text-[9px] h-4">当前</Badge>}
-                    {plan.highlighted && !isCurrent && <Badge className="text-[9px] h-4">推荐</Badge>}
-                  </div>
-                  <span className={`size-5 rounded-full border-2 flex items-center justify-center transition-all ${
-                    isSelected ? "border-primary bg-primary" : "border-border"
-                  }`}>
-                    {isSelected && <Check className="size-3 text-primary-foreground" />}
-                  </span>
-                </div>
-
-                <div className="flex items-baseline gap-1 mb-2">
-                  <span className="text-2xl font-bold tabular-nums">¥{price}</span>
-                  <span className="text-xs text-muted-foreground">/月</span>
-                  {billing === "yearly" && plan.price_monthly > 0 && (
-                    <span className="text-xs text-muted-foreground line-through ml-1">¥{plan.price_monthly}</span>
-                  )}
-                </div>
-
-                <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-muted-foreground">
-                  <span className="flex items-center gap-1"><Zap className="size-3" /> 并发 {plan.concurrency}</span>
-                  <span className="flex items-center gap-1"><Coins className="size-3" /> {plan.token_capacity} 令牌</span>
-                  <span className="flex items-center gap-1"><Clock className="size-3" /> {billing === "yearly" ? (plan.duration_days_yearly > 0 ? plan.duration_days_yearly + "天" : "永久") : plan.duration_days + "天"}</span>
-                </div>
-              </button>
-            );
-          })}
-        </div>
-
-        <div className="px-6 pb-6 pt-2">
-          <Button disabled={!selected} onClick={() => handleConfirm(selected)} className="w-full h-10 gap-2">
-            {selected ? `升级至 ${selected.name}` : "选择套餐"}
-            <ArrowRight className="size-4" />
-          </Button>
-        </div>
-      </div>
-    );
-  }
-
-  function LoadingScreen() {
-    return (
-      <div className="flex flex-col items-center py-16 px-6">
-        <div className="size-12 rounded-full border-2 border-muted border-t-primary animate-spin mb-5" />
-        <p className="text-sm text-muted-foreground">正在计算升级价格…</p>
-      </div>
-    );
-  }
-
-  function QRScreen() {
-    return (
-      <div>
-        <div className="px-6 pt-6 pb-4 border-b">
-          <div className="flex items-center justify-between">
-            <div>
-              <h3 className="text-base font-semibold">扫码支付</h3>
-              <p className="text-xs text-muted-foreground mt-0.5">支付宝 · 升级 {selected?.name}</p>
-            </div>
-            <Button variant="ghost" size="icon-sm" onClick={onClose}>×</Button>
-          </div>
-        </div>
-
-        <div className="px-6 py-5 space-y-5">
-          <div className="space-y-2 text-sm">
-            {upgradeData?.original_price != null && (
-              <div className="flex items-center justify-between">
-                <span className="text-muted-foreground">套餐原价</span>
-                <span className="tabular-nums text-muted-foreground line-through">¥{(upgradeData.original_price || 0).toFixed(2)}</span>
-              </div>
-            )}
-            {upgradeData?.remaining_value > 0 && (
-              <div className="flex items-center justify-between">
-                <span className="text-muted-foreground">旧套餐抵扣</span>
-                <span className="tabular-nums text-foreground">-¥{(upgradeData.remaining_value || 0).toFixed(2)}</span>
-              </div>
-            )}
-            <div className="flex items-center justify-between border-t pt-2">
-              <span className="font-medium">实付</span>
-              <span className="text-xl font-bold tabular-nums">¥{(order?.amount || 0).toFixed(2)}</span>
-            </div>
-          </div>
-
-          <div className="rounded-xl border bg-muted/30 p-5 flex flex-col items-center">
-            <div className="p-2 bg-white rounded-lg shadow-sm">
-              <QRCanvas text={qrCode || ""} />
-            </div>
-            <div className="mt-3 flex items-center gap-2">
-              <span className="relative flex size-2">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75" />
-                <span className="relative inline-flex rounded-full size-2 bg-primary" />
-              </span>
-              <span className="text-xs text-muted-foreground">等待支付</span>
-            </div>
-          </div>
-
-          {order?.order_no && (
-            <div className="flex items-center justify-center gap-1.5 text-[10px] text-muted-foreground/60">
-              <Hash className="size-2.5" /> <span className="font-mono">{order.order_no}</span>
-            </div>
-          )}
-        </div>
-      </div>
-    );
-  }
-
-  function PaidScreen() {
-    return (
-      <div className="flex flex-col items-center py-14 px-6">
-        <div className="relative mb-5">
-          <div className="size-16 rounded-full bg-emerald-50 dark:bg-emerald-500/10 flex items-center justify-center"
-            style={{ animation: "successPop 0.5s cubic-bezier(0.16,1,0.3,1)" }}>
-            <Check className="size-7 text-emerald-500" style={{ animation: "successCheck 0.4s ease-out 0.1s both" }} />
-          </div>
-          <div className="absolute inset-0 rounded-full border border-emerald-200 dark:border-emerald-500/20"
-            style={{ animation: "successRing 2s ease-out 0.3s infinite" }} />
-        </div>
-        <h3 className="text-base font-semibold mb-1">升级成功</h3>
-        <p className="text-sm text-muted-foreground mb-6">{selected?.name || ""} 已开通</p>
-        <div className="w-full max-w-[160px] space-y-2">
-          <div className="flex items-center justify-between text-xs text-muted-foreground">
-            <span>即将关闭</span>
-            <span className="font-mono tabular-nums">{countdown}s</span>
-          </div>
-          <div className="w-full h-1 rounded-full bg-muted overflow-hidden">
-            <div className="h-full bg-primary rounded-full transition-all duration-1000 ease-linear"
-              style={{ width: `${((3 - countdown) / 3) * 100}%` }} />
-          </div>
-        </div>
-      </div>
-    );
-  }
 }
