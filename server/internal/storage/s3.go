@@ -190,12 +190,23 @@ func (s *s3Store) Save(ctx context.Context, path string, data []byte) (string, e
 
 func (s *s3Store) Delete(ctx context.Context, path string) error {
 	url := fmt.Sprintf("%s/%s", s.baseURL(), path)
-	req, _ := http.NewRequestWithContext(ctx, "DELETE", url, nil)
-	s.awsV4Sign(req, nil)
-	resp, err := s3Client.Do(req)
+	req, err := http.NewRequestWithContext(ctx, "DELETE", url, nil)
 	if err != nil {
 		return err
 	}
+	s.awsV4Sign(req, nil)
+	resp, err := s3Client.Do(req)
+	if err != nil {
+		return fmt.Errorf("s3 delete: %w", err)
+	}
 	defer resp.Body.Close()
+	// S3 删除成功通常返回 204；404 视为对象已不存在，幂等容忍。
+	if resp.StatusCode == http.StatusNotFound {
+		return nil
+	}
+	if resp.StatusCode >= 300 {
+		body, _ := io.ReadAll(io.LimitReader(resp.Body, 200))
+		return fmt.Errorf("s3 delete HTTP %d: %s", resp.StatusCode, string(body))
+	}
 	return nil
 }

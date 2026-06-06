@@ -185,9 +185,16 @@ export default function UserPage() {
                   <Badge variant={isPro ? "default" : "secondary"} className="gap-1">
                     {isPro && <Crown className="size-3" />} {user.plan_name || "免费版"}
                   </Badge>
-                  <span className="text-xs text-muted-foreground inline-flex items-center gap-1">
+                  {user?.subscription_expires_at ? (
+                    <Badge variant="secondary" className="text-[11px] gap-1">
+                      {(user.created_at || "").slice(0, 10)} ~ {user.subscription_expires_at.slice(0, 10)}
+                    </Badge>
+                  ) : user?.plan_name && user.plan_name !== "免费版" ? (
+                    <Badge variant="secondary" className="text-[11px]">永久</Badge>
+                  ) : null}
+                  <Badge variant="default" className="text-[11px] gap-1">
                     <Coins className="size-3" /> {user.points || 0} 积分
-                  </span>
+                  </Badge>
                 </div>
               </div>
             </div>
@@ -517,11 +524,7 @@ export default function UserPage() {
                       <div className="text-right">
                         <p className={`${monoFont.className} text-lg font-semibold tabular-nums`}>{userStats.plan_name || "免费版"}</p>
                         <p className="text-[10px] text-muted-foreground">{userStats.plan_name && userStats.plan_name !== "免费版" ? "当前套餐" : ""}</p>
-                        {user?.subscription_expires_at ? (
-                          <p className="text-[9px] text-muted-foreground/60 mt-0.5">{new Date(user.subscription_expires_at).toLocaleDateString("zh-CN")} 到期</p>
-                        ) : user?.plan_name && user.plan_name !== "免费版" ? (
-                          <p className="text-[9px] text-muted-foreground/60 mt-0.5">永久</p>
-                        ) : null}
+
                       </div>
                     </div>
                   </div>
@@ -670,8 +673,6 @@ function couponDesc(c: any): string {
   if (c.discount_type === "fixed") return `立减 ¥${c.discount_value}`;
   return c.code;
 }
-
-/* ── 签到进度条 ─────────────────────────────── */
 
 function StreakBar({ streak, done }: { streak: number; done: boolean }) {
   const days = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"];

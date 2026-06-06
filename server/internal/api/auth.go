@@ -8,6 +8,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"net/mail"
 	"strings"
 	"time"
 
@@ -17,6 +18,20 @@ import (
 
 	"golang.org/x/crypto/bcrypt"
 )
+
+// validEmail 校验邮箱格式：必须可被 net/mail 解析且包含单个 @ 与非空域名。
+// 防止后续 strings.LastIndex(email, "@") 切片越界 panic。
+func validEmail(email string) bool {
+	if email == "" || strings.Count(email, "@") != 1 {
+		return false
+	}
+	addr, err := mail.ParseAddress(email)
+	if err != nil || addr.Address != email {
+		return false
+	}
+	at := strings.LastIndex(email, "@")
+	return at > 0 && at < len(email)-1
+}
 
 // POST /api/user/change-password — 用户自行修改密码
 func (h *Handler) ChangePassword(w http.ResponseWriter, r *http.Request) {
@@ -60,6 +75,42 @@ func (h *Handler) ChangePassword(w http.ResponseWriter, r *http.Request) {
 
 /* ── 公开路由 ────────────────────────────────────────── */
 
+// normalizeEmail 应用影响验证码存储 key 的标准化：小写化由调用方保证，
+// 这里按配置处理 Gmail 点号/+ 别名。发码与验码必须使用相同规则，否则 key 不匹配。
+func normalizeEmail(email string, ec *model.EmailConfig) string {
+	at := strings.LastIndex(email, "@")
+	if at <= 0 || at >= len(email)-1 {
+		return email
+	}
+	local := email[:at]
+	domain := email[at+1:]
+	if ec != nil && ec.NormalizeGmail && (strings.EqualFold(domain, "gmail.com") || strings.EqualFold(domain, "googlemail.com")) {
+		local = strings.Split(local, "+")[0]       // foo+tag → foo
+		local = strings.ReplaceAll(local, ".", "") // foo.bar → foobar
+		return local + "@gmail.com"
+	}
+	return email
+}
+
+// loadEmailConfig 读取站点设置中的邮箱配置。
+func (h *Handler) loadEmailConfig() (model.Settings, model.EmailConfig) {
+	settings, _ := h.MySQL.GetSettings()
+	var ec model.EmailConfig
+	if settings != nil && settings.EmailConfig != "" {
+		json.Unmarshal([]byte(settings.EmailConfig), &ec)
+	}
+	if settings == nil {
+		settings = &model.Settings{}
+	}
+	return *settings, ec
+}
+
+// normalizeEmail 包装：读取配置并标准化（供 verify-code 端点使用）。
+func (h *Handler) normalizeEmail(email string) string {
+	_, ec := h.loadEmailConfig()
+	return normalizeEmail(email, &ec)
+}
+
 // POST /api/auth/register
 // POST /api/auth/send-code — 发送邮箱验证码
 func (h *Handler) SendEmailCode(w http.ResponseWriter, r *http.Request) {
@@ -69,24 +120,20 @@ func (h *Handler) SendEmailCode(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	email := strings.TrimSpace(strings.ToLower(req.Email))
+	if !validEmail(email) {
+		writeJSON(w, 400, model.APIResponse{Code: 400, Message: "邮箱格式不正确"})
+		return
+	}
 
-	settings, _ := h.MySQL.GetSettings()
-	var ec model.EmailConfig
-	if settings.EmailConfig != "" { json.Unmarshal([]byte(settings.EmailConfig), &ec) }
+	settings, ec := h.loadEmailConfig()
 	if !ec.SMTPEnabled {
 		writeJSON(w, 400, model.APIResponse{Code: 400, Message: "邮箱验证未开启"})
 		return
 	}
 
-	// 标准化 Gmail 别名（忽略点号 + 后缀）
-	local := email[:strings.LastIndex(email, "@")]
+	// 标准化 Gmail 别名（忽略点号 + 后缀），并解析用于黑白名单的域名
+	email = normalizeEmail(email, &ec)
 	domain := email[strings.LastIndex(email, "@")+1:]
-	if ec.NormalizeGmail && (strings.EqualFold(domain, "gmail.com") || strings.EqualFold(domain, "googlemail.com")) {
-		local = strings.Split(local, "+")[0]       // foo+tag → foo
-		local = strings.ReplaceAll(local, ".", "") // foo.bar → foobar
-		email = local + "@gmail.com"
-		domain = "gmail.com"
-	}
 	if ec.DomainAliases != nil {
 		if alias, ok := ec.DomainAliases[domain]; ok { domain = alias }
 	}
@@ -99,15 +146,24 @@ func (h *Handler) SendEmailCode(w http.ResponseWriter, r *http.Request) {
 		for _, d := range ec.DomainBlacklist { if strings.EqualFold(domain, d) { writeJSON(w, 403, model.APIResponse{Code: 403, Message: "该邮箱域名已被禁止"}); return } }
 	}
 
+	// 发送冷却：同一邮箱 60 秒内不可重复发码（防邮件轰炸）
+	if h.Redis != nil {
+		if cd, _ := h.Redis.EmailCodeCooldown(email); cd > 0 {
+			writeJSON(w, 429, model.APIResponse{Code: 429, Message: fmt.Sprintf("请 %d 秒后再获取验证码", int(cd.Seconds())+1)})
+			return
+		}
+	}
+
 	// 生成验证码并发送
 	code := service.RandomCode(6)
 	if err := h.Redis.SetEmailCode(email, code); err != nil {
 		writeJSON(w, 500, model.APIResponse{Code: 500, Message: "发送失败"})
 		return
 	}
-	body := fmt.Sprintf("您的验证码是：%s\n\n验证码 10 分钟内有效，请勿泄露给他人。", code)
-	if err := service.SendEmail(&ec, email, "邮箱验证", body); err != nil {
+	if err := service.SendVerificationEmail(&ec, email, code, settings.SiteTitle); err != nil {
 		log.Printf("[email] send to %s failed: %v", email, err)
+		// 发送失败：清除验证码与冷却，允许用户立即重试
+		h.Redis.ClearEmailCode(email)
 		writeJSON(w, 500, model.APIResponse{Code: 500, Message: "邮件发送失败"})
 		return
 	}
@@ -121,7 +177,9 @@ func (h *Handler) VerifyEmailCode(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 400, model.APIResponse{Code: 400, Message: "参数错误"})
 		return
 	}
-	ok, _ := h.Redis.VerifyEmailCode(req.Email, req.Code)
+	// 与发码时一致的标准化（小写 + Gmail 别名），否则查不到验证码
+	email := h.normalizeEmail(strings.TrimSpace(strings.ToLower(req.Email)))
+	ok, _ := h.Redis.VerifyEmailCode(email, req.Code)
 	if !ok {
 		writeJSON(w, 400, model.APIResponse{Code: 400, Message: "验证码错误或已过期"})
 		return
@@ -136,22 +194,33 @@ func (h *Handler) UserRegister(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	req.Email = strings.TrimSpace(strings.ToLower(req.Email))
-	// 标准化 Gmail 别名（忽略点号 + 后缀）
-	settings, _ := h.MySQL.GetSettings()
-	var ec model.EmailConfig
-	if settings.EmailConfig != "" { json.Unmarshal([]byte(settings.EmailConfig), &ec) }
-	if em := req.Email; strings.Contains(em, "@") {
-		local := em[:strings.LastIndex(em, "@")]
-		domain := em[strings.LastIndex(em, "@")+1:]
-		if ec.NormalizeGmail && (strings.EqualFold(domain, "gmail.com") || strings.EqualFold(domain, "googlemail.com")) {
-			local = strings.Split(local, "+")[0]
-			local = strings.ReplaceAll(local, ".", "")
-			req.Email = local + "@gmail.com"
-		}
-	}
 	if req.Email == "" || req.Password == "" {
 		writeJSON(w, 400, model.APIResponse{Code: 400, Message: "邮箱和密码不能为空"})
 		return
+	}
+	if !validEmail(req.Email) {
+		writeJSON(w, 400, model.APIResponse{Code: 400, Message: "邮箱格式不正确"})
+		return
+	}
+	if len(req.Password) < 6 {
+		writeJSON(w, 400, model.APIResponse{Code: 400, Message: "密码至少 6 位"})
+		return
+	}
+	// 标准化 Gmail 别名（忽略点号 + 后缀）
+	_, ec := h.loadEmailConfig()
+	req.Email = normalizeEmail(req.Email, &ec)
+
+	// 邮箱验证码校验（SMTP 开启时强制）
+	if ec.SMTPEnabled {
+		if req.Code == "" {
+			writeJSON(w, 400, model.APIResponse{Code: 400, Message: "请输入邮箱验证码"})
+			return
+		}
+		ok, err := h.Redis.VerifyEmailCode(req.Email, req.Code)
+		if err != nil || !ok {
+			writeJSON(w, 400, model.APIResponse{Code: 400, Message: "验证码错误或已过期"})
+			return
+		}
 	}
 
 	// 临时邮箱域名黑名单
@@ -170,10 +239,7 @@ func (h *Handler) UserRegister(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// IP 注册频率限制（Redis 基于 IP 每天最多 5 个账号）
-	ip := r.RemoteAddr
-	if strings.Contains(ip, ":") {
-		ip = ip[:strings.LastIndex(ip, ":")] // 去掉端口
-	}
+	ip := middleware.ClientIP(r)
 	if h.Redis != nil {
 		regCount, _ := h.Redis.GetRegisterCount(ip)
 		limit := 5
@@ -185,7 +251,7 @@ func (h *Handler) UserRegister(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Turnstile 验证
-	settings, _ = h.MySQL.GetSettings()
+	settings, _ := h.MySQL.GetSettings()
 	if settings.CFTurnstileEnabled {
 		ok, vErr := service.VerifyTurnstileToken(req.CfTurnstileToken, settings.CFTurnstileSecretKey)
 		if vErr != nil {

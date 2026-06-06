@@ -1,13 +1,14 @@
 package service
 
 import (
+	"context"
 	"log"
 	"os"
 	"path/filepath"
-	"strings"
 	"sync"
 	"time"
 
+	"chatgpt2api-pro/internal/storage"
 	"chatgpt2api-pro/internal/store"
 )
 
@@ -73,16 +74,32 @@ func (sc *StorageCleaner) loop() {
 }
 
 // RunOnce 执行一次清理：按 DB 过期记录驱动（而非遍历文件系统）。
-// 流程：查早于阈值的 local 存储记录 → 删对应文件 → 删 DB 记录 → 清空残留空目录。
-// 这样路径还原与读取端(handler 代理)完全一致，且记录连同删除，不会留下孤儿记录。
+// 流程：查早于阈值的外部存储记录 → 删对应对象（local 文件 / S3 对象）→ 删 DB 记录。
+// 记录连同对象一起删除，不会留下孤儿记录或孤儿对象。
 func (sc *StorageCleaner) RunOnce() {
 	cfg, _ := sc.mysql.GetSettings()
 	if cfg.StorageCleanupDays <= 0 {
 		return
 	}
 	storageCfg, _ := sc.mysql.GetStorageConfig()
-	if storageCfg.Type != "local" || storageCfg.LocalPath == "" {
+	if storageCfg == nil {
 		return
+	}
+	// 仅外部存储需要清理；database 模式记录随行删除即可（此处不处理 base64 记录）。
+	switch storageCfg.Type {
+	case "local":
+		if storageCfg.LocalPath == "" {
+			return
+		}
+	case "s3":
+		// S3 模式无需额外前置校验
+	default:
+		return
+	}
+
+	var s3st storage.Storage
+	if storageCfg.Type == "s3" {
+		s3st = storage.FromConfig(storageCfg)
 	}
 
 	threshold := time.Now().AddDate(0, 0, -cfg.StorageCleanupDays)
@@ -101,14 +118,22 @@ func (sc *StorageCleaner) RunOnce() {
 
 		var doneIDs []int64
 		for _, g := range gens {
-			// 与读取端 handler 一致地还原文件路径：去掉 LocalURL 前缀再 Join LocalPath。
-			// filepath.Join 接受正斜杠输入，跨平台安全（根治 Windows 分隔符不匹配问题）。
-			relPath := strings.TrimPrefix(g.ImageURL, storageCfg.LocalURL)
-			relPath = strings.TrimPrefix(relPath, "/")
-			filePath := filepath.Join(storageCfg.LocalPath, filepath.Clean(relPath))
-			if err := os.Remove(filePath); err != nil && !os.IsNotExist(err) {
-				// 删文件失败（非"文件已不存在")：保留 DB 记录，下轮重试，不强删避免数据丢失
-				log.Printf("[cleaner] remove fail (keep record): %s: %v", filePath, err)
+			var delErr error
+			// 统一按确定性 object key 定位，不依赖 image_url 里嵌入的 LocalURL/endpoint，
+			// 这样存储访问前缀热切换后清理仍能正确命中文件。
+			key := storage.ObjectKey(g.UserID, g.ID)
+			if storageCfg.Type == "s3" {
+				delErr = s3st.Delete(context.Background(), key)
+			} else {
+				// local：filepath.Join 接受正斜杠输入，跨平台安全。
+				filePath := filepath.Join(storageCfg.LocalPath, filepath.Clean(key))
+				if err := os.Remove(filePath); err != nil && !os.IsNotExist(err) {
+					delErr = err
+				}
+			}
+			if delErr != nil {
+				// 删对象失败：保留 DB 记录，下轮重试，不强删避免对象泄漏后无从追溯
+				log.Printf("[cleaner] delete object fail (keep record) gen=%d: %v", g.ID, delErr)
 				continue
 			}
 			doneIDs = append(doneIDs, g.ID)
@@ -122,7 +147,7 @@ func (sc *StorageCleaner) RunOnce() {
 			}
 		}
 
-		// 本批全部删文件失败（doneIDs 为空但 gens 非空）→ 避免死循环，跳出
+		// 本批全部删失败（doneIDs 为空但 gens 非空）→ 避免死循环，跳出
 		if len(doneIDs) == 0 {
 			break
 		}
@@ -132,8 +157,10 @@ func (sc *StorageCleaner) RunOnce() {
 	}
 
 	if totalDeleted > 0 {
-		removeEmptyDirs(storageCfg.LocalPath)
-		log.Printf("[cleaner] done, %d expired generations cleaned (retention=%dd)", totalDeleted, cfg.StorageCleanupDays)
+		if storageCfg.Type == "local" {
+			removeEmptyDirs(storageCfg.LocalPath)
+		}
+		log.Printf("[cleaner] done, %d expired generations cleaned (retention=%dd, type=%s)", totalDeleted, cfg.StorageCleanupDays, storageCfg.Type)
 	}
 }
 

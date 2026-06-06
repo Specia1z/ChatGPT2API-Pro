@@ -1,7 +1,9 @@
 package middleware
 
 import (
+	"net"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 )
@@ -34,10 +36,10 @@ func init() {
 
 var limiter = &rateLimiter{entries: make(map[string]*rateEntry)}
 
-// RateLimit 简单令牌桶限流 (5 req/s per IP)
+// RateLimit 简单令牌桶限流 (10 req/s per IP)
 func RateLimit(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		ip := r.RemoteAddr
+		ip := ClientIP(r)
 		limiter.mu.Lock()
 		entry, ok := limiter.entries[ip]
 		now := time.Now()
@@ -56,4 +58,26 @@ func RateLimit(next http.Handler) http.Handler {
 		}
 		next.ServeHTTP(w, r)
 	})
+}
+
+// ClientIP 提取请求的客户端 IP（剥离端口）。
+// 优先取反向代理设置的 X-Forwarded-For / X-Real-IP；否则回退到 RemoteAddr。
+// 注意：XFF 可被客户端伪造，仅在部署于可信反向代理之后时可靠。
+func ClientIP(r *http.Request) string {
+	if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
+		// 取链路中第一个地址（最初的客户端）
+		if i := strings.IndexByte(xff, ','); i >= 0 {
+			xff = xff[:i]
+		}
+		if ip := strings.TrimSpace(xff); ip != "" {
+			return ip
+		}
+	}
+	if xrip := strings.TrimSpace(r.Header.Get("X-Real-IP")); xrip != "" {
+		return xrip
+	}
+	if host, _, err := net.SplitHostPort(r.RemoteAddr); err == nil {
+		return host
+	}
+	return r.RemoteAddr
 }

@@ -114,7 +114,7 @@ export default function AdminEmailPage() {
                     <div className="space-y-1.5"><label className="text-xs font-medium text-muted-foreground">用户名</label>
                       <Input value={cfg.smtp_user || ""} onChange={e => update("smtp_user", e.target.value)} placeholder="user@example.com" /></div>
                     <div className="space-y-1.5"><label className="text-xs font-medium text-muted-foreground">密码</label>
-                      <Input type="password" value={cfg.smtp_pass || ""} onChange={e => update("smtp_pass", e.target.value)} placeholder="••••••••" /></div>
+                      <Input type="password" value={cfg.smtp_pass || ""} onChange={e => update("smtp_pass", e.target.value)} placeholder="保密：留空则沿用已保存的密码" /></div>
                   </div>
                   <div className="space-y-1.5"><label className="text-xs font-medium text-muted-foreground">发件人地址</label>
                     <Input value={cfg.smtp_from || ""} onChange={e => update("smtp_from", e.target.value)} placeholder="noreply@example.com" /></div>

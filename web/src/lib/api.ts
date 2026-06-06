@@ -43,6 +43,11 @@ export async function api<T = any>(path: string, options: RequestInit = {}): Pro
     throw new Error("登录已过期，请重新登录");
   }
   const data = await res.json();
-  if (!res.ok) throw new Error(data?.message || `HTTP ${res.status}`);
+  if (!res.ok) {
+    const err = new Error(data?.message || `HTTP ${res.status}`) as Error & { status?: number; code?: number };
+    err.status = res.status;
+    err.code = data?.code;
+    throw err;
+  }
   return data;
 }

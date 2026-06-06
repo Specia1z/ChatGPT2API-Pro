@@ -165,6 +165,7 @@ type UserRegisterRequest struct {
 	Email            string `json:"email"`
 	Password         string `json:"password"`
 	Name             string `json:"name,omitempty"`
+	Code             string `json:"code,omitempty"`
 	CfTurnstileToken string `json:"cf_turnstile_token,omitempty"`
 }
 
@@ -230,6 +231,7 @@ type Settings struct {
 	StorageCleanupDays  int    `json:"storage_cleanup_days"`
 	PointsExchangeRate  int    `json:"points_exchange_rate"`
 	PointsExchangeBonus int    `json:"points_exchange_bonus"`
+	BurstTokenCap       int    `json:"burst_token_cap"` // 突发令牌囤积上限（0=不限），防积分兑换无限囤额度
 	StylePresets string `json:"style_presets"` // JSON 数组：风格预设
 	EmailConfig string `json:"email_config"` // JSON：SMTP+域名规则
 }

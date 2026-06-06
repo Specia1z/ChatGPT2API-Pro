@@ -57,14 +57,7 @@ func (h *Handler) ExchangePoints(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 扣积分（原子条件更新防并发超扣）
-	remaining, err := h.MySQL.AddUserPoints(userID, -pointsCost)
-	if err != nil {
-		writeJSON(w, 500, model.APIResponse{Code: 500, Message: "扣除积分失败"})
-		return
-	}
-
-	// 加突发令牌
+	// 令牌桶参数（用户套餐优先，否则取默认）
 	totalTokens := req.Tokens + bonus
 	capacity := 50
 	refill := 3
@@ -74,12 +67,49 @@ func (h *Handler) ExchangePoints(w http.ResponseWriter, r *http.Request) {
 	if user.TokenRefillPerHour > 0 {
 		refill = user.TokenRefillPerHour
 	}
-	burst, err := h.Redis.AddBurstToken(userID, capacity, refill, totalTokens)
+
+	// 突发令牌囤积上限预检：防积分兑换无限囤生图额度（绕过 capacity）
+	burstCap := settings.BurstTokenCap
+	if burstCap > 0 {
+		_, curBurst := h.Redis.GetBucketDetail(userID, capacity, refill)
+		room := burstCap - int(curBurst)
+		if room <= 0 {
+			writeJSON(w, 400, model.APIResponse{Code: 400, Message: fmt.Sprintf("突发令牌已达上限 %d，无法继续兑换", burstCap)})
+			return
+		}
+		if totalTokens > room {
+			writeJSON(w, 400, model.APIResponse{Code: 400, Message: fmt.Sprintf("超过突发令牌上限，本次最多还能兑换 %d 个（含赠送，上限 %d）", room, burstCap)})
+			return
+		}
+	}
+
+	// 扣积分（原子条件更新防并发超扣）
+	remaining, err := h.MySQL.AddUserPoints(userID, -pointsCost)
+	if err != nil {
+		writeJSON(w, 500, model.APIResponse{Code: 500, Message: "扣除积分失败"})
+		return
+	}
+
+	// 加突发令牌（脚本按 burstCap 原子封顶，兜底并发场景下的预检竞争）
+	burst, added, err := h.Redis.AddBurstToken(userID, capacity, refill, totalTokens, burstCap)
 	if err != nil {
 		// Redis 失败回滚积分
 		h.MySQL.AddUserPoints(userID, pointsCost)
 		writeJSON(w, 500, model.APIResponse{Code: 500, Message: "兑换令牌失败，积分已退回"})
 		return
+	}
+
+	// 触顶兜底：实际新增不足请求量（并发抢占了余量），按缺口退还积分
+	if int(added) < totalTokens {
+		shortfall := totalTokens - int(added)
+		refundPoints := shortfall * rate
+		if refundPoints > pointsCost {
+			refundPoints = pointsCost
+		}
+		if refundPoints > 0 {
+			remaining, _ = h.MySQL.AddUserPoints(userID, refundPoints)
+			pointsCost -= refundPoints
+		}
 	}
 
 	normal, _ := h.Redis.GetBucketDetail(userID, capacity, refill)
@@ -91,7 +121,7 @@ func (h *Handler) ExchangePoints(w http.ResponseWriter, r *http.Request) {
 		"total":          total,
 		"points_used":    pointsCost,
 		"points_remain":  remaining,
-		"tokens_added":   totalTokens,
+		"tokens_added":   int(added),
 		"bonus":          bonus,
 	}})
 }

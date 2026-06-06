@@ -129,9 +129,11 @@ export default function CreatePage() {
   const router = useRouter();
 
   const [tags, setTags] = useState<string[]>([""]);
+  const [tagCounts, setTagCounts] = useState<Record<string, number>>({}); // 提示词文本 → 份数（默认 1）
   const [currentInput, setCurrentInput] = useState("");
   const inputRef2 = useRef<HTMLInputElement>(null);
   const [loading, setLoading] = useState(false);
+  const [batchProgress, setBatchProgress] = useState<{ done: number; total: number } | null>(null);
   const [generations, setGenerations] = useState<any[]>([]);
   const [previewGen, setPreviewGen] = useState<any>(null);
   const [refImages, setRefImages] = useState<string[]>([]);
@@ -145,12 +147,24 @@ export default function CreatePage() {
   const addTag = () => {
     const v = currentInput.trim();
     if (!v) return;
-    setTags(prev => [...prev.filter(Boolean), v]);
+    const existing = tags.filter(Boolean);
+    // 重复提示词：合并为份数 +1（避免重复标签与按文本索引的份数表错乱）
+    if (existing.includes(v)) {
+      setTagCount(v, getTagCount(v) + 1);
+      toast.message(`「${v.slice(0, 12)}…」份数 +1`);
+    } else {
+      setTags([...existing, v]);
+    }
     setCurrentInput('');
     setTimeout(() => inputRef2.current?.focus(), 0);
   };
   const removeTag = (idx: number) => {
-    setTags(prev => { const n = prev.filter((_, i) => i !== idx); return n.length === 0 ? [''] : n; });
+    setTags(prev => {
+      const removed = prev.filter(Boolean)[idx];
+      if (removed) setTagCounts(c => { const n = { ...c }; delete n[removed]; return n; });
+      const n = prev.filter((_, i) => i !== idx);
+      return n.length === 0 ? [''] : n;
+    });
   };
   const editTag = (idx: number) => {
     const t = tags[idx];
@@ -158,6 +172,12 @@ export default function CreatePage() {
     setCurrentInput(t);
     removeTag(idx);
   };
+  // 调整某个提示词的份数（1–10）
+  const setTagCount = (tag: string, n: number) => {
+    const v = Math.max(1, Math.min(10, n));
+    setTagCounts(c => ({ ...c, [tag]: v }));
+  };
+  const getTagCount = (tag: string) => tagCounts[tag] || 1;
 
   const [revealedIds, setRevealedIds] = useState<Set<string>>(new Set());
   const seenRef = useRef<Set<number>>(new Set());
@@ -323,38 +343,93 @@ export default function CreatePage() {
 
   /* ── Generate ── */
 
+  // 提交单个生图请求；遇 429（令牌/并发不足）指数退避重试，其余错误直接抛出。
+  const submitOne = async (prompt: string, refB64: string[], signal?: { canceled: boolean }): Promise<number[]> => {
+    const maxRetry = 6;
+    let delay = 1500;
+    for (let attempt = 0; ; attempt++) {
+      if (signal?.canceled) return [];
+      try {
+        const body: any = { prompt, model: "gpt-image-2", size, count: 1 };
+        if (refB64.length > 0) body.ref_images_b64 = refB64;
+        const res = await api<any>("/api/generations", { method: "POST", body: JSON.stringify(body) });
+        return res.data.ids || [res.data.id];
+      } catch (e: any) {
+        // 429 = 令牌不足/并发已满，退避后重试；超过上限或非 429 则放弃
+        if (e?.status === 429 && attempt < maxRetry) {
+          await new Promise(r => setTimeout(r, delay));
+          delay = Math.min(delay * 1.6, 8000);
+          continue;
+        }
+        throw e;
+      }
+    }
+  };
+
   const generate = async () => {
-    const lines = tags.filter(Boolean);
+    // 把当前未提交的输入也并入提示词列表
+    const pending = currentInput.trim();
+    const lines = [...tags.filter(Boolean), ...(pending ? [pending] : [])];
     if (lines.length === 0 || loading) return;
     setLoading(true);
-    try {
-      // ref_images_b64 只接受裸 base64，过滤掉误入的 URL / 代理路径 / dataURL 前缀
-      const refB64 = refImages
-        .map(img => img.startsWith("data:") ? img.split(",")[1] || "" : img)
-        .filter(img => img && !img.startsWith("/api/") && !img.startsWith("http"));
-      const allIds: number[] = [];
-      for (const p of lines) {
+
+    // ref_images_b64 只接受裸 base64，过滤掉误入的 URL / 代理路径 / dataURL 前缀
+    const refB64 = refImages
+      .map(img => img.startsWith("data:") ? img.split(",")[1] || "" : img)
+      .filter(img => img && !img.startsWith("/api/") && !img.startsWith("http"));
+
+    // 展开任务：每个提示词按份数生成 N 个独立请求
+    const tasks: string[] = [];
+    for (const p of lines) {
+      const n = getTagCount(p);
+      const actualPrompt = !fusionMode && refB64.length > 0 ? "根据参考图，" + p : p;
+      for (let i = 0; i < n; i++) tasks.push(actualPrompt);
+    }
+
+    // 提交并发精确匹配用户套餐的生图并发（后台动态配置，过期/免费回退为 1）。
+    // 这样"前端发多少、后端就能接多少"，几乎不触发 CheckCapacity 的 429，体感最连贯；
+    // 全局并发满或令牌不足等边界情况，仍由 submitOne 的 429 退避兜底。
+    const planConcurrency = Math.max(1, (user as any)?.plan_concurrency || 1);
+    const concurrency = Math.max(1, Math.min(planConcurrency, tasks.length));
+    setBatchProgress({ done: 0, total: tasks.length });
+
+    const allIds: number[] = [];
+    let cursor = 0;
+    let failed = 0;
+    // 简单并发池：同时最多 concurrency 个 in-flight，完成一个补一个
+    const worker = async () => {
+      while (cursor < tasks.length) {
+        const my = cursor++;
         try {
-          const actualPrompt = !fusionMode && refB64.length > 0 ? "根据参考图，" + p : p;
-          const body: any = { prompt: actualPrompt, model: "gpt-image-2", size, count: 1 };
-          if (refB64.length > 0) body.ref_images_b64 = refB64;
-          const res = await api<any>("/api/generations", { method: "POST", body: JSON.stringify(body) });
-          allIds.push(...(res.data.ids || [res.data.id]));
-        } catch (e: any) { toast.error(p.slice(0, 20) + "... " + e.message); }
+          const ids = await submitOne(tasks[my], refB64);
+          allIds.push(...ids);
+        } catch (e: any) {
+          failed++;
+          toast.error(`${tasks[my].slice(0, 16)}… ${e?.message || "提交失败"}`);
+        }
+        setBatchProgress(prev => prev ? { ...prev, done: prev.done + 1 } : prev);
       }
-      setCurrentInput(""); setTags([""]);
-      setHsFilter("all");
-      if (allIds.length === 0) { setLoading(false); return; }
-      pollUpdate().catch(() => {});
-      const poll = setInterval(async () => {
-        try {
-          const gens = await pollUpdate();
-          if (allIds.every(id => { const f = gens.find((g: any) => g.id === id); return f && f.status !== "pending"; })) {
-            clearInterval(poll); setLoading(false);
-          }
-        } catch { clearInterval(poll); setLoading(false); }
-      }, 3000);
-    } catch { setLoading(false); }
+    };
+    try {
+      await Promise.all(Array.from({ length: concurrency }, () => worker()));
+    } finally {
+      setBatchProgress(null);
+    }
+
+    setCurrentInput(""); setTags([""]); setTagCounts({});
+    setHsFilter("all");
+    if (allIds.length === 0) { setLoading(false); return; }
+    if (failed > 0) toast.message(`${allIds.length} 个已提交，${failed} 个失败`);
+
+    pollUpdate().catch(() => {});
+    const poll = setInterval(async () => {
+      try {
+        const gens = await pollUpdate();
+        if (allIds.every(id => { const f = gens.find((g: any) => g.id === id); return f && f.status !== "pending"; })) {
+          clearInterval(poll); setLoading(false);
+        }
+      } catch { clearInterval(poll); setLoading(false); }
+    }, 3000);
   };
 
   /* ── Actions ── */
@@ -390,7 +465,7 @@ export default function CreatePage() {
 
   const editGen = async (e: React.MouseEvent, g: any) => {
     e.stopPropagation();
-    setCurrentInput(g.prompt); setTags([""]);
+    setCurrentInput(g.prompt); setTags([""]); setTagCounts({});
     
     setSize(g.size || "1:1");
     setFusionMode(false);
@@ -414,7 +489,7 @@ export default function CreatePage() {
 
   const retryGen = (e: React.MouseEvent, g: any) => {
     e.stopPropagation();
-    setCurrentInput(g.prompt); setTags([""]);
+    setCurrentInput(g.prompt); setTags([""]); setTagCounts({});
     api("/api/generations", { method: "DELETE", body: JSON.stringify({ id: g.id }) }).then(() => {
       colAssignRef.current.delete(g.id);
       setGenerations(prev => prev.filter(x => x.id !== g.id));
@@ -474,6 +549,8 @@ export default function CreatePage() {
   };
 
   const lineCount = tags.filter(Boolean).length;
+  // 总张数 = 各提示词份数之和（含尚未提交的当前输入，按 1 份计）
+  const totalImages = tags.filter(Boolean).reduce((sum, t) => sum + getTagCount(t), 0) + (currentInput.trim() ? 1 : 0);
   const capacity = (user as any)?.token_capacity || 50;
   const isPro = (user as any)?.plan_name && (user as any).plan_name !== "免费版";
 
@@ -497,7 +574,7 @@ export default function CreatePage() {
                 <div>
                   <h1 className="text-sm font-semibold tracking-tight text-[#1a1a18] dark:text-white">创作</h1>
                   <p className="text-[11px] text-[#a09f9a] dark:text-[#6b6a66] tracking-wide">
-                    {lineCount > 1 ? `${lineCount} 个提示词 · 空行分隔` : "AI 图片生成"}
+                    {totalImages > 1 ? `${lineCount} 个提示词 · 共 ${totalImages} 张` : "AI 图片生成"}
                   </p>
                 </div>
               </div>
@@ -535,10 +612,23 @@ export default function CreatePage() {
                   <div className="flex flex-wrap gap-2">
                     {tags.filter(Boolean).map((tag, i) => (
                       <span key={i}
-                        onClick={() => editTag(i)}
-                        className="group inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#f0efe8] dark:bg-[#252521]
-                          text-xs sm:text-[11px] text-[#1a1a18] dark:text-white cursor-pointer hover:bg-[#e0dfd8] dark:hover:bg-[#2a2a25] transition-all max-w-full">
-                        <span className="truncate max-w-[280px] sm:max-w-sm">{tag}</span>
+                        className="group inline-flex items-center gap-1 pl-3 pr-1 py-1.5 rounded-lg bg-[#f0efe8] dark:bg-[#252521]
+                          text-xs sm:text-[11px] text-[#1a1a18] dark:text-white max-w-full">
+                        <span onClick={() => editTag(i)} className="truncate max-w-[200px] sm:max-w-xs cursor-pointer" title="点击修改">{tag}</span>
+                        {/* 份数控制：×N，可增减（1–10） */}
+                        <span className="inline-flex items-center gap-0.5 ml-0.5 px-1 rounded-md bg-white/60 dark:bg-[#1a1a18]/50 shrink-0">
+                          <button onClick={e => { e.stopPropagation(); setTagCount(tag, getTagCount(tag) - 1); }}
+                            className="size-3.5 flex items-center justify-center text-[#9e9d98] hover:text-[#1a1a18] dark:hover:text-white disabled:opacity-30"
+                            disabled={getTagCount(tag) <= 1}>
+                            <svg className="size-2" viewBox="0 0 10 2" fill="none"><path d="M1 1h8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg>
+                          </button>
+                          <span className="text-[10px] font-mono tabular-nums w-3 text-center text-[#6b6a66] dark:text-[#9e9d98]">{getTagCount(tag)}</span>
+                          <button onClick={e => { e.stopPropagation(); setTagCount(tag, getTagCount(tag) + 1); }}
+                            className="size-3.5 flex items-center justify-center text-[#9e9d98] hover:text-[#1a1a18] dark:hover:text-white disabled:opacity-30"
+                            disabled={getTagCount(tag) >= 10}>
+                            <svg className="size-2" viewBox="0 0 10 10" fill="none"><path d="M5 1v8M1 5h8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg>
+                          </button>
+                        </span>
                         <button onClick={e => { e.stopPropagation(); removeTag(i); }}
                           className="size-3.5 rounded-full flex items-center justify-center text-[#9e9d98] hover:text-[#1a1a18] dark:hover:text-white hover:bg-[#d0cfc8] dark:hover:bg-[#3a3a35] shrink-0 transition-colors">
                           <svg className="size-2.5" viewBox="0 0 10 10" fill="none"><path d="M2 2l6 6M8 2l-6 6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg>
@@ -720,17 +810,19 @@ export default function CreatePage() {
                   </div>
 
                   <div className="flex items-center justify-end gap-2 shrink-0">
-                    {/* Line count */}
-                    {lineCount > 1 && (
+                    {/* 总张数指示 */}
+                    {totalImages > 1 && (
                       <span className="text-[10px] text-[#9e9d98] dark:text-[#6b6a66] font-mono tabular-nums bg-[#f0efe8] dark:bg-[#252521] px-1.5 py-0.5 rounded-md">
-                        {lineCount} 张
+                        {totalImages} 张
                       </span>
                     )}
                     <span className="text-[10px] text-[#c0bfb8] dark:text-[#4a4a45] font-mono tabular-nums">{currentInput.length || tags.filter(Boolean).length}</span>
                     <Button onClick={generate} disabled={loading || !currentInput.trim() && tags.filter(Boolean).length === 0} size="sm"
                       className="h-7 px-3 rounded-lg text-[10px] font-semibold bg-[#1a1a18] dark:bg-white text-white dark:text-[#1a1a18] hover:bg-[#333] dark:hover:bg-[#e0dfd8] disabled:opacity-40 shadow-sm transition-all gap-1.5">
                       {loading ? <Loader2 className="w-3 h-3 animate-spin" /> : <Wand2 className="w-3 h-3" />}
-                      {loading ? "生成中..." : "生成"}
+                      {loading
+                        ? (batchProgress ? `提交中 ${batchProgress.done}/${batchProgress.total}` : "生成中...")
+                        : (totalImages > 1 ? `生成 ${totalImages} 张` : "生成")}
                     </Button>
                   </div>
                 </div>
@@ -739,7 +831,7 @@ export default function CreatePage() {
 
             {/* Hint */}
             <p className="mt-2 text-[11px] text-[#c0bfb8] dark:text-[#4a4a45] tracking-wide">
-              Ctrl+⏎ 发送 · Enter 添加提示词 · 点击标签可修改 · 支持图生图与图片融合
+              Ctrl+⏎ 发送 · Enter 添加提示词 · 点击标签可修改 · ±调整份数 · 多张自动按套餐并发排队
             </p>
           </div>
         </div>

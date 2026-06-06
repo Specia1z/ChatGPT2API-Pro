@@ -38,6 +38,25 @@ import (
 
 
 
+// deleteStoredObject 删除 generation 对应的外部存储对象（S3/local）。
+// database 模式无外部对象，直接跳过。失败仅记录日志、不阻断 DB 删除，
+// 由本地清理器或后续运维兜底；优先保证用户删除操作成功返回。
+func (h *Handler) deleteStoredObject(gen *model.Generation) {
+	if gen == nil || gen.ImageURL == "" {
+		return // database 模式或无外部对象
+	}
+	storageCfg, err := h.MySQL.GetStorageConfig()
+	if err != nil || storageCfg == nil || storageCfg.Type == "database" {
+		return
+	}
+	// 与 Save 对称地重建 object path
+	path := storage.ObjectKey(gen.UserID, gen.ID)
+	st := storage.FromConfig(storageCfg)
+	if err := st.Delete(context.Background(), path); err != nil {
+		log.Printf("[gen %d] storage delete failed (orphan object may remain): %v", gen.ID, err)
+	}
+}
+
 // DELETE /api/generations — 用户删除自己的生图
 
 func (h *Handler) DeleteGeneration(w http.ResponseWriter, r *http.Request) {
@@ -66,6 +85,9 @@ func (h *Handler) DeleteGeneration(w http.ResponseWriter, r *http.Request) {
 
 
 
+	// 取记录用于删除后清理存储对象（image_url / user_id）
+	gen, _ := h.MySQL.GetGenerationByID(req.ID)
+
 	// 所有权校验：只能删自己的
 
 	if err := h.MySQL.DeleteUserGeneration(req.ID, uid); err != nil {
@@ -82,6 +104,11 @@ func (h *Handler) DeleteGeneration(w http.ResponseWriter, r *http.Request) {
 
 		return
 
+	}
+
+	// DB 记录已删，清理外部存储对象（best-effort）
+	if gen != nil && gen.UserID == uid {
+		h.deleteStoredObject(gen)
 	}
 
 	writeJSON(w, 200, model.APIResponse{Code: 200, Message: "已删除"})
@@ -382,10 +409,15 @@ func (h *Handler) CreateGeneration(w http.ResponseWriter, r *http.Request) {
 						if err := h.MySQL.UpdateGeneration(genID, imageB64, "completed", "", ""); err != nil { log.Printf("[gen %d] update fail: %v", genID, err) }
 					} else {
 						st := storage.FromConfig(storageCfg)
-						path := fmt.Sprintf("u/%d/%d.png", userID, genID)
+						path := storage.ObjectKey(userID, genID)
 						imageURL, saveErr := st.Save(context.Background(), path, imgData)
 						if saveErr != nil {
 							log.Printf("[gen %d] storage save error: %v, fallback to database", genID, saveErr)
+							if err := h.MySQL.UpdateGeneration(genID, imageB64, "completed", "", ""); err != nil { log.Printf("[gen %d] update fail: %v", genID, err) }
+						} else if imageURL == "" {
+							// 配置不完整导致 FromConfig 回退到 database store（Save 返回空 URL），
+							// 回退到 base64 存库，避免 image_url 与 image_b64 同时为空丢图
+							log.Printf("[gen %d] storage returned empty URL (config fallback), saving b64 to database", genID)
 							if err := h.MySQL.UpdateGeneration(genID, imageB64, "completed", "", ""); err != nil { log.Printf("[gen %d] update fail: %v", genID, err) }
 						} else {
 							log.Printf("[gen %d] storage save OK, URL=%s", genID, imageURL)
@@ -512,6 +544,8 @@ func (h *Handler) AdminDeleteGeneration(w http.ResponseWriter, r *http.Request) 
 
 	}
 
+	gen, _ := h.MySQL.GetGenerationByID(req.ID)
+
 	if _, err := h.MySQL.RawExec("DELETE FROM generations WHERE id=?", req.ID); err != nil {
 
 		writeJSON(w, 500, model.APIResponse{Code: 500, Message: err.Error()})
@@ -519,6 +553,9 @@ func (h *Handler) AdminDeleteGeneration(w http.ResponseWriter, r *http.Request) 
 		return
 
 	}
+
+	// 清理外部存储对象（best-effort）
+	h.deleteStoredObject(gen)
 
 	writeJSON(w, 200, model.APIResponse{Code: 200, Message: "已删除"})
 

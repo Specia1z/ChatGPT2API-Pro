@@ -184,6 +184,7 @@ func (s *MySQLStore) autoMigrate() {
 	s.db.Exec("ALTER TABLE settings ADD COLUMN storage_cleanup_days INT NOT NULL DEFAULT 0")
 	s.db.Exec("ALTER TABLE settings ADD COLUMN points_exchange_rate INT NOT NULL DEFAULT 10 AFTER storage_cleanup_days")
 	s.db.Exec("ALTER TABLE settings ADD COLUMN points_exchange_bonus INT NOT NULL DEFAULT 0 AFTER points_exchange_rate")
+	s.db.Exec("ALTER TABLE settings ADD COLUMN burst_token_cap INT NOT NULL DEFAULT 0 AFTER points_exchange_bonus")
 	if !s.columnExists(dbName, "settings", "style_presets") {
 		s.db.Exec("ALTER TABLE settings ADD COLUMN style_presets TEXT AFTER points_exchange_bonus")
 	}
@@ -703,7 +704,7 @@ func (s *MySQLStore) DeleteUserGeneration(id, userID int64) error {
 // 跳过已分享到广场的图（shared=0），按 created_at 升序优先清理最旧的，limit 分批控制单次量。
 func (s *MySQLStore) ListExpiredLocalGenerations(before time.Time, limit int) ([]model.Generation, error) {
 	rows, err := s.db.Query(
-		`SELECT id, COALESCE(image_url,'') FROM generations
+		`SELECT id, user_id, COALESCE(image_url,'') FROM generations
 		 WHERE image_url IS NOT NULL AND image_url != '' AND shared=0 AND created_at < ?
 		 ORDER BY created_at ASC LIMIT ?`, before, limit)
 	if err != nil { return nil, err }
@@ -711,7 +712,7 @@ func (s *MySQLStore) ListExpiredLocalGenerations(before time.Time, limit int) ([
 	var gens []model.Generation
 	for rows.Next() {
 		var g model.Generation
-		if err := rows.Scan(&g.ID, &g.ImageURL); err != nil { return nil, err }
+		if err := rows.Scan(&g.ID, &g.UserID, &g.ImageURL); err != nil { return nil, err }
 		gens = append(gens, g)
 	}
 	return gens, rows.Err()
@@ -1029,6 +1030,13 @@ func (s *MySQLStore) GetStorageConfig() (*model.StorageConfig, error) {
 }
 
 func (s *MySQLStore) SaveStorageConfig(cfg *model.StorageConfig) error {
+	// 保护敏感字段：S3 SecretKey 为空时保留 DB 中现有值
+	// （公开/管理接口 GET 时会抹掉密钥，回填保存不应清空它）
+	if cfg.S3SecretKey == "" {
+		if existing, _ := s.GetStorageConfig(); existing != nil && existing.S3SecretKey != "" {
+			cfg.S3SecretKey = existing.S3SecretKey
+		}
+	}
 	j, _ := json.Marshal(cfg)
 	_, err := s.db.Exec("UPDATE settings SET storage_config=? WHERE id=1", string(j))
 	return err
@@ -1038,8 +1046,8 @@ func (s *MySQLStore) SaveStorageConfig(cfg *model.StorageConfig) error {
 
 func (s *MySQLStore) GetSettings() (*model.Settings, error) {
 	cfg := &model.Settings{}
-	err := s.db.QueryRow(`SELECT site_title, site_subtitle, COALESCE(site_description,''), cf_turnstile_enabled, cf_turnstile_site_key, cf_turnstile_secret_key, COALESCE(default_plan_id,0), COALESCE(banned_words,''), COALESCE(checkin_enabled,1), COALESCE(checkin_base,10), COALESCE(checkin_streak_bonus,5), COALESCE(alipay_enabled,0), COALESCE(alipay_app_id,''), COALESCE(alipay_app_private_key,''), COALESCE(alipay_alipay_public_key,''), COALESCE(alipay_notify_url,''), COALESCE(site_logo_type,'text'), COALESCE(site_logo_text,'C2'), COALESCE(site_logo_url,''), COALESCE(storage_cleanup_days,0), COALESCE(points_exchange_rate,10), COALESCE(points_exchange_bonus,0), COALESCE(style_presets,''), COALESCE(email_config,'') FROM settings WHERE id=1`).
-		Scan(&cfg.SiteTitle, &cfg.SiteSubtitle, &cfg.SiteDescription, &cfg.CFTurnstileEnabled, &cfg.CFTurnstileSiteKey, &cfg.CFTurnstileSecretKey, &cfg.DefaultPlanID, &cfg.BannedWords, &cfg.CheckinEnabled, &cfg.CheckinBase, &cfg.CheckinStreakBonus, &cfg.AlipayEnabled, &cfg.AlipayAppID, &cfg.AlipayAppPrivateKey, &cfg.AlipayPublicKey, &cfg.AlipayNotifyURL, &cfg.SiteLogoType, &cfg.SiteLogoText, &cfg.SiteLogoURL, &cfg.StorageCleanupDays, &cfg.PointsExchangeRate, &cfg.PointsExchangeBonus, &cfg.StylePresets, &cfg.EmailConfig)
+	err := s.db.QueryRow(`SELECT site_title, site_subtitle, COALESCE(site_description,''), cf_turnstile_enabled, cf_turnstile_site_key, cf_turnstile_secret_key, COALESCE(default_plan_id,0), COALESCE(banned_words,''), COALESCE(checkin_enabled,1), COALESCE(checkin_base,10), COALESCE(checkin_streak_bonus,5), COALESCE(alipay_enabled,0), COALESCE(alipay_app_id,''), COALESCE(alipay_app_private_key,''), COALESCE(alipay_alipay_public_key,''), COALESCE(alipay_notify_url,''), COALESCE(site_logo_type,'text'), COALESCE(site_logo_text,'C2'), COALESCE(site_logo_url,''), COALESCE(storage_cleanup_days,0), COALESCE(points_exchange_rate,10), COALESCE(points_exchange_bonus,0), COALESCE(burst_token_cap,0), COALESCE(style_presets,''), COALESCE(email_config,'') FROM settings WHERE id=1`).
+		Scan(&cfg.SiteTitle, &cfg.SiteSubtitle, &cfg.SiteDescription, &cfg.CFTurnstileEnabled, &cfg.CFTurnstileSiteKey, &cfg.CFTurnstileSecretKey, &cfg.DefaultPlanID, &cfg.BannedWords, &cfg.CheckinEnabled, &cfg.CheckinBase, &cfg.CheckinStreakBonus, &cfg.AlipayEnabled, &cfg.AlipayAppID, &cfg.AlipayAppPrivateKey, &cfg.AlipayPublicKey, &cfg.AlipayNotifyURL, &cfg.SiteLogoType, &cfg.SiteLogoText, &cfg.SiteLogoURL, &cfg.StorageCleanupDays, &cfg.PointsExchangeRate, &cfg.PointsExchangeBonus, &cfg.BurstTokenCap, &cfg.StylePresets, &cfg.EmailConfig)
 	if err != nil { return cfg, nil }
 	return cfg, nil
 }
@@ -1057,10 +1065,38 @@ func (s *MySQLStore) SaveSettings(cfg *model.Settings) error {
 		if cfg.AlipayPublicKey == "" && existing.AlipayPublicKey != "" {
 			cfg.AlipayPublicKey = existing.AlipayPublicKey
 		}
+		cfg.EmailConfig = mergeEmailConfigSecrets(cfg.EmailConfig, existing.EmailConfig)
 	}
-	_, err := s.db.Exec(`UPDATE settings SET site_title=?, site_subtitle=?, site_description=?, cf_turnstile_enabled=?, cf_turnstile_site_key=?, cf_turnstile_secret_key=?, default_plan_id=?, banned_words=?, checkin_enabled=?, checkin_base=?, checkin_streak_bonus=?, alipay_enabled=?, alipay_app_id=?, alipay_app_private_key=?, alipay_alipay_public_key=?, alipay_notify_url=?, site_logo_type=?, site_logo_text=?, site_logo_url=?, storage_cleanup_days=?, points_exchange_rate=?, points_exchange_bonus=?, style_presets=?, email_config=? WHERE id=1`,
-		cfg.SiteTitle, cfg.SiteSubtitle, cfg.SiteDescription, cfg.CFTurnstileEnabled, cfg.CFTurnstileSiteKey, cfg.CFTurnstileSecretKey, cfg.DefaultPlanID, cfg.BannedWords, cfg.CheckinEnabled, cfg.CheckinBase, cfg.CheckinStreakBonus, cfg.AlipayEnabled, cfg.AlipayAppID, cfg.AlipayAppPrivateKey, cfg.AlipayPublicKey, cfg.AlipayNotifyURL, cfg.SiteLogoType, cfg.SiteLogoText, cfg.SiteLogoURL, cfg.StorageCleanupDays, cfg.PointsExchangeRate, cfg.PointsExchangeBonus, cfg.StylePresets, cfg.EmailConfig)
+	_, err := s.db.Exec(`UPDATE settings SET site_title=?, site_subtitle=?, site_description=?, cf_turnstile_enabled=?, cf_turnstile_site_key=?, cf_turnstile_secret_key=?, default_plan_id=?, banned_words=?, checkin_enabled=?, checkin_base=?, checkin_streak_bonus=?, alipay_enabled=?, alipay_app_id=?, alipay_app_private_key=?, alipay_alipay_public_key=?, alipay_notify_url=?, site_logo_type=?, site_logo_text=?, site_logo_url=?, storage_cleanup_days=?, points_exchange_rate=?, points_exchange_bonus=?, burst_token_cap=?, style_presets=?, email_config=? WHERE id=1`,
+		cfg.SiteTitle, cfg.SiteSubtitle, cfg.SiteDescription, cfg.CFTurnstileEnabled, cfg.CFTurnstileSiteKey, cfg.CFTurnstileSecretKey, cfg.DefaultPlanID, cfg.BannedWords, cfg.CheckinEnabled, cfg.CheckinBase, cfg.CheckinStreakBonus, cfg.AlipayEnabled, cfg.AlipayAppID, cfg.AlipayAppPrivateKey, cfg.AlipayPublicKey, cfg.AlipayNotifyURL, cfg.SiteLogoType, cfg.SiteLogoText, cfg.SiteLogoURL, cfg.StorageCleanupDays, cfg.PointsExchangeRate, cfg.PointsExchangeBonus, cfg.BurstTokenCap, cfg.StylePresets, cfg.EmailConfig)
 	return err
+}
+
+// mergeEmailConfigSecrets 在保存 email_config 时保护 SMTP 密码：
+// 若新配置的 smtp_pass 为空而旧配置存在密码，则保留旧密码。
+// 这样公开接口抹掉密码后，管理端回填保存不会把密码清空。
+func mergeEmailConfigSecrets(incoming, existing string) string {
+	if existing == "" {
+		return incoming
+	}
+	var oldEC model.EmailConfig
+	if json.Unmarshal([]byte(existing), &oldEC) != nil || oldEC.SMTPPass == "" {
+		return incoming
+	}
+	if incoming == "" {
+		return existing // 整段缺失时保留旧配置，避免丢失密码
+	}
+	var newEC model.EmailConfig
+	if json.Unmarshal([]byte(incoming), &newEC) != nil {
+		return incoming
+	}
+	if newEC.SMTPPass == "" {
+		newEC.SMTPPass = oldEC.SMTPPass
+		if b, err := json.Marshal(newEC); err == nil {
+			return string(b)
+		}
+	}
+	return incoming
 }
 
 // --- Monitor Config ---

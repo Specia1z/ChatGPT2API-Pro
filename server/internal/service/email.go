@@ -2,22 +2,16 @@ package service
 
 import (
 	"crypto/rand"
+	"crypto/tls"
 	"fmt"
 	"math/big"
 	"net/smtp"
-	// "strings"
 
 	"chatgpt2api-pro/internal/model"
 )
 
 // SendVerificationEmail 发送 HTML 验证码邮件（shadcn 风格）
 func SendVerificationEmail(cfg *model.EmailConfig, to, code, siteTitle string) error {
-	if !cfg.SMTPEnabled || cfg.SMTPHost == "" {
-		return fmt.Errorf("SMTP 未配置")
-	}
-	port := cfg.SMTPPort
-	if port == 0 { port = 587 }
-
 	if siteTitle == "" { siteTitle = "ChatGPT2API Pro" }
 
 	html := fmt.Sprintf(`<!DOCTYPE html>
@@ -47,31 +41,81 @@ func SendVerificationEmail(cfg *model.EmailConfig, to, code, siteTitle string) e
 </body>
 </html>`, siteTitle, code)
 
-	headers := fmt.Sprintf("From: %s\r\nTo: %s\r\nSubject: %s\r\nMIME-Version: 1.0\r\nContent-Type: text/html; charset=UTF-8\r\n\r\n", cfg.SMTPFrom, to, fmt.Sprintf("[%s] 邮箱验证", siteTitle))
-
-	addr := fmt.Sprintf("%s:%d", cfg.SMTPHost, port)
-	auth := smtp.PlainAuth("", cfg.SMTPUser, cfg.SMTPPass, cfg.SMTPHost)
-
-	return smtp.SendMail(addr, auth, cfg.SMTPFrom, []string{to}, []byte(headers+html))
+	subject := fmt.Sprintf("[%s] 邮箱验证", siteTitle)
+	return sendMail(cfg, to, subject, html, "text/html")
 }
 
 // SendEmail 发送 SMTP 邮件（纯文本）
 func SendEmail(cfg *model.EmailConfig, to, subject, body string) error {
+	return sendMail(cfg, to, subject, body, "text/plain")
+}
+
+// sendMail 统一的 SMTP 发送逻辑，支持 465（隐式 TLS）与 587/25（STARTTLS）。
+func sendMail(cfg *model.EmailConfig, to, subject, body, contentType string) error {
 	if !cfg.SMTPEnabled || cfg.SMTPHost == "" {
 		return fmt.Errorf("SMTP 未配置")
 	}
 	port := cfg.SMTPPort
 	if port == 0 { port = 587 }
 
-	auth := smtp.PlainAuth("", cfg.SMTPUser, cfg.SMTPPass, cfg.SMTPHost)
 	from := cfg.SMTPFrom
 	if from == "" { from = cfg.SMTPUser }
 
-	headers := fmt.Sprintf("From: %s\r\nTo: %s\r\nSubject: %s\r\nMIME-Version: 1.0\r\nContent-Type: text/plain; charset=UTF-8\r\n\r\n", from, to, subject)
+	headers := fmt.Sprintf("From: %s\r\nTo: %s\r\nSubject: %s\r\nMIME-Version: 1.0\r\nContent-Type: %s; charset=UTF-8\r\n\r\n",
+		from, to, subject, contentType)
 	msg := []byte(headers + body)
 	addr := fmt.Sprintf("%s:%d", cfg.SMTPHost, port)
 
+	var auth smtp.Auth
+	if cfg.SMTPUser != "" {
+		auth = smtp.PlainAuth("", cfg.SMTPUser, cfg.SMTPPass, cfg.SMTPHost)
+	}
+
+	// 465 端口使用隐式 TLS（SMTPS）：先建立 TLS 连接再走 SMTP。
+	// net/smtp 的 SendMail 仅支持明文/STARTTLS，无法处理 465。
+	if port == 465 {
+		return sendMailTLS(addr, cfg.SMTPHost, auth, from, to, msg)
+	}
+
 	return smtp.SendMail(addr, auth, from, []string{to}, msg)
+}
+
+// sendMailTLS 通过隐式 TLS 连接发送邮件（用于 465 端口）。
+func sendMailTLS(addr, host string, auth smtp.Auth, from, to string, msg []byte) error {
+	conn, err := tls.Dial("tcp", addr, &tls.Config{ServerName: host})
+	if err != nil {
+		return fmt.Errorf("TLS 连接失败: %w", err)
+	}
+	defer conn.Close()
+
+	client, err := smtp.NewClient(conn, host)
+	if err != nil {
+		return fmt.Errorf("SMTP 握手失败: %w", err)
+	}
+	defer client.Close()
+
+	if auth != nil {
+		if err := client.Auth(auth); err != nil {
+			return fmt.Errorf("SMTP 认证失败: %w", err)
+		}
+	}
+	if err := client.Mail(from); err != nil {
+		return err
+	}
+	if err := client.Rcpt(to); err != nil {
+		return err
+	}
+	wc, err := client.Data()
+	if err != nil {
+		return err
+	}
+	if _, err := wc.Write(msg); err != nil {
+		return err
+	}
+	if err := wc.Close(); err != nil {
+		return err
+	}
+	return client.Quit()
 }
 
 // RandomCode 生成 N 位数字验证码

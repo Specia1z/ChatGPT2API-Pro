@@ -228,6 +228,9 @@ export default function SettingsPage() {
                         <div className="space-y-1.5"><Label>大额赠送（≥50 个时）</Label><Input type="number" min={0} value={cfg?.points_exchange_bonus ?? 0} onChange={e => update("points_exchange_bonus", +e.target.value)} className={inputCls} placeholder="0" />
                           <p className="text-[10px] text-muted-foreground">每 50 个额外赠送 N 个</p>
                         </div>
+                        <div className="space-y-1.5"><Label>突发令牌囤积上限</Label><Input type="number" min={0} value={cfg?.burst_token_cap ?? 0} onChange={e => update("burst_token_cap", +e.target.value)} className={inputCls} placeholder="0" />
+                          <p className="text-[10px] text-muted-foreground">单用户突发令牌最多囤积数（0=不限），防止积分无限兑换额度</p>
+                        </div>
                       </div>
                     </div>
                   </div>

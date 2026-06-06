@@ -98,3 +98,45 @@ func TestRefundToken(t *testing.T) {
 	s.client.Del(context.Background(), key)
 	t.Log("✅ 退款路径测试完成")
 }
+
+// TestAddBurstTokenCap 覆盖突发令牌囤积上限：超额封顶、上限内全额、cap=0 不限。
+func TestAddBurstTokenCap(t *testing.T) {
+	s, err := NewRedisStore("localhost:6379", "")
+	if err != nil {
+		t.Skipf("Redis not available: %v", err)
+	}
+	defer s.Close()
+
+	uid := int64(99997)
+	cap := 50
+	rate := 3
+	key := "bucket:99997"
+	s.client.Del(context.Background(), key)
+
+	// ── Test 1: 上限内兑换 — 上限 20，兑 15 → 全额到账，added=15 ──
+	burst, added, err := s.AddBurstToken(uid, cap, rate, 15, 20)
+	if err != nil { t.Fatal(err) }
+	t.Logf("T1 上限20兑15 → burst=%.0f added=%.0f", burst, added)
+	if burst != 15 || added != 15 { t.Errorf("应全额到账 burst=15 added=15, got burst=%.0f added=%.0f", burst, added) }
+
+	// ── Test 2: 触顶封顶 — 已有 15，上限 20，再兑 10 → 只能加 5，封顶 20 ──
+	burst, added, err = s.AddBurstToken(uid, cap, rate, 10, 20)
+	if err != nil { t.Fatal(err) }
+	t.Logf("T2 触顶 → burst=%.0f added=%.0f", burst, added)
+	if burst != 20 || added != 5 { t.Errorf("应封顶 burst=20 added=5, got burst=%.0f added=%.0f", burst, added) }
+
+	// ── Test 3: 已达上限 — 再兑 → added=0 ──
+	burst, added, err = s.AddBurstToken(uid, cap, rate, 10, 20)
+	if err != nil { t.Fatal(err) }
+	t.Logf("T3 已满 → burst=%.0f added=%.0f", burst, added)
+	if burst != 20 || added != 0 { t.Errorf("已满应 added=0, got burst=%.0f added=%.0f", burst, added) }
+
+	// ── Test 4: cap=0 不限 — 继续累加无封顶 ──
+	burst, added, err = s.AddBurstToken(uid, cap, rate, 100, 0)
+	if err != nil { t.Fatal(err) }
+	t.Logf("T4 不限 → burst=%.0f added=%.0f", burst, added)
+	if burst != 120 || added != 100 { t.Errorf("cap=0 应不限 burst=120 added=100, got burst=%.0f added=%.0f", burst, added) }
+
+	s.client.Del(context.Background(), key)
+	t.Log("✅ 突发令牌上限测试完成")
+}

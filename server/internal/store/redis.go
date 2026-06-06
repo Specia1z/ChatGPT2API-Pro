@@ -58,22 +58,28 @@ var (
 		return tostring(tokens)
 	`)
 
-	// addBurstTokenScript 积分兑换：追加突发令牌，不封顶。
+	// addBurstTokenScript 积分兑换：追加突发令牌，受 burstCap 上限封顶（cap=0 表示不限）。
+	// 返回 {新的 burst 数, 实际新增数}；若已达上限则实际新增可能小于请求量。
 	addBurstTokenScript = redis.NewScript(`
 		local key = KEYS[1]
 		local cap = tonumber(ARGV[1])
 		local rate = tonumber(ARGV[2])
 		local now = tonumber(ARGV[3])
 		local count = tonumber(ARGV[4])
+		local burstCap = tonumber(ARGV[5])
 		local tokens = tonumber(redis.call('HGET', key, 'tokens')) or cap
 		local last = tonumber(redis.call('HGET', key, 'last_refill')) or now
 		local burst = tonumber(redis.call('HGET', key, 'burst')) or 0
 		local elapsed = math.max(0, now - last)
 		tokens = math.min(cap, tokens + elapsed * rate / 3600)
-		burst = burst + count
+		local target = burst + count
+		if burstCap > 0 and target > burstCap then target = burstCap end
+		local added = target - burst
+		if added < 0 then added = 0 end
+		burst = burst + added
 		redis.call('HSET', key, 'tokens', tokens, 'burst', burst, 'last_refill', now)
 		redis.call('EXPIRE', key, 86400)
-		return tostring(burst)
+		return {tostring(burst), tostring(added)}
 	`)
 )
 
@@ -226,15 +232,19 @@ func (r *RedisStore) ConsumeToken(userID int64, capacity, refillRate, count int)
 	return
 }
 
-// AddBurstToken 积分兑换：追加突发令牌（不受 cap 限制）。返回新的 burst 数。
-func (r *RedisStore) AddBurstToken(userID int64, capacity, refillRate, count int) (float64, error) {
+// AddBurstToken 积分兑换：追加突发令牌，受 burstCap 上限封顶（burstCap=0 不限）。
+// 返回 (新的 burst 数, 实际新增数)；触顶时实际新增可能小于请求量。
+func (r *RedisStore) AddBurstToken(userID int64, capacity, refillRate, count, burstCap int) (burst, added float64, err error) {
 	key := fmt.Sprintf("bucket:%d", userID)
 	now := time.Now().Unix()
-	result, err := addBurstTokenScript.Run(context.Background(), r.client, []string{key}, capacity, refillRate, now, count).Result()
+	result, err := addBurstTokenScript.Run(context.Background(), r.client, []string{key}, capacity, refillRate, now, count, burstCap).Result()
 	if err != nil {
-		return 0, err
+		return 0, 0, err
 	}
-	return strconv.ParseFloat(result.(string), 64)
+	arr := result.([]interface{})
+	burst, _ = strconv.ParseFloat(arr[0].(string), 64)
+	added, _ = strconv.ParseFloat(arr[1].(string), 64)
+	return burst, added, nil
 }
 
 // RefundToken 退还指定数量的正常令牌（突发不退）。
@@ -292,18 +302,54 @@ func (r *RedisStore) IncrRegisterCount(ip string) error {
 	return nil
 }
 
-// SetEmailCode 存储邮箱验证码（10 分钟有效）
-func (r *RedisStore) SetEmailCode(email, code string) error {
-	return r.client.Set(context.Background(), "verify:"+email, code, 10*time.Minute).Err()
+// EmailCodeCooldown 返回该邮箱距离可再次发码的剩余时间（>0 表示仍在冷却中）
+func (r *RedisStore) EmailCodeCooldown(email string) (time.Duration, error) {
+	ttl, err := r.client.TTL(context.Background(), "verify_cd:"+email).Result()
+	if err == redis.Nil { return 0, nil }
+	if err != nil { return 0, err }
+	if ttl < 0 { return 0, nil } // -1(无过期)/-2(不存在) 视为无冷却
+	return ttl, nil
 }
 
-// VerifyEmailCode 验证邮箱验证码
+// SetEmailCode 存储邮箱验证码（10 分钟有效），同时写入发送冷却标记
+func (r *RedisStore) SetEmailCode(email, code string) error {
+	ctx := context.Background()
+	if err := r.client.Set(ctx, "verify:"+email, code, 10*time.Minute).Err(); err != nil {
+		return err
+	}
+	// 重置失败计数，并设置发送冷却（60 秒）
+	r.client.Del(ctx, "verify_fail:"+email)
+	return r.client.Set(ctx, "verify_cd:"+email, "1", 60*time.Second).Err()
+}
+
+// ClearEmailCode 清除验证码、失败计数与发送冷却（用于发送失败时回滚）
+func (r *RedisStore) ClearEmailCode(email string) {
+	ctx := context.Background()
+	r.client.Del(ctx, "verify:"+email, "verify_fail:"+email, "verify_cd:"+email)
+}
+
+// verifyMaxAttempts 单个验证码允许的最大错误尝试次数，超过即作废
+const verifyMaxAttempts = 5
+
+// VerifyEmailCode 验证邮箱验证码。失败累计超过上限会作废该验证码以防爆破。
 func (r *RedisStore) VerifyEmailCode(email, code string) (bool, error) {
+	ctx := context.Background()
 	key := "verify:" + email
-	stored, err := r.client.Get(context.Background(), key).Result()
+	stored, err := r.client.Get(ctx, key).Result()
 	if err == redis.Nil { return false, nil }
 	if err != nil { return false, err }
-	if stored != code { return false, nil }
-	r.client.Del(context.Background(), key)
+	if stored != code {
+		// 累计失败次数，超过上限直接作废验证码
+		failKey := "verify_fail:" + email
+		n, _ := r.client.Incr(ctx, failKey).Result()
+		if n == 1 {
+			r.client.Expire(ctx, failKey, 10*time.Minute)
+		}
+		if n >= verifyMaxAttempts {
+			r.client.Del(ctx, key, failKey)
+		}
+		return false, nil
+	}
+	r.client.Del(ctx, key, "verify_fail:"+email)
 	return true, nil
 }

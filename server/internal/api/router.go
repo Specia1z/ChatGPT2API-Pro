@@ -1,9 +1,7 @@
 package api
 
 import (
-	"log"
 	"net/http"
-	"path/filepath"
 
 	"chatgpt2api-pro/internal/middleware"
 	"chatgpt2api-pro/internal/service"
@@ -25,8 +23,8 @@ func NewRouter(mysql *store.MySQLStore, redis *store.RedisStore, cleaner *servic
 	// 用户公开（限流）
 	mux.Handle("POST /api/auth/register", middleware.RateLimit(http.HandlerFunc(h.UserRegister)))
 	mux.Handle("POST /api/auth/login", middleware.RateLimit(http.HandlerFunc(h.UserLogin)))
-	mux.HandleFunc("POST /api/auth/send-code", h.SendEmailCode)
-	mux.HandleFunc("POST /api/auth/verify-code", h.VerifyEmailCode)
+	mux.Handle("POST /api/auth/send-code", middleware.RateLimit(http.HandlerFunc(h.SendEmailCode)))
+	mux.Handle("POST /api/auth/verify-code", middleware.RateLimit(http.HandlerFunc(h.VerifyEmailCode)))
 
 	// 用户鉴权
 	mux.Handle("GET /api/user/profile", userAuth(http.HandlerFunc(h.UserProfile)))
@@ -124,16 +122,8 @@ mux.Handle("POST /api/user/points/exchange", userAuth(http.HandlerFunc(h.Exchang
 	mux.Handle("GET /api/orders/{orderNo}", userAuth(http.HandlerFunc(h.GetOrderStatus)))
 	mux.HandleFunc("POST /api/orders/alipay/notify", h.AlipayNotify)
 
-	// 本地存储静态文件服务
-	cfg, _ := mysql.GetStorageConfig()
-	if cfg.Type == "local" && cfg.LocalPath != "" {
-		// Sanitize the local path to an absolute path
-		absPath, err := filepath.Abs(cfg.LocalPath)
-		if err == nil {
-			log.Printf("[static] Serving local storage at /uploads/ from %s", absPath)
-			mux.Handle("GET /uploads/", http.StripPrefix("/uploads/", http.FileServer(http.Dir(absPath))))
-		}
-	}
+	// 本地存储图片统一经 GET /api/images/{id} 代理读取（按 object key 实时定位文件），
+	// 不再挂载 /uploads/ 静态目录——避免热切换存储路径需重启，也不暴露真实目录结构。
 
 	return middleware.CORS(mux)
 }

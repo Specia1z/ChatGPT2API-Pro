@@ -192,11 +192,11 @@ export default function StoragePage() {
                     <h3 className="text-sm font-semibold">本地文件系统配置</h3>
                   </div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-                    <Field icon={HardDrive} label="存储路径" hint="图片保存的服务器目录">
+                    <Field icon={HardDrive} label="存储路径" hint="图片保存的服务器目录，修改后即时生效（图片经代理读取，无需重启）">
                       <Input value={cfg.local_path || ""} onChange={e => setCfg({ ...cfg, local_path: e.target.value })} className={`${mono.className} text-sm`} placeholder="./uploads" />
                     </Field>
-                    <Field icon={Globe} label="访问 URL" hint="公开访问 URL 前缀">
-                      <Input value={cfg.local_url || ""} onChange={e => setCfg({ ...cfg, local_url: e.target.value })} className={`${mono.className} text-sm`} placeholder="/uploads" />
+                    <Field icon={Globe} label="访问 URL（可选）" hint="图片统一经 /api/images/{id} 代理读取，此前缀仅作记录，可留空">
+                      <Input value={cfg.local_url || ""} onChange={e => setCfg({ ...cfg, local_url: e.target.value })} className={`${mono.className} text-sm`} placeholder="（可留空）" />
                     </Field>
                   </div>
                 </div>
@@ -228,7 +228,7 @@ export default function StoragePage() {
                       <Input value={cfg.s3_access_key || ""} onChange={e => setCfg({ ...cfg, s3_access_key: e.target.value })} className={`${mono.className} text-sm`} placeholder="AKIA..." />
                     </Field>
                     <Field icon={Lock} label="Secret Key">
-                      <Input type="password" value={cfg.s3_secret_key || ""} onChange={e => setCfg({ ...cfg, s3_secret_key: e.target.value })} className={`${mono.className} text-sm`} placeholder="••••••••" />
+                      <Input type="password" value={cfg.s3_secret_key || ""} onChange={e => setCfg({ ...cfg, s3_secret_key: e.target.value })} className={`${mono.className} text-sm`} placeholder="留空则沿用已保存的密钥" />
                     </Field>
                   </div>
                 </div>
