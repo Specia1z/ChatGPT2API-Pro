@@ -205,10 +205,15 @@ func (s *MySQLStore) autoMigrate() {
 		link VARCHAR(512) DEFAULT '',
 		priority INT NOT NULL DEFAULT 0,
 		enabled TINYINT(1) NOT NULL DEFAULT 1,
+		dismissible TINYINT(1) NOT NULL DEFAULT 1,
 		start_at DATETIME NULL,
 		end_at DATETIME NULL,
 		created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 	) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`)
+	// 公告是否允许用户关闭（0=强制常驻，如重要维护通知）
+	if !s.columnExists(dbName, "announcements", "dismissible") {
+		s.db.Exec("ALTER TABLE announcements ADD COLUMN dismissible TINYINT(1) NOT NULL DEFAULT 1 AFTER enabled")
+	}
 	s.db.Exec(`CREATE TABLE IF NOT EXISTS orders (
 		id BIGINT AUTO_INCREMENT PRIMARY KEY,
 		order_no VARCHAR(32) NOT NULL UNIQUE,

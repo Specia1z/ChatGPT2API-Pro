@@ -27,6 +27,7 @@ interface Announcement {
   link: string;
   priority: number;
   enabled: boolean;
+  dismissible: boolean;
   start_at: string;
   end_at: string;
   created_at: string;
@@ -41,7 +42,7 @@ const TYPES = [
 const typeMeta = (t: string) => TYPES.find(x => x.value === t) || TYPES[0];
 
 const emptyItem = (): Announcement => ({
-  id: 0, title: "", content: "", type: "info", link: "", priority: 0, enabled: true, start_at: "", end_at: "", created_at: "",
+  id: 0, title: "", content: "", type: "info", link: "", priority: 0, enabled: true, dismissible: true, start_at: "", end_at: "", created_at: "",
 });
 
 // datetime-local 控件值 (YYYY-MM-DDTHH:mm) ←→ 后端字符串
@@ -150,6 +151,7 @@ export default function AdminAnnouncementsPage() {
                         <div className="flex items-center gap-2">
                           <span className="text-sm font-medium truncate">{a.title || a.content || "（无标题）"}</span>
                           <span className={`${mono.className} text-[10px] text-muted-foreground/60 shrink-0`}>P{a.priority}</span>
+                          {!a.dismissible && <span className="shrink-0 text-[9px] px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-600 dark:text-amber-400 font-medium">常驻</span>}
                         </div>
                         <p className="text-[11px] text-muted-foreground truncate mt-0.5">
                           {a.title && a.content ? a.content : ""}
@@ -210,7 +212,7 @@ export default function AdminAnnouncementsPage() {
                 <label className="text-xs font-medium text-muted-foreground">跳转链接（可选）</label>
                 <Input value={editing.link} onChange={e => setEditing({ ...editing, link: e.target.value })} placeholder="https://..." className="text-sm" />
               </div>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-3 gap-3">
                 <div className="space-y-1.5">
                   <label className="text-xs font-medium text-muted-foreground">优先级</label>
                   <Input type="number" value={editing.priority} onChange={e => setEditing({ ...editing, priority: +e.target.value })} className="text-sm" />
@@ -218,6 +220,10 @@ export default function AdminAnnouncementsPage() {
                 <div className="space-y-1.5 flex flex-col">
                   <label className="text-xs font-medium text-muted-foreground">启用</label>
                   <div className="flex items-center h-9"><Switch checked={editing.enabled} onCheckedChange={v => setEditing({ ...editing, enabled: v })} /></div>
+                </div>
+                <div className="space-y-1.5 flex flex-col">
+                  <label className="text-xs font-medium text-muted-foreground">允许关闭</label>
+                  <div className="flex items-center h-9"><Switch checked={editing.dismissible} onCheckedChange={v => setEditing({ ...editing, dismissible: v })} /></div>
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-3">

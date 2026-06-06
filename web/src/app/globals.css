@@ -219,6 +219,12 @@
   100% { opacity: 1; transform: translateY(0); }
 }
 
+/* 公告轮播切换：淡入 + 轻微右移 */
+@keyframes annFade {
+  0%   { opacity: 0; transform: translateX(8px); }
+  100% { opacity: 1; transform: translateX(0); }
+}
+
 @keyframes slideDown {
   0%   { opacity: 0; transform: translateY(-6px) scale(0.98); }
   100% { opacity: 1; transform: translateY(0) scale(1); }
