@@ -654,7 +654,12 @@ func (h *Handler) ServeGenerationImage(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "image/png")
-	w.Header().Set("Cache-Control", "public, max-age=86400")
+	// 公开分享图允许共享缓存(CDN/代理)，私有图仅浏览器内存短暂持有
+	if gen.Shared {
+		w.Header().Set("Cache-Control", "public, max-age=86400")
+	} else {
+		w.Header().Set("Cache-Control", "private, no-store, max-age=0")
+	}
 	w.Header().Set("Content-Length", strconv.Itoa(len(imgData)))
 	w.Write(imgData)
 }

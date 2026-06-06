@@ -22,6 +22,9 @@ type GalleryItem = {
   created_at: string;
 };
 
+// size 展示：Auto 出图存为复合值 "auto:宽x高"，角标只显「Auto」（真实像素由旁边的 dimensions 角标负责）。
+const sizeLabel = (size: string): string => (size.startsWith("auto:") ? "Auto" : size);
+
 export default function GalleryPage() {
   const [items, setItems] = useState<GalleryItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -193,7 +196,7 @@ export default function GalleryPage() {
                         <div className="absolute top-1.5 right-1.5 flex items-center gap-1 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity duration-300 pointer-events-none">
                           {item.size && (
                             <span className="text-[9px] font-mono font-medium text-white/95 px-1.5 py-0.5 rounded-md bg-black/55 backdrop-blur-sm">
-                              {item.size}
+                              {sizeLabel(item.size)}
                             </span>
                           )}
                           {dimensions[item.id] && (
@@ -274,7 +277,7 @@ export default function GalleryPage() {
                 {/* 元数据 chips：比例 / 分辨率 / 模型 */}
                 <div className="flex flex-wrap items-center gap-1.5 shrink-0">
                   {preview.size && (
-                    <Badge className="text-[10px] h-5 px-2 bg-white/10 text-white/80 border-0 font-mono">{preview.size}</Badge>
+                    <Badge className="text-[10px] h-5 px-2 bg-white/10 text-white/80 border-0 font-mono">{sizeLabel(preview.size)}</Badge>
                   )}
                   {dimensions[preview.id] && (
                     <Badge className="text-[10px] h-5 px-2 bg-white/10 text-white/80 border-0 font-mono">{dimensions[preview.id]}</Badge>

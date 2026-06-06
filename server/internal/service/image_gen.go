@@ -594,7 +594,33 @@ func appendSizeHint(prompt, size string) string {
 	if hint, ok := hints[size]; ok {
 		return prompt + ". " + hint
 	}
+	// Auto：复合值 "auto:宽x高"（展示层显示 Auto，引导层用真实像素按参考图比例出图）；
+	// 兼容历史裸像素串 "宽x高"。剥掉 auto: 前缀后统一按像素解析。
+	size = strings.TrimPrefix(size, "auto:")
+	if w, h, ok := parseWxH(size); ok {
+		return prompt + fmt.Sprintf(". IMPORTANT: Generate the image at exactly %dx%d pixels, matching the reference image's aspect ratio.", w, h)
+	}
 	return prompt
+}
+
+// parseWxH 解析 "宽x高"（如 1920x817，分隔符 x/X/*）为像素值；非法返回 ok=false。
+func parseWxH(s string) (w, h int, ok bool) {
+	sep := -1
+	for i := 0; i < len(s); i++ {
+		if s[i] == 'x' || s[i] == 'X' || s[i] == '*' {
+			sep = i
+			break
+		}
+	}
+	if sep <= 0 || sep >= len(s)-1 {
+		return 0, 0, false
+	}
+	wv, e1 := strconv.Atoi(s[:sep])
+	hv, e2 := strconv.Atoi(s[sep+1:])
+	if e1 != nil || e2 != nil || wv <= 0 || hv <= 0 {
+		return 0, 0, false
+	}
+	return wv, hv, true
 }
 
 func isAlphaNum(c byte) bool {

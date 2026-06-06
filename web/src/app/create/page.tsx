@@ -8,7 +8,7 @@ const {
   ImageIcon, Loader2, Wand2, X, Download, Trash2,
   CheckCircle, AlertCircle, Clock, Filter, Share2,
   Square, Monitor, Smartphone, Camera, MonitorDown, Tv, FileText,
-  Zap, Palette, Sparkles,
+  Zap, Palette, Sparkles, Maximize2,
 } = LucideIcons;
 import { useAuth } from "@/lib/auth";
 import { api, BASE } from "@/lib/api";
@@ -72,6 +72,26 @@ const refImageSrc = (img: string): string => {
   if (img.startsWith("/api/")) return img;
   return `data:${b64Mime(img)};base64,${img}`;
 };
+// size 展示：Auto 出图存为复合值 "auto:宽x高"。角标只显「Auto」，详情可显「Auto · 宽×高」。
+const sizeLabel = (size: string, withDim = false): string => {
+  if (size.startsWith("auto:")) {
+    const dim = size.slice(5).replace(/[xX*]/, "×");
+    return withDim && dim ? `Auto · ${dim}` : "Auto";
+  }
+  return size;
+};
+// hover 提示：复合值返回精确像素（宽×高），其余返回空串（无需 title）。
+const sizeTitle = (size: string): string => {
+  if (size.startsWith("auto:")) return size.slice(5).replace(/[xX*]/, "×");
+  return "";
+};
+// 解析 Auto 复合值 "auto:宽x高" 的像素；非 Auto 或解析失败返回 null。
+const autoDim = (size: string): { w: number; h: number } | null => {
+  if (!size.startsWith("auto:")) return null;
+  const m = size.slice(5).match(/^(\d+)[xX*](\d+)$/);
+  if (!m) return null;
+  return { w: parseInt(m[1], 10), h: parseInt(m[2], 10) };
+};
 
 export default function CreatePage() {
   const { user, loading: authLoading } = useAuth();
@@ -86,6 +106,7 @@ export default function CreatePage() {
   const [generations, setGenerations] = useState<any[]>([]);
   const [previewGen, setPreviewGen] = useState<any>(null);
   const [refImages, setRefImages] = useState<string[]>([]);
+  const [refDim, setRefDim] = useState<{ w: number; h: number } | null>(null); // 首张参考图真实尺寸（Auto 用）
   const [fusionMode, setFusionMode] = useState(false);
   const [sizeOpen, setSizeOpen] = useState(false);
   const sizeBtnRef = useRef<HTMLButtonElement>(null);
@@ -298,6 +319,14 @@ export default function CreatePage() {
       .catch(() => {});
   }, []);
 
+  // 参考图清空时：重置首图尺寸；若当前选了 Auto 则回退 1:1（Auto 仅在有参考图时有意义）
+  useEffect(() => {
+    if (refImages.length === 0) {
+      setRefDim(null);
+      setSize(s => (s === "auto" ? "1:1" : s));
+    }
+  }, [refImages.length]);
+
   // 生成轮询：拉第 1 页，合并而非覆盖——更新已加载项状态、prepend 新项、刷新 total
   const pollUpdate = async (): Promise<any[]> => {
     const r = await api<any>(`/api/generations?page=1&page_size=${PAGE_SIZE}`);
@@ -326,7 +355,9 @@ export default function CreatePage() {
     for (let attempt = 0; ; attempt++) {
       if (signal?.canceled) return [];
       try {
-        const body: any = { prompt, model: "gpt-image-2", size, count: 1 };
+        // Auto：存复合值 "auto:宽x高"（展示层显示 Auto，后端按像素引导原图比例）；无尺寸则回退 1:1
+        const effSize = size === "auto" ? (refDim ? `auto:${refDim.w}x${refDim.h}` : "1:1") : size;
+        const body: any = { prompt, model: "gpt-image-2", size: effSize, count: 1 };
         if (refB64.length > 0) body.ref_images_b64 = refB64;
         const res = await api<any>("/api/generations", { method: "POST", body: JSON.stringify(body) });
         return res.data.ids || [res.data.id];
@@ -445,8 +476,10 @@ export default function CreatePage() {
   const editGen = async (e: React.MouseEvent, g: any) => {
     e.stopPropagation();
     setCurrentInput(g.prompt); setTags([""]); setTagCounts({}); setActiveStyle(null);
-    
-    setSize(g.size || "1:1");
+
+    // Auto 复合值（auto:宽x高）：size 留待参考图载入后再设为 "auto"（否则会被空参考图的回退逻辑打回 1:1）
+    const dim = autoDim(g.size || "");
+    setSize(dim ? "1:1" : (g.size || "1:1"));
     setFusionMode(false);
     inputRef.current?.focus();
     // 将已有作品作为参考图：必须取回真实图片数据转成裸 base64，
@@ -460,7 +493,11 @@ export default function CreatePage() {
         reader.onerror = reject;
         reader.readAsDataURL(blob);
       });
-      if (b64) setRefImages([b64]);
+      if (b64) {
+        setRefImages([b64]);
+        // 参考图就位后再恢复 Auto，并直接用复合值里的真实像素填 refDim
+        if (dim) { setRefDim(dim); setSize("auto"); }
+      }
     } catch {
       toast.error("载入参考图失败");
     }
@@ -671,6 +708,18 @@ export default function CreatePage() {
                   <div className="flex items-center gap-1 sm:gap-2 sm:flex-wrap overflow-x-auto scrollbar-hide overscroll-x-contain -mx-1 px-1 py-0.5">
                     {/* Size pills — common + more dropdown */}
                     <div className="flex items-center gap-1 shrink-0">
+                      {/* Auto：跟随参考图比例，仅图生图/有参考图时可选 */}
+                      {refImages.length > 0 && (
+                        <button onClick={() => setSize("auto")} title={refDim ? `跟随参考图 ${refDim.w}×${refDim.h}` : "跟随参考图比例"}
+                          className={`flex items-center gap-1 px-2.5 py-1.5 sm:px-2 sm:py-1 rounded-md text-[11px] sm:text-[10px] font-medium transition-colors shrink-0 touch-manipulation ${
+                            size === "auto"
+                              ? "bg-[#1a1a18] dark:bg-white text-white dark:text-[#1a1a18] shadow-sm"
+                              : "text-[#9e9d98] dark:text-[#6b6a66] hover:text-[#1a1a18] dark:hover:text-white hover:bg-[#f0efe8] dark:hover:bg-[#252521]"
+                          }`}>
+                          <Maximize2 className="w-3 h-3 sm:w-2.5 sm:h-2.5" />
+                          <span>Auto</span>
+                        </button>
+                      )}
                       {SIZES.slice(0, 5).map(s => {
                         const Icon = s.icon;
                         return (
@@ -687,7 +736,7 @@ export default function CreatePage() {
                       <div className="relative shrink-0">
                         <button ref={sizeBtnRef} onClick={toggleSizeMenu}
                           className={`flex items-center gap-1 px-2.5 py-1.5 sm:px-2 sm:py-1 rounded-md text-[11px] sm:text-[10px] font-medium transition-colors touch-manipulation ${
-                            !SIZES.slice(0, 5).find(s => s.id === size)
+                            size !== "auto" && !SIZES.slice(0, 5).find(s => s.id === size)
                               ? "bg-[#1a1a18] dark:bg-white text-white dark:text-[#1a1a18] shadow-sm"
                               : "text-[#9e9d98] dark:text-[#6b6a66] hover:text-[#1a1a18] dark:hover:text-white hover:bg-[#f0efe8] dark:hover:bg-[#252521]"
                           }`}>
@@ -738,7 +787,8 @@ export default function CreatePage() {
                       <div className="flex items-center gap-1 shrink-0">
                         {refImages.map((img, idx) => (
                           <div key={idx} className="relative">
-                            <img src={refImageSrc(img)} className="w-6 h-6 rounded object-cover ring-1 ring-[#e0dfd8] dark:ring-[#2a2a25]" />
+                            <img src={refImageSrc(img)} className="w-6 h-6 rounded object-cover ring-1 ring-[#e0dfd8] dark:ring-[#2a2a25]"
+                              onLoad={idx === 0 ? (e) => { const im = e.currentTarget; if (im.naturalWidth && im.naturalHeight) setRefDim({ w: im.naturalWidth, h: im.naturalHeight }); } : undefined} />
                             <button onClick={() => setRefImages(refImages.filter((_, i) => i !== idx))} className="absolute -top-1 -right-1 w-3 h-3 rounded-full bg-[#1a1a18] dark:bg-white text-white dark:text-[#1a1a18] flex items-center justify-center text-[6px]">×</button>
                           </div>
                         ))}
@@ -913,7 +963,7 @@ export default function CreatePage() {
                             <p className="text-[11px] text-white/90 line-clamp-2 mb-2 leading-relaxed">{g.prompt}</p>
                             <div className="flex items-center justify-between">
                               <div className="flex items-center gap-1.5">
-                                {g.size && <span className="text-[10px] px-1 py-0.5 rounded bg-white/15 text-white/70 font-mono">{g.size}</span>}
+                                {g.size && <span title={sizeTitle(g.size)} className="text-[10px] px-1 py-0.5 rounded bg-white/15 text-white/70 font-mono">{sizeLabel(g.size)}</span>}
                                 <span className="text-[10px] text-white/40">{g.created_at?.slice(5, 16)}</span>
                               </div>
                               <div className="flex items-center gap-0.5">
@@ -1046,7 +1096,7 @@ export default function CreatePage() {
                 <div className="p-3 sm:p-4 space-y-2 sm:space-y-3">
                   <p className="text-xs sm:text-sm text-[#1a1a18] dark:text-white leading-relaxed line-clamp-2 sm:line-clamp-3">{previewGen.prompt}</p>
                   <div className="flex items-center gap-2">
-                    {previewGen.size && <span className="text-[10px] px-1.5 py-0.5 rounded bg-[#f0efe8] dark:bg-[#252521] text-[#6b6a66] dark:text-[#9e9d98] font-mono">{previewGen.size}</span>}
+                    {previewGen.size && <span className="text-[10px] px-1.5 py-0.5 rounded bg-[#f0efe8] dark:bg-[#252521] text-[#6b6a66] dark:text-[#9e9d98] font-mono">{sizeLabel(previewGen.size, true)}</span>}
                     <span className="text-[10px] text-[#c0bfb8] dark:text-[#4a4a45]">{previewGen.created_at?.slice(5, 16)}</span>
                   </div>
                   {/* Action buttons — mobile: icons only, desktop: icon + label */}
