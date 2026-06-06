@@ -29,6 +29,10 @@ export default function LoginPage() {
       toast.success("注册成功，请登录");
       window.history.replaceState({}, "", "/login");
     }
+    if (params.get("reset") === "1") {
+      toast.success("密码已重置，请用新密码登录");
+      window.history.replaceState({}, "", "/login");
+    }
   }, []);
 
   useEffect(() => {
@@ -126,9 +130,11 @@ export default function LoginPage() {
 
           {/* Password */}
           <div className="space-y-1.5">
-            <label className="text-[11px] font-medium text-zinc-500 dark:text-zinc-400 flex items-center gap-1.5">
-              <Lock className="w-3 h-3" />
-              密码
+            <label className="text-[11px] font-medium text-zinc-500 dark:text-zinc-400 flex items-center justify-between">
+              <span className="flex items-center gap-1.5"><Lock className="w-3 h-3" /> 密码</span>
+              {mode === "user" && (
+                <Link href="/forgot-password" className="text-[11px] font-normal text-cyan-600 dark:text-cyan-400 hover:underline">忘记密码？</Link>
+              )}
             </label>
             <div className="relative">
               <Input

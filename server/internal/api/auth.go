@@ -187,6 +187,48 @@ func (h *Handler) VerifyEmailCode(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, 200, model.APIResponse{Code: 200, Message: "验证成功"})
 }
 
+// POST /api/auth/reset-password — 凭邮箱验证码重置密码（忘记密码）
+func (h *Handler) ResetPassword(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Email    string `json:"email"`
+		Code     string `json:"code"`
+		Password string `json:"password"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Email == "" || req.Code == "" || req.Password == "" {
+		writeJSON(w, 400, model.APIResponse{Code: 400, Message: "参数错误"})
+		return
+	}
+	if len(req.Password) < 6 {
+		writeJSON(w, 400, model.APIResponse{Code: 400, Message: "新密码至少 6 位"})
+		return
+	}
+	// 与发码一致的标准化，否则验证码 key 不匹配
+	email := h.normalizeEmail(strings.TrimSpace(strings.ToLower(req.Email)))
+
+	// 校验验证码（复用注册/发码的防爆破体系）
+	ok, _ := h.Redis.VerifyEmailCode(email, req.Code)
+	if !ok {
+		writeJSON(w, 400, model.APIResponse{Code: 400, Message: "验证码错误或已过期"})
+		return
+	}
+
+	// 查用户（不存在也返回成功文案，避免邮箱枚举）
+	user, _ := h.MySQL.GetUserByEmail(email)
+	if user == nil {
+		writeJSON(w, 200, model.APIResponse{Code: 200, Message: "密码已重置，请用新密码登录"})
+		return
+	}
+
+	hash, _ := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
+	if err := h.MySQL.ResetUserPassword(user.ID, string(hash)); err != nil {
+		writeJSON(w, 500, model.APIResponse{Code: 500, Message: "重置失败，请重试"})
+		return
+	}
+	// 重置成功：清除验证码 + 踢掉该用户所有活跃会话（强制用新密码重登）
+	h.Redis.ClearEmailCode(email)
+	writeJSON(w, 200, model.APIResponse{Code: 200, Message: "密码已重置，请用新密码登录"})
+}
+
 func (h *Handler) UserRegister(w http.ResponseWriter, r *http.Request) {
 	var req model.UserRegisterRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
