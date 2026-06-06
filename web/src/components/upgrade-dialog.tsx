@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Zap, Coins, Clock, Check, ArrowRight, Hash } from "lucide-react";
+import { Zap, Coins, Clock, Check, ArrowRight, Hash, Gauge } from "lucide-react";
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -176,6 +176,7 @@ export function UpgradeDialog({ open, onClose, currentPlanName, currentPlanId, o
                     <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-muted-foreground">
                       <span className="flex items-center gap-1"><Zap className="size-3 text-cyan-500/70" /> 并发 {plan.concurrency}</span>
                       <span className="flex items-center gap-1"><Coins className="size-3 text-cyan-500/70" /> {plan.token_capacity} 令牌</span>
+                      <span className="flex items-center gap-1"><Gauge className="size-3 text-cyan-500/70" /> {plan.rate_limit_per_min || 600} 次/分</span>
                       <span className="flex items-center gap-1"><Clock className="size-3 text-cyan-500/70" /> {billing === "yearly" ? (plan.duration_days_yearly > 0 ? plan.duration_days_yearly + "天" : "永久") : plan.duration_days + "天"}</span>
                     </div>
                   </button>

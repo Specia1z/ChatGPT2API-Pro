@@ -55,8 +55,9 @@ mux.Handle("POST /api/user/points/exchange", middleware.RateLimit(userAuth(http.
 	// 公开公告（顶部 Banner）
 	mux.HandleFunc("GET /api/announcements", h.ListActiveAnnouncements)
 
-	// API v1 (API Key 认证)：IP 粗限流 + 按 uid 精确限流（防多 IP 绕过）
-	apiUserRL := func(h http.Handler) http.Handler { return middleware.UserRateLimit(redis, 10, time.Second)(h) }
+	// API v1 (API Key 认证)：IP 粗限流 + 按 uid 精确限流（防多 IP 绕过）。
+	// 默认 600/min（≈原 10/s 等价），套餐可经 rate_limit_per_min 覆盖此值。
+	apiUserRL := func(h http.Handler) http.Handler { return middleware.UserRateLimit(redis, 600, time.Minute)(h) }
 	mux.Handle("POST /api/v1/images/generations", middleware.RateLimit(apiKeyAuth(apiUserRL(http.HandlerFunc(h.CreateGeneration)))))
 	mux.Handle("GET /api/v1/images/generations", apiKeyAuth(apiUserRL(http.HandlerFunc(h.GetUserGenerations))))
 	mux.Handle("GET /api/v1/user/tokens", apiKeyAuth(apiUserRL(http.HandlerFunc(h.GetUserTokens))))

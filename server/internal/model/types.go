@@ -148,6 +148,7 @@ type User struct {
 	PlanConcurrency      int        `json:"plan_concurrency,omitempty"`
 	TokenCapacity        int        `json:"token_capacity"`
 	TokenRefillPerHour   int        `json:"token_refill_per_hour"`
+	RateLimitPerMin      int        `json:"rate_limit_per_min,omitempty"`
 	CreatedAt            string     `json:"created_at"`
 }
 
@@ -180,6 +181,7 @@ type Plan struct {
 	Concurrency          int    `json:"concurrency"`
 	TokenCapacity        int    `json:"token_capacity"`
 	TokenRefillPerHour   int    `json:"token_refill_per_hour"`
+	RateLimitPerMin      int    `json:"rate_limit_per_min"` // API 每分钟请求上限；0=用默认 600/min
 	Features          string  `json:"features"`
 	SortOrder         int     `json:"sort_order"`
 	Highlighted  bool   `json:"highlighted"`

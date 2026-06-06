@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import { BASE } from "@/lib/api";
 import {
   ArrowRight, Check, Palette, Zap, Image, MessageCircle,
-  Shield, Banknote, Coins, Timer, Layers, Clock, Loader2, Sparkles
+  Shield, Banknote, Coins, Timer, Layers, Clock, Loader2, Sparkles, Gauge
 } from "lucide-react";
 import { Navbar } from "@/components/navbar";
 import { useAuth } from "@/lib/auth";
@@ -18,7 +18,7 @@ import { toast } from "sonner";
    Helpers
    ═══════════════════════════════════════════════ */
 
-const iconMap: Record<string, any> = { Coins, Timer, Layers, Clock, Check };
+const iconMap: Record<string, any> = { Coins, Timer, Layers, Clock, Check, Gauge };
 
 function buildFeatures(p: any, billing?: string) {
   const custom = (() => { try { return JSON.parse(p.features || "[]"); } catch { return []; } })();
@@ -26,9 +26,11 @@ function buildFeatures(p: any, billing?: string) {
   const cap = p.token_capacity || 50;
   const refill = p.token_refill_per_hour || 3;
   const conc = p.concurrency || 1;
+  const apiRate = p.rate_limit_per_min || 600;
   if (cap > 0) auto.push({ icon: "Coins", text: `图片额度 ${cap} 张` });
   if (refill > 0) auto.push({ icon: "Timer", text: `每小时恢复 ${refill} 张` });
   if (conc > 0) auto.push({ icon: "Layers", text: `同时生成 ${conc} 张` });
+  auto.push({ icon: "Gauge", text: `API 速率 ${apiRate} 次/分钟` });
   const durDays = billing === "yearly" ? (p.duration_days_yearly > 0 ? p.duration_days_yearly : 0) : p.duration_days;
   if (durDays > 0) {
     const dur = durDays >= 365 ? `${Math.round(durDays / 30)}个月` : `${durDays}天`;

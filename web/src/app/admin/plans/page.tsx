@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { Outfit, DM_Mono } from "next/font/google";
-import { Plus, Trash2, Star, Package, Zap, Coins, Timer, Edit2, Check } from "lucide-react";
+import { Plus, Trash2, Star, Package, Zap, Coins, Timer, Edit2, Check, Gauge } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
 import { AdminSidebar } from "@/components/admin-sidebar";
@@ -67,6 +67,7 @@ export default function PlansPage() {
   const newPlan = () => setEditing({
     id: 0, name: "新套餐", price_monthly: 0, price_yearly: 0, duration_days: 0,
     duration_days_yearly: 0, concurrency: 1, token_capacity: 50, token_refill_per_hour: 3,
+    rate_limit_per_min: 0,
     features: "[]", sort_order: plans.length, highlighted: false, enabled: true,
   });
 
@@ -156,11 +157,12 @@ export default function PlansPage() {
                       </div>
 
                       {/* 指标条 */}
-                      <div className="grid grid-cols-3 gap-1.5 sm:gap-2 mb-3 sm:mb-4">
+                      <div className="grid grid-cols-4 gap-1.5 sm:gap-2 mb-3 sm:mb-4">
                         {[
                           { icon: Zap, value: p.concurrency || 1, label: "并发", color: "text-primary", bg: "bg-primary/10" },
                           { icon: Coins, value: p.token_capacity || 50, label: "令牌", color: "text-emerald-500", bg: "bg-emerald-500/10" },
                           { icon: Timer, value: p.token_refill_per_hour || 3, label: "/小时", color: "text-blue-500", bg: "bg-blue-500/10" },
+                          { icon: Gauge, value: p.rate_limit_per_min || 600, label: "API/分", color: "text-violet-500", bg: "bg-violet-500/10" },
                         ].map(m => (
                           <div key={m.label} className="rounded-xl bg-muted/40 p-2 sm:p-2.5 text-center">
                             <div className={`size-6 sm:size-7 rounded-lg ${m.bg} flex items-center justify-center mx-auto mb-1 sm:mb-1.5`}>
@@ -291,6 +293,14 @@ export default function PlansPage() {
                       value={editing[f.key]} onChange={e => setEditing({ ...editing, [f.key]: +e.target.value })} className={`${mono.className} text-sm`} />
                   </div>
                 ))}
+              </div>
+
+              {/* API 限流速率 */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-muted-foreground flex items-center gap-1"><Gauge className="size-3" /> API 限流速率（每分钟请求数）</label>
+                <Input type="number" min={0} value={editing.rate_limit_per_min ?? 0}
+                  onChange={e => setEditing({ ...editing, rate_limit_per_min: +e.target.value })} className={`${mono.className} text-sm`} />
+                <p className="text-[10px] text-muted-foreground">通过 API Key 调用 /v1 接口的每分钟请求上限。0 = 使用默认 600/分钟。需求量大的套餐可调高。</p>
               </div>
 
               <div className="space-y-1.5">

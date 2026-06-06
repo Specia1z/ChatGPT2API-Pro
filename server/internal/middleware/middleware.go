@@ -16,6 +16,10 @@ type contextKey string
 const AdminIDKey contextKey = "admin_id"
 const UserIDKey contextKey = "user_id"
 
+// RateLimitKey 携带当前用户套餐的 API 每分钟请求上限（0=用默认）。
+// 由 ApiKeyAuth 从已查出的用户套餐写入，供 UserRateLimit 取用，避免限流中间件二次查库。
+const RateLimitKey contextKey = "rate_limit_per_min"
+
 // allowedOrigins 启动时从环境变量 ALLOWED_ORIGINS（逗号分隔）读取，叠加默认的本地开发来源。
 // 同源部署（Nginx 统一入口）下浏览器不发跨域请求，本配置仅用于跨域直连/调试场景。
 var allowedOrigins = func() map[string]bool {
@@ -123,6 +127,8 @@ func ApiKeyAuth(mysql *store.MySQLStore) func(http.Handler) http.Handler {
 			// 更新最后使用时间
 			mysql.UpdateAPIKeyLastUsed(key)
 			ctx := context.WithValue(r.Context(), UserIDKey, user.ID)
+			// 把套餐限速带入 context，供 UserRateLimit 取用（0=默认）
+			ctx = context.WithValue(ctx, RateLimitKey, user.RateLimitPerMin)
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}

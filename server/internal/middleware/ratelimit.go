@@ -66,6 +66,9 @@ func RateLimit(next http.Handler) http.Handler {
 // UserRateLimit 按用户维度限流（用于 API Key 认证的接口）。
 // 必须在 ApiKeyAuth/UserAuth 之后，从 context 取 uid；取不到则回退按 IP。
 // 解决 IP 限流被同一 Key 多 IP 绕过的问题。
+//
+// limit 为兜底默认值（每 window 的请求数）；若 context 里带有套餐配置的
+// RateLimitKey(>0)，则按套餐值放宽/收紧——让高需求用户买更高套餐获得更高限速。
 func UserRateLimit(redis *store.RedisStore, limit int, window time.Duration) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -75,7 +78,12 @@ func UserRateLimit(redis *store.RedisStore, limit int, window time.Duration) fun
 			} else {
 				key = "ip:" + ClientIP(r)
 			}
-			if redis != nil && !redis.AllowRate(key, limit, window) {
+			// 套餐自定义限速优先（0 或缺失则用默认 limit）
+			effLimit := limit
+			if pl, ok := r.Context().Value(RateLimitKey).(int); ok && pl > 0 {
+				effLimit = pl
+			}
+			if redis != nil && !redis.AllowRate(key, effLimit, window) {
 				w.Header().Set("Retry-After", "1")
 				http.Error(w, `{"code":429,"message":"请求过于频繁，请稍后再试"}`, http.StatusTooManyRequests)
 				return

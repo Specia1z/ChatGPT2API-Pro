@@ -97,6 +97,7 @@ func (s *MySQLStore) autoMigrate() {
 		duration_days_yearly INT DEFAULT 0,
 		token_capacity INT DEFAULT 50,
 		token_refill_per_hour INT DEFAULT 3,
+		rate_limit_per_min INT NOT NULL DEFAULT 0,
 		concurrency INT NOT NULL DEFAULT 1,
 		features JSON,
 		sort_order INT NOT NULL DEFAULT 0,
@@ -157,6 +158,10 @@ func (s *MySQLStore) autoMigrate() {
 	// 全部用 information_schema 存在性判断，保证幂等——避免每次启动 DROP/重建列导致
 	// 唯一索引被连带拆除（退化为 UNIQUE(user_id) 会让用户次日无法签到）及全表重建。
 	dbName := s.currentDBName()
+	// 套餐 API 限流速率列（每分钟请求上限，0=用默认 600/min）。守卫 ALTER 避免已有库重启噪音。
+	if !s.columnExists(dbName, "plans", "rate_limit_per_min") {
+		s.db.Exec("ALTER TABLE plans ADD COLUMN rate_limit_per_min INT NOT NULL DEFAULT 0 AFTER token_refill_per_hour")
+	}
 	// 1. 清理历史遗留的旧函数索引（如存在）
 	if s.indexExists(dbName, "checkins", "idx_user_checkin_day") {
 		s.db.Exec("ALTER TABLE checkins DROP INDEX idx_user_checkin_day")
@@ -1036,8 +1041,8 @@ func (s *MySQLStore) GetLastCheckinStreak(userID int64) (int, error) {
 
 func (s *MySQLStore) GetUserByID(id int64) (*model.User, error) {
 	var u model.User
-	err := s.db.QueryRow(`SELECT u.id, u.email, u.password_hash, COALESCE(u.name,''), u.points, u.status, COALESCE(u.ban_reason,''), u.plan_id, u.subscription_expires_at, u.cooldown_until, COALESCE(NULLIF(p2.concurrency,0),1), COALESCE(NULLIF(p2.token_capacity,0),50), COALESCE(NULLIF(p2.token_refill_per_hour,0),3), COALESCE(p2.name,''), u.created_at FROM users u LEFT JOIN plans p2 ON (CASE WHEN u.subscription_expires_at IS NOT NULL AND u.subscription_expires_at < NOW() THEN NULL ELSE u.plan_id END) = p2.id WHERE u.id=?`,
-		id).Scan(&u.ID, &u.Email, &u.PasswordHash, &u.Name, &u.Points, &u.Status, &u.BanReason, &u.PlanID, &u.SubscriptionExpiresAt, &u.CooldownUntil, &u.PlanConcurrency, &u.TokenCapacity, &u.TokenRefillPerHour, &u.PlanName, &u.CreatedAt)
+	err := s.db.QueryRow(`SELECT u.id, u.email, u.password_hash, COALESCE(u.name,''), u.points, u.status, COALESCE(u.ban_reason,''), u.plan_id, u.subscription_expires_at, u.cooldown_until, COALESCE(NULLIF(p2.concurrency,0),1), COALESCE(NULLIF(p2.token_capacity,0),50), COALESCE(NULLIF(p2.token_refill_per_hour,0),3), COALESCE(p2.rate_limit_per_min,0), COALESCE(p2.name,''), u.created_at FROM users u LEFT JOIN plans p2 ON (CASE WHEN u.subscription_expires_at IS NOT NULL AND u.subscription_expires_at < NOW() THEN NULL ELSE u.plan_id END) = p2.id WHERE u.id=?`,
+		id).Scan(&u.ID, &u.Email, &u.PasswordHash, &u.Name, &u.Points, &u.Status, &u.BanReason, &u.PlanID, &u.SubscriptionExpiresAt, &u.CooldownUntil, &u.PlanConcurrency, &u.TokenCapacity, &u.TokenRefillPerHour, &u.RateLimitPerMin, &u.PlanName, &u.CreatedAt)
 	if err == sql.ErrNoRows { return nil, nil }
 	if err != nil { return nil, err }
 	return &u, nil
@@ -1106,8 +1111,8 @@ func (s *MySQLStore) UpdateAPIKeyLastUsed(apiKey string) {
 
 func (s *MySQLStore) GetUserByAPIKey(apiKey string) (*model.User, error) {
 	var u model.User
-	err := s.db.QueryRow(`SELECT u.id, u.email, u.password_hash, COALESCE(u.name,''), u.points, u.status, u.plan_id, u.subscription_expires_at, u.cooldown_until, COALESCE(NULLIF(p2.concurrency,0),1), COALESCE(NULLIF(p2.token_capacity,0),50), COALESCE(NULLIF(p2.token_refill_per_hour,0),3), COALESCE(p2.name,''), u.created_at FROM users u JOIN user_api_keys k ON u.id=k.user_id LEFT JOIN plans p2 ON u.plan_id=p2.id WHERE k.api_key=? AND k.enabled=1 AND u.status=1 AND (u.subscription_expires_at IS NULL OR u.subscription_expires_at > NOW())`,
-		apiKey).Scan(&u.ID, &u.Email, &u.PasswordHash, &u.Name, &u.Points, &u.Status, &u.PlanID, &u.SubscriptionExpiresAt, &u.CooldownUntil, &u.PlanConcurrency, &u.TokenCapacity, &u.TokenRefillPerHour, &u.PlanName, &u.CreatedAt)
+	err := s.db.QueryRow(`SELECT u.id, u.email, u.password_hash, COALESCE(u.name,''), u.points, u.status, u.plan_id, u.subscription_expires_at, u.cooldown_until, COALESCE(NULLIF(p2.concurrency,0),1), COALESCE(NULLIF(p2.token_capacity,0),50), COALESCE(NULLIF(p2.token_refill_per_hour,0),3), COALESCE(p2.rate_limit_per_min,0), COALESCE(p2.name,''), u.created_at FROM users u JOIN user_api_keys k ON u.id=k.user_id LEFT JOIN plans p2 ON u.plan_id=p2.id WHERE k.api_key=? AND k.enabled=1 AND u.status=1 AND (u.subscription_expires_at IS NULL OR u.subscription_expires_at > NOW())`,
+		apiKey).Scan(&u.ID, &u.Email, &u.PasswordHash, &u.Name, &u.Points, &u.Status, &u.PlanID, &u.SubscriptionExpiresAt, &u.CooldownUntil, &u.PlanConcurrency, &u.TokenCapacity, &u.TokenRefillPerHour, &u.RateLimitPerMin, &u.PlanName, &u.CreatedAt)
 	if err == sql.ErrNoRows { return nil, nil }
 	if err != nil { return nil, err }
 	return &u, nil
@@ -1247,13 +1252,13 @@ func (s *MySQLStore) SaveSchedulerConfig(maxGlobal, maxPerUser int) error {
 func (s *MySQLStore) ListPlans(enabledOnly bool) ([]model.Plan, error) {
 	where := ""
 	if enabledOnly { where = " WHERE enabled=1" }
-	rows, err := s.db.Query("SELECT id, name, price_monthly, price_yearly, duration_days, COALESCE(duration_days_yearly,0), concurrency, token_capacity, token_refill_per_hour, COALESCE(features,'[]'), sort_order, highlighted, enabled, created_at FROM plans" + where + " ORDER BY sort_order")
+	rows, err := s.db.Query("SELECT id, name, price_monthly, price_yearly, duration_days, COALESCE(duration_days_yearly,0), concurrency, token_capacity, token_refill_per_hour, COALESCE(rate_limit_per_min,0), COALESCE(features,'[]'), sort_order, highlighted, enabled, created_at FROM plans" + where + " ORDER BY sort_order")
 	if err != nil { return nil, err }
 	defer rows.Close()
 	var plans []model.Plan
 	for rows.Next() {
 		var p model.Plan
-		rows.Scan(&p.ID, &p.Name, &p.PriceMonthly, &p.PriceYearly, &p.DurationDays, &p.DurationDaysYearly, &p.Concurrency, &p.TokenCapacity, &p.TokenRefillPerHour, &p.Features, &p.SortOrder, &p.Highlighted, &p.Enabled, &p.CreatedAt)
+		rows.Scan(&p.ID, &p.Name, &p.PriceMonthly, &p.PriceYearly, &p.DurationDays, &p.DurationDaysYearly, &p.Concurrency, &p.TokenCapacity, &p.TokenRefillPerHour, &p.RateLimitPerMin, &p.Features, &p.SortOrder, &p.Highlighted, &p.Enabled, &p.CreatedAt)
 		plans = append(plans, p)
 	}
 	if err := rows.Err(); err != nil {
@@ -1263,16 +1268,16 @@ func (s *MySQLStore) ListPlans(enabledOnly bool) ([]model.Plan, error) {
 }
 
 func (s *MySQLStore) CreatePlan(p *model.Plan) (int64, error) {
-	res, err := s.db.Exec(`INSERT INTO plans (name, price_monthly, price_yearly, duration_days, duration_days_yearly, concurrency, token_capacity, token_refill_per_hour, features, sort_order, highlighted, enabled) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`,
-		p.Name, p.PriceMonthly, p.PriceYearly, p.DurationDays, p.DurationDaysYearly, p.Concurrency, p.TokenCapacity, p.TokenRefillPerHour, p.Features, p.SortOrder, p.Highlighted, p.Enabled)
+	res, err := s.db.Exec(`INSERT INTO plans (name, price_monthly, price_yearly, duration_days, duration_days_yearly, concurrency, token_capacity, token_refill_per_hour, rate_limit_per_min, features, sort_order, highlighted, enabled) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+		p.Name, p.PriceMonthly, p.PriceYearly, p.DurationDays, p.DurationDaysYearly, p.Concurrency, p.TokenCapacity, p.TokenRefillPerHour, p.RateLimitPerMin, p.Features, p.SortOrder, p.Highlighted, p.Enabled)
 	if err != nil { return 0, err }
 	return res.LastInsertId()
 }
 
 func (s *MySQLStore) UpdatePlan(p *model.Plan) error {
 	_, err := s.db.Exec(
-		`UPDATE plans SET name=?, price_monthly=?, price_yearly=?, duration_days=?, duration_days_yearly=?, concurrency=?, token_capacity=?, token_refill_per_hour=?, features=?, sort_order=?, highlighted=?, enabled=? WHERE id=?`,
-		p.Name, p.PriceMonthly, p.PriceYearly, p.DurationDays, p.DurationDaysYearly, p.Concurrency, p.TokenCapacity, p.TokenRefillPerHour, p.Features, p.SortOrder, p.Highlighted, p.Enabled, p.ID)
+		`UPDATE plans SET name=?, price_monthly=?, price_yearly=?, duration_days=?, duration_days_yearly=?, concurrency=?, token_capacity=?, token_refill_per_hour=?, rate_limit_per_min=?, features=?, sort_order=?, highlighted=?, enabled=? WHERE id=?`,
+		p.Name, p.PriceMonthly, p.PriceYearly, p.DurationDays, p.DurationDaysYearly, p.Concurrency, p.TokenCapacity, p.TokenRefillPerHour, p.RateLimitPerMin, p.Features, p.SortOrder, p.Highlighted, p.Enabled, p.ID)
 	return err
 }
 
