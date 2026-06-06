@@ -83,10 +83,14 @@ func (h *Handler) ExchangePoints(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// 扣积分（原子条件更新防并发超扣）
-	remaining, err := h.MySQL.AddUserPoints(userID, -pointsCost)
+	// 扣积分（原子条件更新 points>=cost 才扣，防并发 TOCTOU 超扣）
+	remaining, ok, err := h.MySQL.DeductUserPoints(userID, pointsCost)
 	if err != nil {
 		writeJSON(w, 500, model.APIResponse{Code: 500, Message: "扣除积分失败"})
+		return
+	}
+	if !ok {
+		writeJSON(w, 400, model.APIResponse{Code: 400, Message: fmt.Sprintf("积分不足，需要 %d 积分（当前 %d）", pointsCost, remaining)})
 		return
 	}
 

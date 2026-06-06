@@ -401,6 +401,14 @@ func (s *MySQLStore) autoMigrate() {
 		INDEX idx_code (code),
 		INDEX idx_user_id (user_id)
 	) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`)
+	// 防同一用户重复兑换同一码：唯一约束兜底（应用层 CompleteRedeem 已在事务内查重）。
+	// 加约束前先清理存量重复记录，避免已有重复数据导致建索引失败。
+	if !s.indexExists(s.currentDBName(), "redeem_logs", "uniq_code_user") {
+		s.db.Exec(`DELETE r1 FROM redeem_logs r1
+			INNER JOIN redeem_logs r2
+			WHERE r1.redeem_code_id = r2.redeem_code_id AND r1.user_id = r2.user_id AND r1.id > r2.id`)
+		s.db.Exec("CREATE UNIQUE INDEX uniq_code_user ON redeem_logs (redeem_code_id, user_id)")
+	}
 	s.db.Exec(`CREATE TABLE IF NOT EXISTS coupon_codes (
 		id BIGINT AUTO_INCREMENT PRIMARY KEY,
 		code VARCHAR(32) NOT NULL UNIQUE,
@@ -915,6 +923,26 @@ func (s *MySQLStore) AddUserPoints(id int64, delta int) (int, error) {
 	return pts, nil
 }
 
+// DeductUserPoints 原子扣减积分：仅当余额充足（points >= cost）才扣减，
+// 防并发 TOCTOU 超扣。ok=false 表示余额不足未扣；返回扣减后余额。
+func (s *MySQLStore) DeductUserPoints(id int64, cost int) (remaining int, ok bool, err error) {
+	if cost <= 0 {
+		// 非扣减场景不应走此方法；直接读当前余额返回
+		s.db.QueryRow("SELECT points FROM users WHERE id=?", id).Scan(&remaining)
+		return remaining, true, nil
+	}
+	res, err := s.db.Exec("UPDATE users SET points = points - ? WHERE id=? AND points >= ?", cost, id, cost)
+	if err != nil { return 0, false, err }
+	n, _ := res.RowsAffected()
+	if n == 0 {
+		// 余额不足，未扣减
+		s.db.QueryRow("SELECT points FROM users WHERE id=?", id).Scan(&remaining)
+		return remaining, false, nil
+	}
+	s.db.QueryRow("SELECT points FROM users WHERE id=?", id).Scan(&remaining)
+	return remaining, true, nil
+}
+
 func (s *MySQLStore) ToggleUserStatus(id int64, reason string) error {
 	// 先读当前状态
 	var status int
@@ -1366,6 +1394,15 @@ func (s *MySQLStore) CompleteRedeem(codeID, userID int64, code string) (string, 
 		if time.Now().UTC().After(exp) {
 			return "", "", nil
 		}
+	}
+
+	// 防同一用户重复兑换同一码（事务内、持有码行锁时检查，避免并发重复领取）
+	var dup int
+	if err = tx.QueryRow("SELECT COUNT(*) FROM redeem_logs WHERE redeem_code_id=? AND user_id=?", codeID, userID).Scan(&dup); err != nil {
+		return "", "", err
+	}
+	if dup > 0 {
+		return "", "", nil
 	}
 
 	// 2. 递增使用次数

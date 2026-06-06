@@ -40,7 +40,7 @@ func NewRouter(mysql *store.MySQLStore, redis *store.RedisStore, cleaner *servic
 	mux.Handle("GET /api/user/tokens", userAuth(http.HandlerFunc(h.GetUserTokens)))
 mux.Handle("GET /api/user/stats", userAuth(http.HandlerFunc(h.GetUserStats)))
 mux.Handle("POST /api/user/change-password", userAuth(http.HandlerFunc(h.ChangePassword)))
-mux.Handle("POST /api/user/points/exchange", userAuth(http.HandlerFunc(h.ExchangePoints)))
+mux.Handle("POST /api/user/points/exchange", middleware.RateLimit(userAuth(http.HandlerFunc(h.ExchangePoints))))
 	mux.Handle("GET /api/generations", userAuth(http.HandlerFunc(h.GetUserGenerations)))
 	mux.Handle("POST /api/generations/share", userAuth(http.HandlerFunc(h.ToggleShare)))
 	mux.HandleFunc("GET /api/images/{id}", h.ServeGenerationImage)
