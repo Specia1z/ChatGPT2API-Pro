@@ -331,16 +331,14 @@ export default function RegisterPage() {
 
           {/* ═══ 终端：桌面侧栏 / 移动端抽屉 ═══ */}
           <div className={`
-            flex flex-col bg-card
-            /* Desktop side panel */
-            lg:w-[400px] lg:shrink-0 lg:border-l lg:relative lg:z-auto
-            /* Mobile bottom drawer */
-            fixed inset-x-0 bottom-0 z-50
-            border-t rounded-t-2xl
-            shadow-2xl
-            transition-transform duration-300 ease-in-out
-            ${consoleOpen ? 'translate-y-0' : 'translate-y-full'}
-            max-h-[70vh]
+            flex flex-col bg-card min-h-0
+            /* Desktop side panel：flex 流中的右侧栏 */
+            lg:w-[400px] lg:shrink-0 lg:border-l
+            /* Mobile bottom drawer：仅移动端做固定抽屉 */
+            max-lg:fixed max-lg:inset-x-0 max-lg:bottom-0 max-lg:z-50
+            max-lg:border-t max-lg:rounded-t-2xl max-lg:shadow-2xl
+            max-lg:max-h-[70vh] max-lg:transition-transform max-lg:duration-300 max-lg:ease-in-out
+            ${consoleOpen ? 'max-lg:translate-y-0' : 'max-lg:translate-y-full'}
           `}>
             {/* 拖拽手柄 — 移动端 */}
             <div className="flex lg:hidden items-center justify-center py-2 shrink-0 cursor-pointer" onClick={() => setConsoleOpen(false)}>
