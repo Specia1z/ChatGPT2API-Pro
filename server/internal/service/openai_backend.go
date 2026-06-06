@@ -128,8 +128,14 @@ func FetchUserInfo(accessToken, proxyURL string) (*UserInfoResult, error) {
 				if !ok { continue }
 				if fn, _ := lm["feature_name"].(string); fn != "image_gen" { continue }
 				if rem, ok := lm["remaining"].(float64); ok { result.Quota = int(rem) }
-				if ra, ok := lm["reset_after"].(string); ok { result.RestoreAt = ra
-				} else if rn, ok := lm["reset_after"].(float64); ok { result.RestoreAt = fmt.Sprintf("%.0fs", rn) }
+				// reset_after 上游通常是绝对时间戳（ISO8601，含微秒）。统一规整为「秒级 RFC3339」存库，
+				// 去掉抖动的微秒——否则每次刷新字符串都不同，前端 useEffect 会把倒计时复位。
+				// 同时兼容相对时长（秒数 / 1h2m3s）的历史/异常情况。
+				if rn, ok := lm["reset_after"].(float64); ok {
+					result.RestoreAt = time.Now().Add(time.Duration(rn) * time.Second).Format(time.RFC3339)
+				} else if ra, ok := lm["reset_after"].(string); ok {
+					result.RestoreAt = normalizeResetAt(ra)
+				}
 				result.ImageQuotaUnknown = false
 				break
 			}
@@ -149,6 +155,64 @@ func FetchUserInfo(accessToken, proxyURL string) (*UserInfoResult, error) {
 	}
 
 	return result, nil
+}
+
+// normalizeResetAt 规整上游的 reset_after 字符串为「秒级 RFC3339」绝对时间戳。
+// - 绝对时间戳（含 'T'，可能带微秒/时区）：解析后截断到秒重新格式化，消除微秒抖动。
+// - 相对时长（1h2m3s / 纯秒数）：按 now+时长 转为绝对时刻。
+// 解析失败返回空串。
+func normalizeResetAt(s string) string {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return ""
+	}
+	// 绝对时间戳：尝试多种布局解析，统一输出秒级 RFC3339
+	if strings.Contains(s, "T") {
+		layouts := []string{time.RFC3339Nano, time.RFC3339, "2006-01-02T15:04:05.999999-07:00", "2006-01-02T15:04:05"}
+		for _, l := range layouts {
+			if t, err := time.Parse(l, s); err == nil {
+				return t.Truncate(time.Second).Format(time.RFC3339)
+			}
+		}
+		return s // 无法解析则原样保留，至少不丢信息
+	}
+	// 相对时长
+	if secs := parseDurationSeconds(s); secs > 0 {
+		return time.Now().Add(time.Duration(secs) * time.Second).Format(time.RFC3339)
+	}
+	return ""
+}
+
+// parseDurationSeconds 解析 "1h2m3s" / "90m" / "3600s" / "3600"（纯数字按秒）为总秒数。
+func parseDurationSeconds(s string) int64 {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return 0
+	}
+	// 纯数字 → 按秒
+	if n, err := strconv.ParseInt(s, 10, 64); err == nil {
+		return n
+	}
+	var total, cur int64
+	matched := false
+	for _, c := range s {
+		switch {
+		case c >= '0' && c <= '9':
+			cur = cur*10 + int64(c-'0')
+		case c == 'h':
+			total += cur * 3600; cur = 0; matched = true
+		case c == 'm':
+			total += cur * 60; cur = 0; matched = true
+		case c == 's':
+			total += cur; cur = 0; matched = true
+		default:
+			// 忽略未知字符（如小数点/空格）
+		}
+	}
+	if !matched {
+		return 0
+	}
+	return total
 }
 
 // getChromeTransport 创建带 utls 的 transport。

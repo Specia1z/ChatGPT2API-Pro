@@ -58,29 +58,37 @@ const PLAN_STYLE: Record<string, string> = {
 };
 
 /* ── 恢复倒计时 ─────────────────────────────── */
+// 把 restore_at 解析为「目标恢复时刻」的毫秒时间戳；解析不出返回 null。
+// 兼容：绝对时间戳（ISO8601）、相对时长（1h2m3s）、纯数字秒、毫秒纪元。
+function parseRestoreTarget(value?: string): number | null {
+  if (!value) return null;
+  const m = value.match(/^(?:(\d+)h)?(?:(\d+)m)?(?:(\d+)s)?$/);
+  if (m && (m[1] || m[2] || m[3])) {
+    const secs = parseInt(m[1] || "0") * 3600 + parseInt(m[2] || "0") * 60 + parseInt(m[3] || "0");
+    return Date.now() + secs * 1000;
+  }
+  const d = new Date(value);
+  if (!isNaN(d.getTime())) return d.getTime();
+  if (/^\d+$/.test(value)) {
+    const n = parseInt(value);
+    return n > 1e12 ? n : Date.now() + n * 1000; // 大值按毫秒纪元，否则按相对秒
+  }
+  return null;
+}
+
 function RestoreTimer({ value }: { value?: string }) {
-  const [tick, setTick] = useState(0);
-  const totalRef = useRef(0);
+  // 目标恢复时刻（毫秒）。按「秒级」记忆为依赖，避免后端微秒抖动导致每次刷新复位。
+  const target = parseRestoreTarget(value);
+  const targetSec = target == null ? 0 : Math.floor(target / 1000);
+  const [, force] = useState(0);
   useEffect(() => {
-    setTick(0);
-    let total = 0;
-    if (!value) { totalRef.current = 0; return; }
-    // "3s" / "5m" / "2h" / "3h30m" / "1h30m30s" 等格式
-    const m = value.match(/^(?:(\d+)h)?(?:(\d+)m)?(?:(\d+)s)?$/);
-    if (m) {
-      total = (parseInt(m[1]||'0')*3600 + parseInt(m[2]||'0')*60 + parseInt(m[3]||'0'));
-    } else {
-      const d = new Date(value);
-      if (!isNaN(d.getTime())) { total = Math.max(0, Math.floor((d.getTime() - Date.now()) / 1000)); }
-      else if (/^\d+$/.test(value)) { const ms = parseInt(value); total = ms > 1e15 ? 0 : Math.max(0, Math.floor((ms - Date.now()) / 1000)); }
-    }
-    totalRef.current = total;
-    if (total <= 0) return;
-    const id = setInterval(() => setTick(n => n + 1), 1000);
+    if (!targetSec) return;
+    const id = setInterval(() => force(n => n + 1), 1000);
     return () => clearInterval(id);
-  }, [value]);
-  if (!value) return <span className="text-muted-foreground">—</span>;
-  const remaining = Math.max(0, totalRef.current - tick);
+  }, [targetSec]);
+
+  if (!value || !targetSec) return <span className="text-muted-foreground">—</span>;
+  const remaining = Math.max(0, Math.floor((targetSec * 1000 - Date.now()) / 1000));
   if (remaining <= 0) return <span className="text-emerald-500 text-xs">已恢复</span>;
   const d = Math.floor(remaining / 86400), h = Math.floor((remaining % 86400) / 3600), m = Math.floor((remaining % 3600) / 60), s = remaining % 60;
   const parts = []; if (d > 0) parts.push(`${d}天`); if (h > 0) parts.push(`${h}时`); if (m > 0) parts.push(`${m}分`); parts.push(`${s}秒`);
