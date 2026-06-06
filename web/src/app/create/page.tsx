@@ -1030,16 +1030,33 @@ export default function CreatePage() {
                         </div>
                       </>
                     ) : g.status === "pending" ? (
-                      <div className="ai-creating-border relative flex flex-col items-center justify-center gap-3 py-10 sm:py-16 bg-[#faf9f6] dark:bg-[#181814] overflow-hidden">
-                        {/* 内部柔光呼吸 — 暗示 AI 正在生成 */}
-                        <div aria-hidden className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-24 h-24 rounded-full blur-2xl bg-[#1a1a18]/20 dark:bg-white/20"
+                      <div className="ai-creating-border relative flex flex-col items-center justify-center gap-4 py-12 sm:py-16 bg-[#faf9f6] dark:bg-[#181814] overflow-hidden">
+                        {/* 光谱柔光呼吸底 */}
+                        <div aria-hidden className="absolute left-1/2 top-1/2 w-32 h-32 rounded-full blur-3xl bg-[radial-gradient(circle,rgba(34,211,238,0.35),rgba(99,102,241,0.2)_50%,transparent_70%)]"
                           style={{ animation: "aiGlowBreathe 2.8s ease-in-out infinite" }} />
-                        <div className="relative flex items-center gap-1.5">
-                          <span className="w-1.5 h-1.5 rounded-full bg-[#1a1a18] dark:bg-white"
-                            style={{ animation: "aiDotPulse 1.4s ease-in-out infinite" }} />
-                          <span className="text-[10px] text-[#6b6a66] dark:text-[#9e9d98] font-medium tracking-wide">AI 创作中</span>
+
+                        {/* 棱镜光球：旋转光谱光轮 + 中心亮点 */}
+                        <div className="relative w-11 h-11">
+                          <div aria-hidden className="absolute inset-0 rounded-full blur-[1px]"
+                            style={{ background: "conic-gradient(from 0deg,#22d3ee,#6366f1,#e879f9,#fbbf24,#22d3ee)", animation: "aiPrismSpin 2s linear infinite" }} />
+                          <div aria-hidden className="absolute inset-[3px] rounded-full bg-[#faf9f6] dark:bg-[#181814]" />
+                          <div aria-hidden className="absolute inset-1/2 -translate-x-1/2 -translate-y-1/2 w-3 h-3 rounded-full bg-white shadow-[0_0_10px_2px_rgba(34,211,238,0.7)]"
+                            style={{ animation: "aiDotPulse 1.6s ease-in-out infinite" }} />
                         </div>
-                        <span className="relative text-[10px] text-[#c0bfb8] dark:text-[#4a4a45]">约 10-30 秒</span>
+
+                        {/* 文案 + 思考三点 */}
+                        <div className="relative flex flex-col items-center gap-2">
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-[11px] text-[#6b6a66] dark:text-[#9e9d98] font-medium tracking-wide">AI 创作中</span>
+                            <span className="flex items-center gap-0.5">
+                              {[0, 1, 2].map(i => (
+                                <span key={i} className="w-1 h-1 rounded-full bg-gradient-to-r from-cyan-400 to-violet-500"
+                                  style={{ animation: `aiThinkDot 1.4s ease-in-out ${i * 0.2}s infinite` }} />
+                              ))}
+                            </span>
+                          </div>
+                          <span className="text-[10px] text-[#c0bfb8] dark:text-[#4a4a45]">约 10-30 秒</span>
+                        </div>
                       </div>
                     ) : (
                       <div className="flex flex-col items-center justify-center gap-3 py-10 sm:py-16 bg-[#faf9f6] dark:bg-[#181814]">
