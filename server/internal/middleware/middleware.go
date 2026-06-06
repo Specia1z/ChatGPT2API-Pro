@@ -74,7 +74,7 @@ func AdminAuth(redis *store.RedisStore) func(http.Handler) http.Handler {
 	}
 }
 
-func UserAuth(redis *store.RedisStore) func(http.Handler) http.Handler {
+func UserAuth(redis *store.RedisStore, mysql *store.MySQLStore) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			auth := r.Header.Get("Authorization")
@@ -86,6 +86,12 @@ func UserAuth(redis *store.RedisStore) func(http.Handler) http.Handler {
 			userID, err := redis.GetToken(r.Context(), "user:"+token)
 			if err != nil || userID == 0 {
 				writeJSON(w, http.StatusUnauthorized, map[string]any{"code": 401, "message": "登录已过期"})
+				return
+			}
+			// 封禁校验：用户被封后立即拒绝（即便 token 未过期），并清除其会话 token
+			if mysql != nil && !mysql.IsUserActive(userID) {
+				redis.DelToken(r.Context(), "user:"+token)
+				writeJSON(w, http.StatusForbidden, map[string]any{"code": 403, "message": "账号已被禁用"})
 				return
 			}
 			redis.ExpireToken(r.Context(), "user:"+token, 24*time.Hour)
