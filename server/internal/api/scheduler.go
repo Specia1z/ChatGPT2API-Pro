@@ -24,8 +24,18 @@ func (h *Handler) SetSchedulerConfig(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 400, model.APIResponse{Code: 400, Message: "参数错误"})
 		return
 	}
-	if req.MaxGlobal < 1 || req.MaxGlobal > 200 { req.MaxGlobal = 20 }
-	if req.MaxPerUser < 1 || req.MaxPerUser > 50 { req.MaxPerUser = 5 }
+	if req.MaxGlobal < 1 {
+		writeJSON(w, 400, model.APIResponse{Code: 400, Message: "全局并发上限必须 ≥ 1"})
+		return
+	}
+	if req.MaxPerUser < 1 {
+		writeJSON(w, 400, model.APIResponse{Code: 400, Message: "单用户并发上限必须 ≥ 1"})
+		return
+	}
+	if req.MaxPerUser > req.MaxGlobal {
+		writeJSON(w, 400, model.APIResponse{Code: 400, Message: "单用户并发上限不能超过全局并发上限"})
+		return
+	}
 
 	service.GetScheduler().SetMax(req.MaxGlobal, req.MaxPerUser)
 	writeJSON(w, 200, model.APIResponse{Code: 200, Data: service.GetScheduler().Stats()})

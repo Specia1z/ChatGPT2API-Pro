@@ -107,7 +107,7 @@ func (sc *StorageCleaner) RunOnce() {
 	totalDeleted := 0
 
 	for {
-		gens, err := sc.mysql.ListExpiredLocalGenerations(threshold, batch)
+		gens, err := sc.mysql.ListExpiredExternalGenerations(threshold, batch)
 		if err != nil {
 			log.Printf("[cleaner] list expired fail: %v", err)
 			return

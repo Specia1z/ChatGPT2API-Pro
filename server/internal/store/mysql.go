@@ -700,9 +700,10 @@ func (s *MySQLStore) DeleteUserGeneration(id, userID int64) error {
 	return nil
 }
 
-// ListExpiredLocalGenerations 取早于 before 的「外部存储」记录（image_url 非空），用于过期清理。
+// ListExpiredExternalGenerations 取早于 before 的「外部存储」记录（image_url 非空），用于过期清理。
+// 涵盖 local 与 s3 两种模式（两者都写 image_url），database 模式记录随行删除不在此列。
 // 跳过已分享到广场的图（shared=0），按 created_at 升序优先清理最旧的，limit 分批控制单次量。
-func (s *MySQLStore) ListExpiredLocalGenerations(before time.Time, limit int) ([]model.Generation, error) {
+func (s *MySQLStore) ListExpiredExternalGenerations(before time.Time, limit int) ([]model.Generation, error) {
 	rows, err := s.db.Query(
 		`SELECT id, user_id, COALESCE(image_url,'') FROM generations
 		 WHERE image_url IS NOT NULL AND image_url != '' AND shared=0 AND created_at < ?
