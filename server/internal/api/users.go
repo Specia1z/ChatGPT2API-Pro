@@ -60,6 +60,9 @@ func (h *Handler) ResetUserPassword(w http.ResponseWriter, r *http.Request) {
 		b := make([]byte, 8)
 		rand.Read(b)
 		req.Password = fmt.Sprintf("%x", b)
+	} else if len(req.Password) < 6 {
+		writeJSON(w, 400, model.APIResponse{Code: 400, Message: "密码至少 6 位"})
+		return
 	}
 	hash, _ := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
 	if err := h.MySQL.ResetUserPassword(req.ID, string(hash)); err != nil {
@@ -77,7 +80,23 @@ func (h *Handler) AdjustUserPoints(w http.ResponseWriter, r *http.Request) {
 		Delta int   `json:"delta"`
 	}
 	json.Unmarshal(body, &req)
-	pts, err := h.MySQL.AddUserPoints(req.ID, req.Delta)
+	if req.ID <= 0 || req.Delta == 0 {
+		writeJSON(w, 400, model.APIResponse{Code: 400, Message: "参数错误"})
+		return
+	}
+	var pts int
+	var err error
+	if req.Delta < 0 {
+		// 扣减：原子钳制不低于 0，余额不足则按现有余额全扣
+		var ok bool
+		pts, ok, err = h.MySQL.DeductUserPoints(req.ID, -req.Delta)
+		if err == nil && !ok {
+			// 余额不足请求扣减量：扣到 0
+			if pts > 0 { pts, _, err = h.MySQL.DeductUserPoints(req.ID, pts) }
+		}
+	} else {
+		pts, err = h.MySQL.AddUserPoints(req.ID, req.Delta)
+	}
 	if err != nil {
 		writeJSON(w, 500, model.APIResponse{Code: 500, Message: err.Error()})
 		return

@@ -44,13 +44,7 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	admin, err := h.MySQL.GetAdminByUsername(req.Username)
-	if err != nil || admin == nil {
-		writeJSON(w, 401, model.APIResponse{Code: 401, Message: "用户名或密码错误"})
-		return
-	}
-
-	// 防刷：5 次失败锁定 30 分钟（复用 Redis login_fail:{key}）
+	// 防刷：先查锁定（无论用户名是否存在都计失败数，消除用户名枚举差异）
 	key := "admin:" + req.Username
 	failCount, _ := h.Redis.GetLoginFail(r.Context(), key)
 	if failCount >= 5 {
@@ -59,7 +53,17 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := bcrypt.CompareHashAndPassword([]byte(admin.PasswordHash), []byte(req.Password)); err != nil {
+	admin, err := h.MySQL.GetAdminByUsername(req.Username)
+	// 用户名不存在或密码错误：统一计失败数 + 统一文案，不泄露用户名是否存在。
+	// 用户名不存在时也跑一次 bcrypt 假比较，抹平时序差异防用户名枚举。
+	pwOK := false
+	if err == nil && admin != nil {
+		pwOK = bcrypt.CompareHashAndPassword([]byte(admin.PasswordHash), []byte(req.Password)) == nil
+	} else {
+		// 固定合法 bcrypt hash，仅用于消耗与真实校验相当的计算时间（抹平时序）
+		bcrypt.CompareHashAndPassword([]byte("$2a$10$TMdt.HGIl7OlL3BWINXdOud7b9OpWVwaMh//PUx7diFCKUmFOvwwu"), []byte(req.Password))
+	}
+	if !pwOK {
 		n, _ := h.Redis.IncrLoginFail(r.Context(), key)
 		log.Printf("[admin-login] 失败 username=%s ip=%s 失败次数=%d", req.Username, r.RemoteAddr, n)
 		writeJSON(w, 401, model.APIResponse{Code: 401, Message: "用户名或密码错误"})
