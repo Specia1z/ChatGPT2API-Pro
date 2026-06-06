@@ -4,9 +4,10 @@ import { useState, useEffect, useRef } from "react";
 import { BASE } from "@/lib/api";
 import {
   ArrowRight, Check, Palette, Zap, Image, MessageCircle,
-  Shield, Banknote, Coins, Timer, Layers, Clock
+  Shield, Banknote, Coins, Timer, Layers, Clock, Loader2
 } from "lucide-react";
 import { Navbar } from "@/components/navbar";
+import { useAuth } from "@/lib/auth";
 import { PaymentDialog } from "@/components/payment-dialog";
 import { AnimatedPrice } from "@/components/animated-price";
 import Link from "next/link";
@@ -246,6 +247,9 @@ function FeatureCard({
    ═══════════════════════════════════════════════ */
 
 export default function HomePage() {
+  const { user, loading: authLoading } = useAuth();
+  // 已登录直达创作中心，未登录去注册
+  const ctaHref = user ? "/create" : "/register";
   const [billing, setBilling] = useState<"monthly" | "yearly">("monthly");
   const [plans, setPlans] = useState<any[]>([]);
   const [settings, setSettings] = useState<any>({
@@ -415,11 +419,22 @@ export default function HomePage() {
             {/* CTAs */}
             <div className="flex items-center gap-3 opacity-0 animate-[heroReveal_0.6s_ease-out_0.5s_forwards]">
               <Link
-                href="/register"
-                className="group inline-flex items-center gap-2 rounded-xl bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 px-7 h-11 text-sm font-semibold hover:-translate-y-0.5 hover:shadow-xl hover:shadow-zinc-900/15 dark:hover:shadow-zinc-100/15 transition-all duration-300"
+                href={ctaHref}
+                aria-disabled={authLoading}
+                onClick={(e) => { if (authLoading) e.preventDefault(); }}
+                className={`group inline-flex items-center gap-2 rounded-xl bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 px-7 h-11 text-sm font-semibold transition-all duration-300 ${authLoading ? "opacity-70 cursor-wait pointer-events-none" : "hover:-translate-y-0.5 hover:shadow-xl hover:shadow-zinc-900/15 dark:hover:shadow-zinc-100/15"}`}
               >
-                开始使用
-                <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
+                {authLoading ? (
+                  <>
+                    加载中
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  </>
+                ) : (
+                  <>
+                    {user ? "开始创作" : "开始使用"}
+                    <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
+                  </>
+                )}
               </Link>
               <Link
                 href="#features"
@@ -610,14 +625,25 @@ export default function HomePage() {
                   准备好开始创作了吗？
                 </h2>
                 <p className="text-sm text-zinc-500 dark:text-zinc-400 mb-6 max-w-sm">
-                  免费注册即可体验 AI 图片生成的无限可能
+                  {user ? "进入创作中心，开启你的 AI 图片生成之旅" : "免费注册即可体验 AI 图片生成的无限可能"}
                 </p>
                 <Link
-                  href="/register"
-                  className="group inline-flex items-center gap-2 rounded-xl bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 px-7 h-11 text-sm font-semibold hover:bg-zinc-800 dark:hover:bg-zinc-100 transition-all shadow-lg shadow-zinc-900/10 dark:shadow-white/10"
+                  href={ctaHref}
+                  aria-disabled={authLoading}
+                  onClick={(e) => { if (authLoading) e.preventDefault(); }}
+                  className={`group inline-flex items-center gap-2 rounded-xl bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 px-7 h-11 text-sm font-semibold transition-all shadow-lg shadow-zinc-900/10 dark:shadow-white/10 ${authLoading ? "opacity-70 cursor-wait pointer-events-none" : "hover:bg-zinc-800 dark:hover:bg-zinc-100"}`}
                 >
-                  免费开始
-                  <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform duration-300" />
+                  {authLoading ? (
+                    <>
+                      加载中
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    </>
+                  ) : (
+                    <>
+                      {user ? "开始创作" : "免费开始"}
+                      <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform duration-300" />
+                    </>
+                  )}
                 </Link>
               </div>
 
@@ -748,6 +774,12 @@ function PlanCard({
 }) {
   const { auto, custom } = buildFeatures(p, billing);
   const allFeatures = [...auto, ...custom.map((t: string) => ({ icon: "Check", text: t }))];
+  const { user, loading: authLoading } = useAuth();
+  // 免费方案：已登录直达创作中心，未登录去注册；付费方案走订阅页
+  const isFree = p.price_monthly === 0;
+  const planHref = isFree
+    ? (user ? "/create" : "/register")
+    : `/subscribe?plan_id=${p.id}&billing=${billing}`;
 
   return (
     <div
@@ -810,14 +842,18 @@ function PlanCard({
         </ul>
 
         <Link
-          href={p.price_monthly === 0 ? "/register" : `/subscribe?plan_id=${p.id}&billing=${billing}`}
-          className={`inline-flex items-center justify-center w-full rounded-xl text-xs font-semibold h-10 transition-all ${
+          href={planHref}
+          aria-disabled={isFree && authLoading}
+          onClick={(e) => { if (isFree && authLoading) e.preventDefault(); }}
+          className={`inline-flex items-center justify-center gap-1.5 w-full rounded-xl text-xs font-semibold h-10 transition-all ${
             p.highlighted
               ? "bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 hover:bg-zinc-800 dark:hover:bg-zinc-200 shadow-sm"
               : "border border-zinc-200 dark:border-zinc-700 text-zinc-600 dark:text-zinc-300 hover:border-zinc-300 dark:hover:border-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100"
-          }`}
+          } ${isFree && authLoading ? "opacity-70 cursor-wait pointer-events-none" : ""}`}
         >
-          {p.price_monthly === 0 ? "免费开始" : "立即订阅"}
+          {isFree && authLoading ? (
+            <>加载中<Loader2 className="w-3 h-3 animate-spin" /></>
+          ) : isFree ? "免费开始" : "立即订阅"}
         </Link>
       </div>
     </div>
