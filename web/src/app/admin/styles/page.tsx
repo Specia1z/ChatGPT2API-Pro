@@ -155,29 +155,35 @@ export default function AdminStylesPage() {
                 <p className="text-xs text-muted-foreground mt-1">点击「新建风格」添加</p>
               </div>
             ) : (
-              <div className="space-y-2 max-w-3xl">
+              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
                 {styles.map((s, i) => (
                   <motion.div key={s.id} variants={fadeUp}
-                    className={`flex items-center gap-3 rounded-xl border bg-card p-3 sm:p-4 transition-all ${!s.enabled ? "opacity-50" : ""}`}>
-                    {/* 排序号 */}
-                    <span className={`${mono.className} text-xs text-muted-foreground/50 w-5 text-center shrink-0`}>{i + 1}</span>
-                    {/* 图标 */}
-                    <div className="size-8 sm:size-9 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
-                      {(() => { const Icon = (LucideIcons as any)[s.icon] || Palette; return <Icon className="size-4 sm:size-[18px] text-primary" />; })()}
-                    </div>
-                    {/* 信息 */}
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm font-medium truncate">{s.label}</span>
+                    className={`group relative flex flex-col gap-2.5 rounded-xl border bg-card p-3.5 transition-all hover:shadow-sm ${!s.enabled ? "opacity-55" : ""}`}>
+                    {/* 顶部：图标 + 名称 + 启用开关 */}
+                    <div className="flex items-center gap-2.5">
+                      <div className="size-9 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+                        {(() => { const Icon = (LucideIcons as any)[s.icon] || Palette; return <Icon className="size-[18px] text-primary" />; })()}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-sm font-medium truncate">{s.label || "（未命名）"}</span>
+                          <span className={`${mono.className} text-[10px] text-muted-foreground/50 shrink-0`}>#{i + 1}</span>
+                        </div>
                         <span className={`${mono.className} text-[10px] text-muted-foreground/60`}>{s.icon}</span>
                       </div>
-                      <p className="text-[11px] text-muted-foreground truncate mt-0.5">{s.desc}</p>
+                      <Switch checked={s.enabled} onCheckedChange={() => toggleEnabled(s.id)} />
                     </div>
-                    {/* 启用开关 */}
-                    <Switch checked={s.enabled} onCheckedChange={() => toggleEnabled(s.id)} />
-                    {/* 操作 */}
-                    <Button variant="ghost" size="icon-sm" onClick={() => editItem(s)} title="编辑"><Settings2 className="size-3.5" /></Button>
-                    <Button variant="ghost" size="icon-sm" className="hover:text-destructive" onClick={() => setDeleteTarget(s)} title="删除"><Trash2 className="size-3.5" /></Button>
+                    {/* 描述 */}
+                    <p className="text-[11px] text-muted-foreground line-clamp-2 min-h-[2.4em] leading-relaxed">{s.desc || "—"}</p>
+                    {/* 底部操作 */}
+                    <div className="flex items-center justify-end gap-1 border-t pt-2 -mx-0.5">
+                      <Button variant="ghost" size="sm" className="h-7 gap-1 text-xs text-muted-foreground" onClick={() => editItem(s)}>
+                        <Settings2 className="size-3.5" /> 编辑
+                      </Button>
+                      <Button variant="ghost" size="icon-sm" className="hover:text-destructive" onClick={() => setDeleteTarget(s)} title="删除">
+                        <Trash2 className="size-3.5" />
+                      </Button>
+                    </div>
                   </motion.div>
                 ))}
               </div>
