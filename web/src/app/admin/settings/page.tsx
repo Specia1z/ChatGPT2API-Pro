@@ -307,7 +307,7 @@ export default function SettingsPage() {
               </Card>
 
               {/* ═══ 存储清理 ═══ */}
-              <Card id="storage" icon={Database} color="text-violet-500" bg="bg-violet-500/10" title="本地存储清理" desc="定期清理过期的本地图片文件">
+              <Card id="storage" icon={Database} color="text-violet-500" bg="bg-violet-500/10" title="存储清理" desc="定期清理过期的图片（本地与 S3 均适用）">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-start">
                   <div className="space-y-1.5">
                     <Label>文件保留天数</Label>
@@ -315,8 +315,8 @@ export default function SettingsPage() {
                   </div>
                   <div className="rounded-xl bg-muted/40 p-3.5 text-xs text-muted-foreground leading-relaxed">
                     {cfg?.storage_cleanup_days > 0
-                      ? `超过 ${cfg.storage_cleanup_days} 天未修改的本地文件将被自动删除，同时清空数据库中对应记录的 image_url。`
-                      : "当前设为 0，表示不自动清理本地文件。"}
+                      ? `超过 ${cfg.storage_cleanup_days} 天的图片将被自动删除（本地文件或 S3 对象），并一并删除数据库中对应的生成记录。已分享到广场的图片不受影响。`
+                      : "当前设为 0，表示不自动清理。"}
                   </div>
                 </div>
               </Card>

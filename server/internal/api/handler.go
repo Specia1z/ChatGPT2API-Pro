@@ -331,6 +331,12 @@ func (h *Handler) GetSettings(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, 200, model.APIResponse{Code: 200, Data: cfg})
 }
 
+// GetDefaultStylePresets 返回内置风格预设种子，供后台「恢复默认」使用。
+// data 为 StylePreset 数组的 JSON 字符串（与 settings.style_presets 同格式）。
+func (h *Handler) GetDefaultStylePresets(w http.ResponseWriter, r *http.Request) {
+	writeJSON(w, 200, model.APIResponse{Code: 200, Data: h.MySQL.DefaultStylePresets()})
+}
+
 // redactEmailConfig 抹掉 email_config 中的 SMTP 密码，供公开接口返回。
 // 保留 smtp_enabled/host/user/from 等字段以便前端展示与管理端回填，
 // 仅隐藏可被直接利用的密码（与 Turnstile secret 同级处理）。

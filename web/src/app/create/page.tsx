@@ -45,60 +45,9 @@ const SIZES = [
 /* ── 图标名称 → 组件映射 ──────────────── */
 const resolveIcon = (name: string) => (LucideIcons as any)[name] || Palette;
 
-/* ── 内置硬编码风格（API 加载失败时回退） ── */
-
-const HARDCODED_STYLES = [
-  { id: "realistic", label: "照片级写实", icon: "Camera", desc: "真实光影·极致细节",
-    hint: "ultra realistic, photorealistic, 8K, detailed, sharp focus, natural lighting, lifelike textures" },
-  { id: "cyberpunk", label: "赛博朋克", icon: "Zap", desc: "霓虹都市·未来科技",
-    hint: "cyberpunk cityscape, neon signs reflecting on wet pavement, rain drenched streets, futuristic skyscrapers, vibrant purple and cyan lighting, dystopian atmosphere, high contrast, blade runner aesthetic" },
-  { id: "anime", label: "日系动漫", icon: "Cat", desc: "赛璐珞风格·明亮色彩",
-    hint: "anime style, cel shading, vibrant colors, manga aesthetic, clean lineart, expressive eyes, studio ghibli inspired backgrounds, soft lighting" },
-  { id: "watercolor", label: "水彩手绘", icon: "Droplets", desc: "柔和晕染·通透质感",
-    hint: "watercolor painting on textured paper, soft color washes, flowing pigments, wet on wet technique, artistic, dreamy atmosphere, visible brush strokes" },
-  { id: "3d", label: "3D 渲染", icon: "Box", desc: "立体逼真·光影追踪",
-    hint: "3D render, octane render, cinematic lighting, ray tracing, detailed textures, subsurface scattering, volumetric fog, hyperrealistic CG" },
-  { id: "ghibli", label: "宫崎骏风", icon: "Ghost", desc: "治愈温暖·手绘质感",
-    hint: "Studio Ghibli inspired, hand painted backgrounds, soft pastel colors, whimsical atmosphere, lush greenery, warm sunlight filtering through trees, nostalgic and heartwarming" },
-  { id: "fantasy", label: "奇幻史诗", icon: "Flame", desc: "魔法世界·史诗氛围",
-    hint: "epic fantasy scene, magical glowing elements, ethereal atmosphere, ancient ruins, floating islands, mystical creatures, dramatic lighting, otherworldly landscapes" },
-  { id: "sketch", label: "素描线稿", icon: "Scan", desc: "黑白线条·精细笔触",
-    hint: "pencil sketch, detailed cross-hatching, charcoal drawing, black and white, fine art, paper texture, academic drawing style, high detail linework" },
-  { id: "oil", label: "油画古典", icon: "Palette", desc: "厚重笔触·大师质感",
-    hint: "oil painting on canvas, impasto technique, thick visible brushstrokes, classical art style, rich warm color palette, renaissance inspired, museum quality" },
-  { id: "pixel", label: "像素复古", icon: "Dice1", desc: "8bit 怀旧·游戏风",
-    hint: "pixel art, retro 8-bit video game style, limited color palette, chunky pixels, blocky sprites, retro gaming aesthetic, NES inspired" },
-  { id: "frost", label: "冰雪奇境", icon: "Snowflake", desc: "晶莹剔透·冬日幻境",
-    hint: "winter wonderland, crystalline ice formations, frost on glass, snow covered landscape, ethereal blue and white palette, sparkling ice crystals, aurora borealis in sky" },
-  { id: "sunset", label: "日落金辉", icon: "Sunset", desc: "金色余晖·温暖氛围",
-    hint: "golden hour photography, warm sunset tones, dramatic orange and pink sky, sun rays piercing through clouds, silhouettes, atmospheric perspective, rich warm glow" },
-  { id: "landscape", label: "山水意境", icon: "Mountain", desc: "水墨山河·自然壮阔",
-    hint: "traditional Chinese ink wash painting, misty mountains layered in fog, pine trees on cliffs, waterfall cascading down rocks, zen atmosphere, negative space, horizontal scroll composition" },
-  { id: "sci-fi", label: "科幻星际", icon: "Telescope", desc: "太空探索·未来科技",
-    hint: "sci-fi spaceship interior or exterior, futuristic technology, holographic displays, sleek minimal design, deep space nebula background, advanced civilization, blade runner meets star trek" },
-  { id: "noir", label: "黑色电影", icon: "Moon", desc: "黑白光影·悬疑氛围",
-    hint: "film noir style, high contrast black and white, dramatic shadows, venetian blind lighting, detective aesthetic, moody atmosphere, rain soaked streets, 1940s style" },
-  { id: "ghostly", label: "灵异诡谲", icon: "Ghost", desc: "幽暗神秘·超自然",
-    hint: "haunted atmosphere, eerie fog, ghostly apparitions, abandoned Gothic mansion, moonlight through broken windows, supernatural, dark and mysterious mood" },
-  { id: "pop-art", label: "波普艺术", icon: "Sparkles", desc: "鲜艳撞色·漫画风格",
-    hint: "pop art style, Andy Warhol inspired, bold vibrant colors, comic book halftone dots, high contrast, repetitive patterns, screen print effect, retro 1960s aesthetic" },
-  { id: "steampunk", label: "蒸汽朋克", icon: "Gem", desc: "维多利亚·机械美学",
-    hint: "steampunk aesthetic, Victorian era machinery, brass and copper gears, steam powered airships, vintage industrial, intricate mechanical details, sepia tone atmosphere" },
-  { id: "minimalist", label: "极简主义", icon: "CircleDot", desc: "少即是多·干净留白",
-    hint: "minimalist design, clean composition, ample negative space, simple geometric shapes, muted color palette, modern aesthetic, zen like simplicity" },
-  { id: "vintage", label: "复古胶片", icon: "Camera", desc: "胶片质感·怀旧色调",
-    hint: "vintage film photography, Kodachrome tones, grainy texture, light leaks, analog warmth, 1970s aesthetic, retro color grading, imperfect and authentic" },
-  { id: "glitch", label: "故障艺术", icon: "Waves", desc: "数字失真·赛博美学",
-    hint: "glitch art, digital distortion, RGB split effect, scan lines, corrupted data aesthetic, vivid neon colors on dark background, cyberpunk digital art" },
-  { id: "ukiyo-e", label: "浮世绘", icon: "CloudSun", desc: "江户风韵·木板套色",
-    hint: "ukiyo-e woodblock print style, Hokusai inspired, bold outlines, flat color areas, wave patterns, traditional Japanese art, cherry blossoms, Mount Fuji, indigo and vermillion palette" },
-  { id: "baroque", label: "巴洛克", icon: "Diamond", desc: "华丽戏剧·暗调光影",
-    hint: "baroque painting style, dramatic chiaroscuro lighting, rich deep colors, ornate details, Caravaggio inspired, tenebrism, religious or mythological scene, 17th century masterpiece" },
-  { id: "chibi", label: "Q版可爱", icon: "Star", desc: "圆润萌系·治愈风格",
-    hint: "chibi art style, cute and adorable, oversized head and eyes, small body, kawaii aesthetic, soft pastel colors, round shapes, manga chibi proportions" },
-  { id: "origami", label: "折纸艺术", icon: "Diamond", desc: "几何折叠·纸艺质感",
-    hint: "origami style, geometric paper folds, crisp creases, textured paper surface, minimalist color scheme, three dimensional paper sculpture, soft studio lighting" },
-];
+/* 风格预设统一以后台 /api/settings 的 style_presets 为准（后端首次安装已 seed 内置风格）。
+   前端不再各持一份硬编码副本，避免与库中数据割裂；加载完成前 styles 为空。 */
+type StylePreset = { id: string; label: string; icon: any; desc: string; hint: string };
 
 const FILTER_TABS = [
   { key: "all" as const, label: "全部", icon: Filter },
@@ -139,9 +88,11 @@ export default function CreatePage() {
   const [refImages, setRefImages] = useState<string[]>([]);
   const [fusionMode, setFusionMode] = useState(false);
   const [sizeOpen, setSizeOpen] = useState(false);
+  const sizeBtnRef = useRef<HTMLButtonElement>(null);
+  const [sizeMenuPos, setSizeMenuPos] = useState<{ left: number; top: number } | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<number | null>(null);
   const [size, setSize] = useState("1:1");
-  const [styles, setStyles] = useState(HARDCODED_STYLES);
+  const [styles, setStyles] = useState<StylePreset[]>([]);
   const [activeStyle, setActiveStyle] = useState<string | null>(null);
   const [hsFilter, setHsFilter] = useState<"all" | "completed" | "failed" | "pending">("all");
   const addTag = () => {
@@ -228,7 +179,35 @@ export default function CreatePage() {
     io.observe(el);
     return () => io.disconnect();
   }, [page, total, generations.length]);
-  
+
+  // 尺寸「更多」菜单：用 fixed 定位避开横向滚动容器的 overflow 裁剪，按触发按钮位置动态计算坐标
+  const toggleSizeMenu = () => {
+    if (sizeOpen) { setSizeOpen(false); return; }
+    const rect = sizeBtnRef.current?.getBoundingClientRect();
+    if (rect) {
+      const MENU_W = 220, MENU_H = 200, GAP = 4;
+      const left = Math.max(8, Math.min(rect.left, window.innerWidth - MENU_W - 8));
+      // 下方空间不足则向上翻转
+      const top = rect.bottom + MENU_H + GAP > window.innerHeight && rect.top - MENU_H - GAP > 0
+        ? rect.top - MENU_H - GAP
+        : rect.bottom + GAP;
+      setSizeMenuPos({ left, top });
+    }
+    setSizeOpen(true);
+  };
+
+  // fixed 菜单坐标在打开瞬间算定，页面滚动/缩放后会错位，故此时直接关闭
+  useEffect(() => {
+    if (!sizeOpen) return;
+    const close = () => setSizeOpen(false);
+    window.addEventListener("scroll", close, true);
+    window.addEventListener("resize", close);
+    return () => {
+      window.removeEventListener("scroll", close, true);
+      window.removeEventListener("resize", close);
+    };
+  }, [sizeOpen]);
+
 
   useEffect(() => {
     fetch(`${BASE}/api/settings`).then(r => r.json()).then(d => {
@@ -301,7 +280,7 @@ export default function CreatePage() {
     finally { loadingMoreRef.current = false; setLoadingMore(false); }
   };
 
-  // 从 API 加载风格预设
+  // 从 API 加载风格预设（唯一真相源；空数组即「无风格」，尊重管理员配置）
   useEffect(() => {
     fetch(`${BASE}/api/settings`)
       .then(r => r.json())
@@ -309,14 +288,11 @@ export default function CreatePage() {
         const raw = d.data?.style_presets;
         if (!raw) return;
         try {
-          const list = JSON.parse(raw).filter((s: any) => s.enabled !== false);
-          if (list.length > 0) {
-            const mapped = list.map((s: any) => ({
-              ...s,
-              icon: resolveIcon(s.icon),
-            }));
-            setStyles(mapped);
-          }
+          const list = JSON.parse(raw)
+            .filter((s: any) => s.enabled !== false)
+            .sort((a: any, b: any) => (a.order ?? 0) - (b.order ?? 0))
+            .map((s: any) => ({ id: s.id, label: s.label, desc: s.desc, hint: s.hint, icon: resolveIcon(s.icon) }));
+          setStyles(list);
         } catch {}
       })
       .catch(() => {});
@@ -379,10 +355,13 @@ export default function CreatePage() {
       .filter(img => img && !img.startsWith("/api/") && !img.startsWith("http"));
 
     // 展开任务：每个提示词按份数生成 N 个独立请求
+    // 选中风格时，把其 hint 统一追加到每条 prompt（批量里每条都生效，且不污染输入框文本）
+    const styleHint = activeStyle ? (styles.find(s => s.id === activeStyle)?.hint || "").trim() : "";
     const tasks: string[] = [];
     for (const p of lines) {
       const n = getTagCount(p);
-      const actualPrompt = !fusionMode && refB64.length > 0 ? "根据参考图，" + p : p;
+      const withStyle = styleHint ? `${p}, ${styleHint}` : p;
+      const actualPrompt = !fusionMode && refB64.length > 0 ? "根据参考图，" + withStyle : withStyle;
       for (let i = 0; i < n; i++) tasks.push(actualPrompt);
     }
 
@@ -465,7 +444,7 @@ export default function CreatePage() {
 
   const editGen = async (e: React.MouseEvent, g: any) => {
     e.stopPropagation();
-    setCurrentInput(g.prompt); setTags([""]); setTagCounts({});
+    setCurrentInput(g.prompt); setTags([""]); setTagCounts({}); setActiveStyle(null);
     
     setSize(g.size || "1:1");
     setFusionMode(false);
@@ -489,7 +468,7 @@ export default function CreatePage() {
 
   const retryGen = (e: React.MouseEvent, g: any) => {
     e.stopPropagation();
-    setCurrentInput(g.prompt); setTags([""]); setTagCounts({});
+    setCurrentInput(g.prompt); setTags([""]); setTagCounts({}); setActiveStyle(null);
     api("/api/generations", { method: "DELETE", body: JSON.stringify({ id: g.id }) }).then(() => {
       colAssignRef.current.delete(g.id);
       setGenerations(prev => prev.filter(x => x.id !== g.id));
@@ -603,10 +582,10 @@ export default function CreatePage() {
                 }} />
               <div className="relative rounded-xl border border-[#e0dfd8] dark:border-[#2a2a25] bg-white dark:bg-[#1a1a18]
                 transition-all duration-300 focus-within:border-[#c0bfb8] dark:focus-within:border-[#40403a] focus-within:shadow-lg">
-                <div className="px-3 py-3 space-y-2 max-h-40 overflow-y-auto scrollbar-thin">
+                <div className="px-3 py-3 space-y-2 min-h-[72px] sm:min-h-0 max-h-40 overflow-y-auto scrollbar-thin">
                   {tags.filter(Boolean).length === 0 && !currentInput && (
-                    <div className="flex items-center gap-2 px-2 py-1.5 text-sm text-[#c0bfb8] dark:text-[#4a4a45]">
-                      <span>输入提示词，按 Enter 添加</span>
+                    <div className="flex items-center gap-2 px-2 py-1.5 text-base sm:text-sm text-[#c0bfb8] dark:text-[#4a4a45]">
+                      <span>描述你想要的画面，例如「夕阳下的海边小屋，水彩风格」</span>
                     </div>
                   )}
                   <div className="flex flex-wrap gap-2">
@@ -648,74 +627,68 @@ export default function CreatePage() {
                         if ((e.ctrlKey || e.metaKey) && e.key === "Enter") { e.preventDefault(); generate(); }
                       }}
                       placeholder="输入提示词，Enter 添加..."
-                      className="flex-1 bg-transparent text-sm text-[#1a1a18] dark:text-white placeholder:text-[#c0bfb8] dark:placeholder:text-[#4a4a45] outline-none"
+                      className="flex-1 bg-transparent text-base sm:text-sm text-[#1a1a18] dark:text-white placeholder:text-[#c0bfb8] dark:placeholder:text-[#4a4a45] outline-none"
                     />
                   </div>
                 </div>
-                {/* 风格模板 */}
-                {!activeStyle ? (
-                  <div className="relative px-3 sm:px-4 pb-2">
-                    {/* 渐变遮罩提示可滚动 */}
-                    <div className="pointer-events-none absolute right-0 top-0 bottom-2 w-8 bg-gradient-to-l from-white dark:from-[#1a1a18] to-transparent z-10" />
-                    <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-thin overscroll-x-contain -mx-1 px-1">
-                      <span className="text-[10px] text-[#c0bfb8] dark:text-[#4a4a45] font-medium shrink-0 mr-0.5">风格</span>
-                      {styles.map(s => {
-                        const Icon = typeof s.icon === "string" ? resolveIcon(s.icon) : s.icon;
-                        return (
-                          <button key={s.id} onClick={() => {
-                            setActiveStyle(s.id);
-                            const v = currentInput.trim();
-                            setCurrentInput(v ? `${v}, ${s.hint}` : s.hint);
-                            inputRef2.current?.focus();
-                          }}
-                            className="flex items-center gap-1 px-2.5 py-1.5 sm:px-2 sm:py-1 rounded-lg text-[11px] sm:text-[10px] font-medium text-[#9e9d98] dark:text-[#6b6a66]
-                              hover:text-[#1a1a18] dark:hover:text-white hover:bg-[#f0efe8] dark:hover:bg-[#252521] transition-all shrink-0 border border-transparent hover:border-[#e0dfd8] dark:hover:border-[#2a2a25] touch-manipulation">
-                            <Icon className="w-3.5 h-3.5 sm:w-3 sm:h-3" />
-                            <span className="whitespace-nowrap">{s.label}</span>
-                          </button>
-                        );
-                      })}
+                {/* 风格模板：始终展示列表，高亮选中项，再点取消；hint 在生成时统一拼接，不污染输入框 */}
+                {styles.length > 0 && (
+                  <div className="px-3 sm:px-4 pb-2">
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-[10px] text-[#c0bfb8] dark:text-[#4a4a45] font-medium shrink-0">风格</span>
+                      <div className="relative min-w-0 flex-1">
+                        {/* 右侧渐变遮罩提示可横向滚动 */}
+                        <div className="pointer-events-none absolute right-0 top-0 bottom-0 w-8 bg-gradient-to-l from-white dark:from-[#1a1a18] to-transparent z-10" />
+                        <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-hide overscroll-x-contain pr-6 py-0.5">
+                          {styles.map(s => {
+                            const Icon = typeof s.icon === "string" ? resolveIcon(s.icon) : s.icon;
+                            const active = activeStyle === s.id;
+                            return (
+                              <button key={s.id} onClick={() => {
+                                setActiveStyle(active ? null : s.id);
+                                inputRef2.current?.focus();
+                              }}
+                                aria-pressed={active}
+                                className={`flex items-center gap-1 px-2.5 py-1.5 sm:py-1 rounded-lg text-[11px] sm:text-[10px] font-medium transition-colors shrink-0 border touch-manipulation ${
+                                  active
+                                    ? "bg-[#1a1a18] dark:bg-white text-white dark:text-[#1a1a18] border-transparent"
+                                    : "text-[#9e9d98] dark:text-[#6b6a66] border-transparent hover:text-[#1a1a18] dark:hover:text-white hover:bg-[#f0efe8] dark:hover:bg-[#252521] hover:border-[#e0dfd8] dark:hover:border-[#2a2a25]"
+                                }`}>
+                                <Icon className="w-3.5 h-3.5 sm:w-3 sm:h-3 shrink-0" />
+                                <span className="whitespace-nowrap">{s.label}</span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
                     </div>
-                  </div>
-                ) : (
-                  <div className="flex items-center gap-2 px-3 sm:px-4 pb-2 flex-wrap">
-                    <div className="flex items-center gap-1.5 px-2.5 py-1.5 sm:px-2 sm:py-1 rounded-lg bg-[#1a1a18] dark:bg-white text-white dark:text-[#1a1a18] text-[11px] sm:text-[10px] font-medium shrink-0">
-                      {(() => {
-                        const s = styles.find(x => x.id === activeStyle);
-                        if (!s) return null;
-                        const Icon = typeof s.icon === "string" ? resolveIcon(s.icon) : s.icon;
-                        return <><Icon className="w-3.5 h-3.5 sm:w-3 sm:h-3" /><span>{s.label}</span></>;
-                      })()}
-                    </div>
-                    <button onClick={() => { setActiveStyle(null); }}
-                      className="text-[11px] sm:text-[10px] text-[#9e9d98] dark:text-[#6b6a66] hover:text-[#1a1a18] dark:hover:text-white transition-colors shrink-0 touch-manipulation">
-                      清除
-                    </button>
-                    <span className="text-[11px] sm:text-[10px] text-[#c0bfb8] dark:text-[#4a4a45] truncate max-w-[160px] sm:max-w-[400px]">
-                      {styles.find(s => s.id === activeStyle)?.desc}
-                    </span>
+                    {activeStyle && (
+                      <p className="text-[10px] text-[#c0bfb8] dark:text-[#4a4a45] mt-1 truncate">
+                        已选「{styles.find(s => s.id === activeStyle)?.label}」· {styles.find(s => s.id === activeStyle)?.desc} · 生成时自动追加风格提示词
+                      </p>
+                    )}
                   </div>
                 )}
-                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1.5 sm:gap-2 px-3 sm:px-4 pb-3 pt-1">
-                  <div className="flex items-center flex-wrap gap-1 sm:gap-2">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 px-3 sm:px-4 pb-3 pt-1">
+                  <div className="flex items-center gap-1 sm:gap-2 sm:flex-wrap overflow-x-auto scrollbar-hide overscroll-x-contain -mx-1 px-1 py-0.5">
                     {/* Size pills — common + more dropdown */}
-                    <div className="flex items-center gap-1">
+                    <div className="flex items-center gap-1 shrink-0">
                       {SIZES.slice(0, 5).map(s => {
                         const Icon = s.icon;
                         return (
                         <button key={s.id} onClick={() => setSize(s.id)}
-                          className={`flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-medium transition-all ${
+                          className={`flex items-center gap-1 px-2.5 py-1.5 sm:px-2 sm:py-1 rounded-md text-[11px] sm:text-[10px] font-medium transition-colors shrink-0 touch-manipulation ${
                             size === s.id
                               ? "bg-[#1a1a18] dark:bg-white text-white dark:text-[#1a1a18] shadow-sm"
                               : "text-[#9e9d98] dark:text-[#6b6a66] hover:text-[#1a1a18] dark:hover:text-white hover:bg-[#f0efe8] dark:hover:bg-[#252521]"
                           }`}>
-                          <Icon className="w-2.5 h-2.5" />
+                          <Icon className="w-3 h-3 sm:w-2.5 sm:h-2.5" />
                           <span className="hidden sm:inline">{s.desc}</span>
                         </button>
                       );})}
-                      <div className="relative">
-                        <button onClick={() => setSizeOpen(!sizeOpen)}
-                          className={`flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-medium transition-all ${
+                      <div className="relative shrink-0">
+                        <button ref={sizeBtnRef} onClick={toggleSizeMenu}
+                          className={`flex items-center gap-1 px-2.5 py-1.5 sm:px-2 sm:py-1 rounded-md text-[11px] sm:text-[10px] font-medium transition-colors touch-manipulation ${
                             !SIZES.slice(0, 5).find(s => s.id === size)
                               ? "bg-[#1a1a18] dark:bg-white text-white dark:text-[#1a1a18] shadow-sm"
                               : "text-[#9e9d98] dark:text-[#6b6a66] hover:text-[#1a1a18] dark:hover:text-white hover:bg-[#f0efe8] dark:hover:bg-[#252521]"
@@ -724,15 +697,16 @@ export default function CreatePage() {
                             const cur = SIZES.find(s => s.id === size);
                             if (cur && !SIZES.slice(0, 5).includes(cur)) {
                               const Icon = cur.icon;
-                              return <><Icon className="w-2.5 h-2.5" />{cur.desc}</>;
+                              return <><Icon className="w-3 h-3 sm:w-2.5 sm:h-2.5" />{cur.desc}</>;
                             }
                             return "更多";
                           })()}
                         </button>
-                        {sizeOpen && (
+                        {sizeOpen && sizeMenuPos && (
                           <>
-                            <div className="fixed inset-0 z-10" onClick={() => setSizeOpen(false)} />
-                            <div className="absolute right-0 sm:left-0 top-full mt-1 z-20 w-[220px] p-2 rounded-xl bg-white dark:bg-[#1a1a18] border border-[#e0dfd8] dark:border-[#2a2a25] shadow-xl grid grid-cols-2 gap-1">
+                            <div className="fixed inset-0 z-40" onClick={() => setSizeOpen(false)} />
+                            <div style={{ left: sizeMenuPos.left, top: sizeMenuPos.top }}
+                              className="fixed z-50 w-[220px] p-2 rounded-xl bg-white dark:bg-[#1a1a18] border border-[#e0dfd8] dark:border-[#2a2a25] shadow-xl grid grid-cols-2 gap-1">
                               {SIZES.slice(5).map(s => {
                                 const Icon = s.icon;
                                 const cur = size === s.id;
@@ -753,17 +727,17 @@ export default function CreatePage() {
                         )}
                       </div>
                     </div>
-                    <span className="w-px h-4 bg-[#e0dfd8] dark:bg-[#2a2a25]" />
+                    <span className="w-px h-4 bg-[#e0dfd8] dark:bg-[#2a2a25] shrink-0" />
                     {/* Ref image */}
                     <button onClick={() => fileRef.current?.click()}
-                      className={`flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-medium transition-all ${
+                      className={`flex items-center gap-1 px-2.5 py-1.5 sm:px-2 sm:py-1 rounded-md text-[11px] sm:text-[10px] font-medium transition-colors shrink-0 touch-manipulation ${
                         refImages.length > 0 ? "bg-[#1a1a18] dark:bg-white text-white dark:text-[#1a1a18]" : "text-[#9e9d98] dark:text-[#6b6a66] hover:text-[#1a1a18] dark:hover:text-white hover:bg-[#f0efe8] dark:hover:bg-[#252521]"
                       }`}>
-                      <ImageIcon className="w-2.5 h-2.5" />
+                      <ImageIcon className="w-3 h-3 sm:w-2.5 sm:h-2.5" />
                       {refImages.length > 0 ? `参考图(${refImages.length})` : (fusionMode ? "添加图片" : "参考图")}
                     </button>
                     {refImages.length > 0 && (
-                      <div className="flex items-center gap-1">
+                      <div className="flex items-center gap-1 shrink-0">
                         {refImages.map((img, idx) => (
                           <div key={idx} className="relative">
                             <img src={refImageSrc(img)} className="w-6 h-6 rounded object-cover ring-1 ring-[#e0dfd8] dark:ring-[#2a2a25]" />
@@ -773,13 +747,13 @@ export default function CreatePage() {
                       </div>
                     )}
                     {refImages.length > 0 && fusionMode && (
-                      <span className="text-[10px] text-[#6b6a66] dark:text-[#9e9d98] font-medium px-1.5 py-0.5 rounded-md bg-[#f0efe8] dark:bg-[#252521]">融合</span>
+                      <span className="text-[10px] text-[#6b6a66] dark:text-[#9e9d98] font-medium px-1.5 py-0.5 rounded-md bg-[#f0efe8] dark:bg-[#252521] shrink-0">融合</span>
                     )}
                     <button onClick={() => { const next = !fusionMode; setFusionMode(next); setRefImages([]); if (next) fileRef.current?.click(); }}
-                      className={`flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-medium transition-all ${
+                      className={`flex items-center gap-1 px-2.5 py-1.5 sm:px-2 sm:py-1 rounded-md text-[11px] sm:text-[10px] font-medium transition-colors shrink-0 touch-manipulation ${
                         fusionMode ? "bg-[#1a1a18] dark:bg-white text-white dark:text-[#1a1a18]" : "text-[#9e9d98] dark:text-[#6b6a66] hover:text-[#1a1a18] dark:hover:text-white hover:bg-[#f0efe8] dark:hover:bg-[#252521]"
                       }`}>
-                      <ImageIcon className="w-2.5 h-2.5" />
+                      <ImageIcon className="w-3 h-3 sm:w-2.5 sm:h-2.5" />
                       {fusionMode ? "融合" : "图生图"}
                     </button>
                     <input ref={fileRef} type="file" accept="image/*,image/heic,image/heif" multiple className="hidden"
@@ -818,8 +792,8 @@ export default function CreatePage() {
                     )}
                     <span className="text-[10px] text-[#c0bfb8] dark:text-[#4a4a45] font-mono tabular-nums">{currentInput.length || tags.filter(Boolean).length}</span>
                     <Button onClick={generate} disabled={loading || !currentInput.trim() && tags.filter(Boolean).length === 0} size="sm"
-                      className="h-7 px-3 rounded-lg text-[10px] font-semibold bg-[#1a1a18] dark:bg-white text-white dark:text-[#1a1a18] hover:bg-[#333] dark:hover:bg-[#e0dfd8] disabled:opacity-40 shadow-sm transition-all gap-1.5">
-                      {loading ? <Loader2 className="w-3 h-3 animate-spin" /> : <Wand2 className="w-3 h-3" />}
+                      className="flex-1 sm:flex-none h-10 sm:h-7 px-3 rounded-lg text-sm sm:text-[10px] font-semibold bg-[#1a1a18] dark:bg-white text-white dark:text-[#1a1a18] hover:bg-[#333] dark:hover:bg-[#e0dfd8] disabled:opacity-40 shadow-sm transition-all gap-1.5">
+                      {loading ? <Loader2 className="w-4 h-4 sm:w-3 sm:h-3 animate-spin" /> : <Wand2 className="w-4 h-4 sm:w-3 sm:h-3" />}
                       {loading
                         ? (batchProgress ? `提交中 ${batchProgress.done}/${batchProgress.total}` : "生成中...")
                         : (totalImages > 1 ? `生成 ${totalImages} 张` : "生成")}
@@ -848,7 +822,7 @@ export default function CreatePage() {
               <span className="text-[10px] text-[#9e9d98] dark:text-[#6b6a66] font-mono">{total || generations.length}</span>
             </div>
             {generations.length > 0 && (
-              <div className="flex items-center gap-1 overflow-x-auto flex-nowrap max-w-full -mx-2 sm:mx-0 px-2 sm:px-0">
+              <div className="flex items-center gap-1 overflow-x-auto scrollbar-hide flex-nowrap max-w-full -mx-2 sm:mx-0 px-2 sm:px-0">
                 <div className="flex items-center gap-1 p-0.5 rounded-lg bg-[#f0efe8] dark:bg-[#1f1f1b] shrink-0">
                   {FILTER_TABS.map(tab => (
                     <button key={tab.key} onClick={() => setHsFilter(tab.key)}
@@ -888,9 +862,9 @@ export default function CreatePage() {
             </div>
           ) : (
             /* Masonry — JS 横向轮转分列：外层 flex，每列 flex-col，视觉顺序左→右 */
-            <div className="flex gap-3 items-start">
+            <div className="flex gap-2 sm:gap-3 items-start">
               {buckets.map((col, ci) => (
-                <div key={ci} className="flex-1 min-w-0 flex flex-col gap-3">
+                <div key={ci} className="flex-1 min-w-0 flex flex-col gap-2 sm:gap-3">
                   <AnimatePresence>
                   {col.map((g) => {
                     const isRev = revealedIds.has(String(g.id));
@@ -928,8 +902,14 @@ export default function CreatePage() {
                         )}
                         {/* 扫光渐出遮罩 — 与图片淡入重叠，防止生硬切换 */}
                         <div className={`absolute inset-0 bg-[#f0efe8] dark:bg-[#181814] transition-opacity duration-700 pointer-events-none ${isRev ? "opacity-0" : "opacity-100"}`} />
-                        {/* Hover overlay */}
-                        <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-all duration-300 pointer-events-none">
+                        {/* 已分享角标 — 仅移动端常驻（桌面端靠 hover 操作条体现）；隐藏 overlay 后保留状态可见性 */}
+                        {g.shared && isRev && (
+                          <span className="sm:hidden absolute top-1.5 right-1.5 flex items-center justify-center w-5 h-5 rounded-full bg-emerald-500/90 shadow-sm pointer-events-none">
+                            <Share2 className="w-2.5 h-2.5 text-white" />
+                          </span>
+                        )}
+                        {/* Hover overlay — 仅桌面端；移动端点击直接开预览，操作在预览弹窗内完成 */}
+                        <div className="hidden sm:block absolute inset-0 opacity-0 group-hover:opacity-100 transition-all duration-300 pointer-events-none">
                           <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/30 to-transparent" />
                           <div className="absolute bottom-0 left-0 right-0 p-3 pointer-events-auto">
                             <p className="text-[11px] text-white/90 line-clamp-2 mb-2 leading-relaxed">{g.prompt}</p>
@@ -982,7 +962,7 @@ export default function CreatePage() {
                         </div>
                       </>
                     ) : g.status === "pending" ? (
-                      <div className="ai-creating-border relative flex flex-col items-center justify-center gap-3 py-16 bg-[#faf9f6] dark:bg-[#181814] overflow-hidden">
+                      <div className="ai-creating-border relative flex flex-col items-center justify-center gap-3 py-10 sm:py-16 bg-[#faf9f6] dark:bg-[#181814] overflow-hidden">
                         {/* 内部柔光呼吸 — 暗示 AI 正在生成 */}
                         <div aria-hidden className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-24 h-24 rounded-full blur-2xl bg-[#1a1a18]/20 dark:bg-white/20"
                           style={{ animation: "aiGlowBreathe 2.8s ease-in-out infinite" }} />
@@ -994,7 +974,7 @@ export default function CreatePage() {
                         <span className="relative text-[10px] text-[#c0bfb8] dark:text-[#4a4a45]">约 10-30 秒</span>
                       </div>
                     ) : (
-                      <div className="flex flex-col items-center justify-center gap-3 py-16 bg-[#faf9f6] dark:bg-[#181814]">
+                      <div className="flex flex-col items-center justify-center gap-3 py-10 sm:py-16 bg-[#faf9f6] dark:bg-[#181814]">
                         <div className="w-10 h-10 rounded-full bg-red-50 dark:bg-red-500/10 flex items-center justify-center">
                           <AlertCircle className="w-5 h-5 text-red-400" />
                         </div>

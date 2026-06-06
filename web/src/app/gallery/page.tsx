@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
-import { ImageIcon, X, Download, Sparkles, Palette } from "lucide-react";
+import { ImageIcon, X, Download, Sparkles, Palette, Copy, Check } from "lucide-react";
 import { Navbar } from "@/components/navbar";
 import { BASE } from "@/lib/api";
 import { imageProxyUrl } from "@/lib/utils";
@@ -29,6 +29,8 @@ export default function GalleryPage() {
   const [total, setTotal] = useState(0);
   const [preview, setPreview] = useState<GalleryItem | null>(null);
   const [loadedImages, setLoadedImages] = useState<Set<number>>(new Set());
+  const [dimensions, setDimensions] = useState<Record<number, string>>({}); // id → "宽×高"（真实像素）
+  const [copied, setCopied] = useState(false);
   const [settings, setSettings] = useState<any>(null);
   const observerRef = useRef<IntersectionObserver | null>(null);
   const sentinelRef = useRef<HTMLDivElement>(null);
@@ -87,6 +89,22 @@ export default function GalleryPage() {
         a.href = URL.createObjectURL(blob); a.click();
         setTimeout(() => URL.revokeObjectURL(a.href), 10000);
       }).catch(() => {});
+    }
+  };
+
+  const copyPrompt = (text: string) => {
+    navigator.clipboard?.writeText(text).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1800);
+    }).catch(() => {});
+  };
+
+  // 图片加载完成：记录真实像素分辨率（naturalWidth/Height），用于常驻显示
+  const onImgLoad = (id: number, e: React.SyntheticEvent<HTMLImageElement>) => {
+    setLoadedImages(prev => new Set(prev).add(id));
+    const img = e.currentTarget;
+    if (img.naturalWidth && img.naturalHeight) {
+      setDimensions(prev => prev[id] ? prev : { ...prev, [id]: `${img.naturalWidth}×${img.naturalHeight}` });
     }
   };
 
@@ -149,7 +167,7 @@ export default function GalleryPage() {
                     key={item.id}
                     className="group relative break-inside-avoid rounded-xl overflow-hidden bg-white dark:bg-zinc-900 border border-zinc-200/60 dark:border-zinc-800/60 hover:shadow-xl dark:hover:shadow-zinc-900/50 transition-all duration-300 cursor-pointer"
                     style={{ animation: `galleryCardIn 0.5s ease-out ${Math.min(i, 8) * 50}ms both` }}
-                    onClick={() => setPreview(item)}
+                    onClick={() => { setCopied(false); setPreview(item); }}
                   >
                     {/* Top accent bar — 中性，hover 加深 */}
                     <div className="h-[2px] w-full bg-zinc-200 dark:bg-zinc-800 transition-colors group-hover:bg-zinc-900 dark:group-hover:bg-zinc-100" />
@@ -160,7 +178,7 @@ export default function GalleryPage() {
                         src={imageProxyUrl(item)}
                         alt={item.prompt}
                         loading="lazy"
-                        onLoad={() => setLoadedImages((prev) => new Set(prev).add(item.id))}
+                        onLoad={(e) => onImgLoad(item.id, e)}
                         className={`w-full h-auto transition-opacity duration-500 ${
                           loadedImages.has(item.id) ? "opacity-100" : "opacity-0"
                         }`}
@@ -170,6 +188,21 @@ export default function GalleryPage() {
                           <ImageIcon className="w-5 h-5 text-zinc-300 dark:text-zinc-600" />
                         </div>
                       )}
+                      {/* 常驻信息标签：比例 + 真实分辨率（移动端常驻，桌面 hover 浮现） */}
+                      {loadedImages.has(item.id) && (item.size || dimensions[item.id]) && (
+                        <div className="absolute top-1.5 right-1.5 flex items-center gap-1 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity duration-300 pointer-events-none">
+                          {item.size && (
+                            <span className="text-[9px] font-mono font-medium text-white/95 px-1.5 py-0.5 rounded-md bg-black/55 backdrop-blur-sm">
+                              {item.size}
+                            </span>
+                          )}
+                          {dimensions[item.id] && (
+                            <span className="text-[9px] font-mono font-medium text-white/95 px-1.5 py-0.5 rounded-md bg-black/55 backdrop-blur-sm">
+                              {dimensions[item.id]}
+                            </span>
+                          )}
+                        </div>
+                      )}
                     </div>
 
                     {/* Info */}
@@ -177,20 +210,13 @@ export default function GalleryPage() {
                       <p className="text-xs text-zinc-600 dark:text-zinc-400 line-clamp-2 leading-relaxed">
                         {item.prompt}
                       </p>
-                      <div className="flex items-center justify-between gap-2">
-                        <div className="flex items-center gap-1.5 min-w-0">
-                          <div className="w-5 h-5 rounded text-[9px] font-bold flex items-center justify-center shrink-0 bg-zinc-200 dark:bg-zinc-700 text-zinc-700 dark:text-zinc-200">
-                            {(item.user_name || item.user_email || "?")[0]?.toUpperCase()}
-                          </div>
-                          <span className="text-[11px] text-zinc-500 truncate">
-                            {item.user_name || item.user_email?.split("@")[0] || "匿名"}
-                          </span>
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        <div className="w-5 h-5 rounded text-[9px] font-bold flex items-center justify-center shrink-0 bg-zinc-200 dark:bg-zinc-700 text-zinc-700 dark:text-zinc-200">
+                          {(item.user_name || item.user_email || "?")[0]?.toUpperCase()}
                         </div>
-                        {item.size && (
-                          <span className="text-[10px] font-mono text-zinc-400 px-1.5 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800 shrink-0">
-                            {item.size}
-                          </span>
-                        )}
+                        <span className="text-[11px] text-zinc-500 truncate">
+                          {item.user_name || item.user_email?.split("@")[0] || "匿名"}
+                        </span>
                       </div>
                     </div>
                   </div>
@@ -209,62 +235,75 @@ export default function GalleryPage() {
         )}
       </div>
 
-      {/* Preview Dialog — full-screen darkroom */}
+      {/* Preview Dialog — 桌面左图右信息，移动端上下堆叠 */}
       <Dialog open={!!preview} onOpenChange={() => setPreview(null)}>
         <DialogContent className="!max-w-full !max-h-full w-screen h-screen p-0 bg-zinc-950/98 border-0 rounded-none" showCloseButton={false}>
-          {preview && (() => {
-            return (
-            <div className="relative w-full h-full flex flex-col overflow-hidden">
+          {preview && (
+            <div className="relative w-full h-full flex flex-col lg:flex-row overflow-hidden">
               {/* Close — 适配刘海安全区 */}
               <button onClick={() => setPreview(null)}
-                className="absolute right-4 z-20 p-2.5 rounded-full bg-black/40 hover:bg-black/60 backdrop-blur-md transition-colors shadow-lg ring-1 ring-white/10"
+                className="absolute right-4 z-30 p-2.5 rounded-full bg-black/40 hover:bg-black/60 backdrop-blur-md transition-colors shadow-lg ring-1 ring-white/10"
                 style={{ top: "max(1rem, env(safe-area-inset-top))" }}>
                 <X className="w-5 h-5 text-white" />
               </button>
 
-              {/* Image */}
-              <div className="flex-1 min-h-0 overflow-hidden flex items-center justify-center p-3 pt-14 sm:p-4 sm:pt-14">
+              {/* Image 区 */}
+              <div className="flex-1 min-h-0 min-w-0 overflow-hidden flex items-center justify-center p-3 pt-14 lg:p-6">
                 <img src={imageProxyUrl(preview)} alt={preview.prompt}
-                  className="max-w-full max-h-full object-contain rounded-xl sm:rounded-2xl shadow-2xl" />
+                  onLoad={(e) => onImgLoad(preview.id, e)}
+                  className="max-w-full max-h-full object-contain rounded-xl lg:rounded-2xl shadow-2xl" />
               </div>
 
-              {/* Bottom glass bar */}
-              <div className="shrink-0 px-3 sm:px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:pb-4 flex justify-center">
-                <div className="w-full max-w-2xl rounded-2xl bg-white/10 backdrop-blur-xl border border-white/10 p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center gap-4 shadow-2xl">
-                  <div className="flex-1 min-w-0 space-y-2">
-                    <div className="flex items-center gap-2.5">
-                      <div className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0 text-white bg-white/15">
-                        <span className="text-[11px] font-bold">
-                          {(preview.user_name || preview.user_email || "?")[0]?.toUpperCase()}
-                        </span>
-                      </div>
-                      <span className="text-sm font-medium text-white/90 truncate">
-                        {preview.user_name || preview.user_email?.split("@")[0] || "匿名"}
-                      </span>
-                      <span className="text-[10px] text-white/40 shrink-0">{preview.created_at?.slice(0, 16)}</span>
-                    </div>
-                    <p className="text-sm text-white/70 leading-relaxed line-clamp-2">{preview.prompt}</p>
+              {/* 信息面板：桌面右侧定宽纵列，移动端底部 */}
+              <div className="shrink-0 lg:w-[360px] lg:h-full lg:border-l border-white/10 bg-white/[0.04] lg:bg-white/[0.03] backdrop-blur-xl flex flex-col px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-4 lg:p-6 gap-4 max-h-[45vh] lg:max-h-none">
+                {/* 作者 + 时间 */}
+                <div className="flex items-center gap-2.5 shrink-0">
+                  <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0 text-white bg-white/15">
+                    <span className="text-xs font-bold">
+                      {(preview.user_name || preview.user_email || "?")[0]?.toUpperCase()}
+                    </span>
                   </div>
-
-                  <div className="flex sm:flex-col items-center sm:items-end gap-2 shrink-0">
-                    <div className="flex items-center gap-1.5">
-                      {preview.size && (
-                        <Badge className="text-[9px] h-5 px-1.5 bg-white/10 text-white/80 border-0">{preview.size}</Badge>
-                      )}
-                      <Badge className="text-[9px] h-5 px-1.5 border-0 text-white/80 bg-white/10">
-                        {preview.model}
-                      </Badge>
+                  <div className="min-w-0">
+                    <div className="text-sm font-medium text-white/90 truncate">
+                      {preview.user_name || preview.user_email?.split("@")[0] || "匿名"}
                     </div>
-                    <button onClick={() => download(imageProxyUrl(preview))}
-                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/15 hover:bg-white/25 text-white text-xs font-medium transition-colors">
-                      <Download className="w-3.5 h-3.5" /> 下载
-                    </button>
+                    <div className="text-[10px] text-white/40">{preview.created_at?.slice(0, 16)}</div>
                   </div>
                 </div>
+
+                {/* 元数据 chips：比例 / 分辨率 / 模型 */}
+                <div className="flex flex-wrap items-center gap-1.5 shrink-0">
+                  {preview.size && (
+                    <Badge className="text-[10px] h-5 px-2 bg-white/10 text-white/80 border-0 font-mono">{preview.size}</Badge>
+                  )}
+                  {dimensions[preview.id] && (
+                    <Badge className="text-[10px] h-5 px-2 bg-white/10 text-white/80 border-0 font-mono">{dimensions[preview.id]}</Badge>
+                  )}
+                  <Badge className="text-[10px] h-5 px-2 bg-white/10 text-white/80 border-0">{preview.model}</Badge>
+                </div>
+
+                {/* 完整提示词：可滚动 + 一键复制 */}
+                <div className="flex-1 min-h-0 flex flex-col gap-1.5">
+                  <div className="flex items-center justify-between shrink-0">
+                    <span className="text-[11px] font-medium text-white/50 tracking-wide">提示词</span>
+                    <button onClick={() => copyPrompt(preview.prompt)}
+                      className="flex items-center gap-1 px-2 py-1 rounded-md bg-white/10 hover:bg-white/20 text-white/80 text-[11px] font-medium transition-colors">
+                      {copied ? <><Check className="w-3 h-3 text-emerald-400" /> 已复制</> : <><Copy className="w-3 h-3" /> 复制</>}
+                    </button>
+                  </div>
+                  <div className="flex-1 min-h-0 overflow-y-auto scrollbar-thin rounded-lg bg-black/20 p-3">
+                    <p className="text-[13px] text-white/85 leading-relaxed whitespace-pre-wrap break-words">{preview.prompt}</p>
+                  </div>
+                </div>
+
+                {/* 下载 */}
+                <button onClick={() => download(imageProxyUrl(preview))}
+                  className="shrink-0 flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl bg-white/15 hover:bg-white/25 text-white text-sm font-medium transition-colors">
+                  <Download className="w-4 h-4" /> 下载原图
+                </button>
               </div>
             </div>
-            );
-          })()}
+          )}
         </DialogContent>
       </Dialog>
 

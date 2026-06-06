@@ -188,6 +188,8 @@ func (s *MySQLStore) autoMigrate() {
 	if !s.columnExists(dbName, "settings", "style_presets") {
 		s.db.Exec("ALTER TABLE settings ADD COLUMN style_presets TEXT AFTER points_exchange_bonus")
 	}
+	// 首次创建或历史为空时 seed 内置风格预设；非空（管理员已自定义，包括清空为 []）则保留。
+	s.db.Exec("UPDATE settings SET style_presets=? WHERE id=1 AND (style_presets IS NULL OR style_presets='')", DefaultStylePresetsJSON)
 	if !s.columnExists(dbName, "settings", "email_config") {
 		s.db.Exec("ALTER TABLE settings ADD COLUMN email_config TEXT AFTER style_presets")
 	}

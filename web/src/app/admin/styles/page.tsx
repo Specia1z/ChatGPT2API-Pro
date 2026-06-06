@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { Outfit, DM_Mono } from "next/font/google";
 import * as LucideIcons from "lucide-react";
-const { Palette, Plus, Trash2, Settings2, RefreshCw, Save } = LucideIcons;
+const { Palette, Plus, Trash2, Settings2, RefreshCw, Save, RotateCcw } = LucideIcons;
 import { toast } from "sonner";
 import { api } from "@/lib/api";
 import { AdminSidebar } from "@/components/admin-sidebar";
@@ -44,6 +44,7 @@ export default function AdminStylesPage() {
   const [saving, setSaving] = useState(false);
   const [editing, setEditing] = useState<StyleItem | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<StyleItem | null>(null);
+  const [restoreOpen, setRestoreOpen] = useState(false);
   const [iconSearch, setIconSearch] = useState("");
   const [iconPickerOpen, setIconPickerOpen] = useState(false);
 
@@ -102,6 +103,16 @@ export default function AdminStylesPage() {
     save(styles.map(s => s.id === id ? { ...s, enabled: !s.enabled } : s));
   };
 
+  // 恢复内置默认风格（从后端 seed 取，覆盖当前列表）
+  const restoreDefaults = async () => {
+    setRestoreOpen(false);
+    try {
+      const r = await api("/api/admin/style-presets/defaults");
+      const list: StyleItem[] = JSON.parse(r.data || "[]");
+      await save(list);
+    } catch (e: any) { toast.error(e.message || "恢复失败"); }
+  };
+
   if (loading) return (
     <div className="h-screen bg-background flex items-center justify-center">
       <div className="size-8 border-2 border-muted border-t-primary rounded-full animate-spin" />
@@ -122,6 +133,9 @@ export default function AdminStylesPage() {
           <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
             <Button variant="ghost" size="sm" onClick={load} className="gap-1 sm:gap-1.5 text-[10px] sm:text-xs px-1.5 sm:px-2">
               <RefreshCw className="size-3 sm:size-3.5" /> <span className="hidden sm:inline">刷新</span>
+            </Button>
+            <Button variant="ghost" size="sm" onClick={() => setRestoreOpen(true)} className="gap-1 sm:gap-1.5 text-[10px] sm:text-xs px-1.5 sm:px-2">
+              <RotateCcw className="size-3 sm:size-3.5" /> <span className="hidden sm:inline">恢复默认</span>
             </Button>
             <Button size="sm" onClick={addNew} className="gap-1 sm:gap-1.5 text-[10px] sm:text-xs px-1.5 sm:px-2">
               <Plus className="size-3 sm:size-3.5" /> <span className="hidden sm:inline">新建风格</span><span className="sm:hidden">新建</span>
@@ -260,6 +274,10 @@ export default function AdminStylesPage() {
       <ConfirmDialog open={!!deleteTarget} onOpenChange={() => setDeleteTarget(null)}
         title="删除风格" description={`确定要删除「${deleteTarget?.label}」？`}
         confirmLabel="删除" variant="destructive" onConfirm={deleteStyle} />
+
+      <ConfirmDialog open={restoreOpen} onOpenChange={setRestoreOpen}
+        title="恢复默认风格" description="将用内置风格预设覆盖当前列表，你的自定义修改会丢失。此操作不可撤销。"
+        confirmLabel="恢复默认" onConfirm={restoreDefaults} />
     </div>
   );
 }

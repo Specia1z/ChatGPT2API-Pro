@@ -90,6 +90,7 @@ mux.Handle("POST /api/user/points/exchange", userAuth(http.HandlerFunc(h.Exchang
 	// 系统设置（GET 公开，POST 需管理员）
 	mux.HandleFunc("GET /api/settings", h.GetSettings)
 	mux.Handle("POST /api/settings", adminAuth(http.HandlerFunc(h.SaveSettings)))
+	mux.Handle("GET /api/admin/style-presets/defaults", adminAuth(http.HandlerFunc(h.GetDefaultStylePresets)))
 
 	// 监控
 	mux.Handle("GET /api/monitor", adminAuth(http.HandlerFunc(h.GetMonitorConfig)))
