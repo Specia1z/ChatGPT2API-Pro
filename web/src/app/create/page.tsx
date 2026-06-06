@@ -530,8 +530,6 @@ export default function CreatePage() {
   const lineCount = tags.filter(Boolean).length;
   // 总张数 = 各提示词份数之和（含尚未提交的当前输入，按 1 份计）
   const totalImages = tags.filter(Boolean).reduce((sum, t) => sum + getTagCount(t), 0) + (currentInput.trim() ? 1 : 0);
-  const capacity = (user as any)?.token_capacity || 50;
-  const isPro = (user as any)?.plan_name && (user as any).plan_name !== "免费版";
 
   if (!user) return null;
 
@@ -561,7 +559,7 @@ export default function CreatePage() {
               {/* Token + Plan pill */}
               <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-full bg-[#f0efe8] dark:bg-[#252521] text-[10px]">
                 <span className="px-1.5 py-px rounded-full bg-white/60 dark:bg-[#353530] text-[#6b6a66] dark:text-[#9e9d98] font-medium">
-                  {isPro ? "Pro" : "Free"}
+                  {(user as any)?.plan_name || "免费版"}
                 </span>
                 <span className="text-[#6b6a66] dark:text-[#9e9d98] font-mono tabular-nums">
                   <Zap className="w-2.5 h-2.5 inline -mt-px mr-0.5" />
