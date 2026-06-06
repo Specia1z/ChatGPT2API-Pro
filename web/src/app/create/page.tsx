@@ -93,6 +93,18 @@ const autoDim = (size: string): { w: number; h: number } | null => {
   return { w: parseInt(m[1], 10), h: parseInt(m[2], 10) };
 };
 
+// 分享审核状态 → UI 语义（先审后发）。兼容无 share_status 的老数据（用 shared 推断）。
+type ShareUI = { key: "none" | "pending" | "approved" | "rejected"; label: string; active: boolean };
+const shareState = (g: any): ShareUI => {
+  const ss = g.share_status || (g.shared ? "approved" : "none");
+  switch (ss) {
+    case "pending":  return { key: "pending",  label: "审核中",   active: true };
+    case "approved": return { key: "approved", label: "已展示",   active: true };
+    case "rejected": return { key: "rejected", label: "未通过",   active: false };
+    default:          return { key: "none",     label: "分享到广场", active: false };
+  }
+};
+
 export default function CreatePage() {
   const { user, loading: authLoading } = useAuth();
   const router = useRouter();
@@ -514,11 +526,15 @@ export default function CreatePage() {
 
   const toggleShare = async (e: React.MouseEvent, g: any) => {
     e.stopPropagation();
-    const v = !g.shared;
+    // 先审后发：pending/approved 视为"已分享"，再点为撤回；none/rejected 为"未分享"，点击提交审核
+    const ss = g.share_status || (g.shared ? "approved" : "none");
+    const isActive = ss === "pending" || ss === "approved";
+    const turnOn = !isActive;
     try {
-      await api("/api/generations/share", { method: "POST", body: JSON.stringify({ id: g.id, shared: v }) });
-      setGenerations(prev => prev.map(x => x.id === g.id ? { ...x, shared: v } : x));
-      toast.success(v ? "已分享到灵感广场" : "已取消分享");
+      await api("/api/generations/share", { method: "POST", body: JSON.stringify({ id: g.id, shared: turnOn }) });
+      const nextStatus = turnOn ? "pending" : "none";
+      setGenerations(prev => prev.map(x => x.id === g.id ? { ...x, share_status: nextStatus, shared: turnOn ? x.shared : false } : x));
+      toast.success(turnOn ? "已提交审核，通过后将展示到广场" : "已取消分享");
     } catch {
       toast.error("操作失败，请重试");
     }
@@ -950,10 +966,12 @@ export default function CreatePage() {
                         )}
                         {/* 扫光渐出遮罩 — 与图片淡入重叠，防止生硬切换 */}
                         <div className={`absolute inset-0 bg-[#f0efe8] dark:bg-[#181814] transition-opacity duration-700 pointer-events-none ${isRev ? "opacity-0" : "opacity-100"}`} />
-                        {/* 已分享角标 — 仅移动端常驻（桌面端靠 hover 操作条体现）；隐藏 overlay 后保留状态可见性 */}
-                        {g.shared && isRev && (
-                          <span className="sm:hidden absolute top-1.5 right-1.5 flex items-center justify-center w-5 h-5 rounded-full bg-emerald-500/90 shadow-sm pointer-events-none">
-                            <Share2 className="w-2.5 h-2.5 text-white" />
+                        {/* 分享状态角标 — 仅移动端常驻：审核中(琥珀) / 已展示(翠绿) */}
+                        {isRev && shareState(g).active && (
+                          <span className={`sm:hidden absolute top-1.5 right-1.5 flex items-center justify-center w-5 h-5 rounded-full shadow-sm pointer-events-none ${shareState(g).key === "pending" ? "bg-amber-500/90" : "bg-emerald-500/90"}`}>
+                            {shareState(g).key === "pending"
+                              ? <Clock className="w-2.5 h-2.5 text-white" />
+                              : <Share2 className="w-2.5 h-2.5 text-white" />}
                           </span>
                         )}
                         {/* Hover overlay — 仅桌面端；移动端点击直接开预览，操作在预览弹窗内完成 */}
@@ -971,11 +989,13 @@ export default function CreatePage() {
                                   <TooltipTrigger render={
                                     <button onClick={e => toggleShare(e, g)}
                                       className="p-1 rounded-lg transition-colors"
-                                      style={{ backgroundColor: g.shared ? "rgba(16,185,129,0.5)" : "rgba(255,255,255,0.15)" }}>
-                                      <Share2 className="w-3 h-3 text-white" />
+                                      style={{ backgroundColor: shareState(g).key === "pending" ? "rgba(245,158,11,0.5)" : shareState(g).key === "approved" ? "rgba(16,185,129,0.5)" : "rgba(255,255,255,0.15)" }}>
+                                      {shareState(g).key === "pending"
+                                        ? <Clock className="w-3 h-3 text-white" />
+                                        : <Share2 className="w-3 h-3 text-white" />}
                                     </button>
                                   } />
-                                  <TooltipContent>{g.shared ? "已分享到广场" : "分享到广场"}</TooltipContent>
+                                  <TooltipContent>{shareState(g).key === "pending" ? "审核中（点击撤回）" : shareState(g).key === "approved" ? "已展示（点击撤回）" : shareState(g).key === "rejected" ? "未通过审核（点击重新提交）" : "分享到广场"}</TooltipContent>
                                 </Tooltip>
                                 <Tooltip>
                                   <TooltipTrigger render={
@@ -1101,10 +1121,16 @@ export default function CreatePage() {
                   </div>
                   {/* Action buttons — mobile: icons only, desktop: icon + label */}
                   <div className="flex items-center gap-1 sm:gap-2 pt-2 sm:pt-3 border-t border-[#e8e7e2] dark:border-[#1f1f1b]">
-                    <button onClick={async (e) => { await toggleShare(e, previewGen); setPreviewGen({ ...previewGen, shared: !previewGen.shared }); }}
+                    <button onClick={async (e) => {
+                        const cur = shareState(previewGen);
+                        await toggleShare(e, previewGen);
+                        setPreviewGen({ ...previewGen, share_status: cur.active ? "none" : "pending", shared: cur.active ? false : previewGen.shared });
+                      }}
                       className="flex items-center justify-center sm:justify-start gap-0.5 sm:gap-1.5 w-9 sm:w-auto h-9 sm:h-auto px-0 sm:px-3 py-2 sm:py-1.5 rounded-lg text-[11px] font-medium bg-[#f0efe8] dark:bg-[#252521] text-[#6b6a66] dark:text-[#9e9d98] hover:text-[#1a1a18] dark:hover:text-white transition-colors">
-                      <Share2 className="w-4 h-4 sm:w-3.5 sm:h-3.5 shrink-0" />
-                      <span className="hidden sm:inline">{previewGen.shared ? "已分享" : "分享"}</span>
+                      {shareState(previewGen).key === "pending"
+                        ? <Clock className="w-4 h-4 sm:w-3.5 sm:h-3.5 shrink-0" />
+                        : <Share2 className="w-4 h-4 sm:w-3.5 sm:h-3.5 shrink-0" />}
+                      <span className="hidden sm:inline">{shareState(previewGen).label}</span>
                     </button>
                     <button onClick={(e) => { editGen(e, previewGen); setPreviewGen(null); }}
                       className="flex items-center justify-center sm:justify-start gap-0.5 sm:gap-1.5 w-9 sm:w-auto h-9 sm:h-auto px-0 sm:px-3 py-2 sm:py-1.5 rounded-lg text-[11px] font-medium bg-[#f0efe8] dark:bg-[#252521] text-[#6b6a66] dark:text-[#9e9d98] hover:text-[#1a1a18] dark:hover:text-white transition-colors">

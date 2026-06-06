@@ -199,6 +199,8 @@ type Generation struct {
 	UserEmail string `json:"user_email,omitempty"`
 	UserName  string `json:"user_name,omitempty"`
 	Shared    bool   `json:"shared"`
+	ShareStatus string `json:"share_status,omitempty"` // none/pending/approved/rejected
+	ShareRejectReason string `json:"share_reject_reason,omitempty"`
 	CreatedAt string `json:"created_at"`
 }
 

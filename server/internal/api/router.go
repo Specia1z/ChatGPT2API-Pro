@@ -116,6 +116,8 @@ mux.Handle("POST /api/user/points/exchange", userAuth(http.HandlerFunc(h.Exchang
 	mux.Handle("POST /api/admin/redeem/generate", adminAuth(http.HandlerFunc(h.GenerateRedeemCodes)))
 	mux.Handle("DELETE /api/admin/redeem", adminAuth(http.HandlerFunc(h.DisableRedeemCode)))
 	mux.Handle("DELETE /api/admin/gallery", adminAuth(http.HandlerFunc(h.AdminUnshare)))
+	mux.Handle("GET /api/admin/shares/pending", adminAuth(http.HandlerFunc(h.AdminListPendingShares)))
+	mux.Handle("POST /api/admin/shares/review", adminAuth(http.HandlerFunc(h.AdminReviewShare)))
 	mux.Handle("GET /api/admin/coupons", adminAuth(http.HandlerFunc(h.AdminListCoupons)))
 	mux.Handle("POST /api/admin/coupons", adminAuth(http.HandlerFunc(h.AdminCreateCoupon)))
 	mux.Handle("DELETE /api/admin/coupons", adminAuth(http.HandlerFunc(h.AdminDisableCoupon)))

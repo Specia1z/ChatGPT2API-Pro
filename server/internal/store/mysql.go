@@ -273,11 +273,14 @@ func (s *MySQLStore) autoMigrate() {
 		image_b64 MEDIUMTEXT,
 		image_url VARCHAR(512) DEFAULT '',
 		shared TINYINT(1) NOT NULL DEFAULT 0,
+		share_status VARCHAR(16) NOT NULL DEFAULT 'none',
+		share_reject_reason VARCHAR(255) NOT NULL DEFAULT '',
 		status VARCHAR(16) DEFAULT 'pending',
 		error_msg TEXT,
 		created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
 		INDEX idx_user_id (user_id),
-		INDEX idx_created_at (created_at)
+		INDEX idx_created_at (created_at),
+		INDEX idx_share_status (share_status)
 	) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`)
 	// ALTER 兼容已存在的表
 	_, err := s.db.Exec("ALTER TABLE generations ADD COLUMN size VARCHAR(16) DEFAULT '1:1' AFTER model")
@@ -293,6 +296,16 @@ func (s *MySQLStore) autoMigrate() {
 		}
 	}
 	s.db.Exec("ALTER TABLE generations ADD COLUMN image_url VARCHAR(512) DEFAULT '' AFTER image_b64")
+
+	// 分享审核状态（先审后发）：none=未分享 / pending=待审 / approved=已通过 / rejected=已拒绝。
+	// 存量 shared=1 老数据视为 approved，避免下架既有广场内容。
+	genDB := s.currentDBName()
+	if !s.columnExists(genDB, "generations", "share_status") {
+		s.db.Exec("ALTER TABLE generations ADD COLUMN share_status VARCHAR(16) NOT NULL DEFAULT 'none'")
+		s.db.Exec("ALTER TABLE generations ADD COLUMN share_reject_reason VARCHAR(255) NOT NULL DEFAULT ''")
+		s.db.Exec("CREATE INDEX idx_share_status ON generations (share_status)")
+		s.db.Exec("UPDATE generations SET share_status='approved' WHERE shared=1")
+	}
 
 	s.db.Exec(`CREATE TABLE IF NOT EXISTS accounts (
 		id BIGINT AUTO_INCREMENT PRIMARY KEY,
@@ -768,13 +781,13 @@ func (s *MySQLStore) UpdateGeneration(id int64, imageB64, status, errMsg, imageU
 func (s *MySQLStore) GetUserGenerations(userID int64, page, pageSize int) ([]model.Generation, int, error) {
 	var total int
 	s.db.QueryRow("SELECT COUNT(*) FROM generations WHERE user_id=?", userID).Scan(&total)
-	rows, err := s.db.Query("SELECT id, user_id, prompt, model, COALESCE(size,''), COALESCE(image_b64,''), COALESCE(image_url,''), status, COALESCE(error_msg,''), created_at, shared FROM generations WHERE user_id=? ORDER BY id DESC LIMIT ? OFFSET ?", userID, pageSize, (page-1)*pageSize)
+	rows, err := s.db.Query("SELECT id, user_id, prompt, model, COALESCE(size,''), COALESCE(image_b64,''), COALESCE(image_url,''), status, COALESCE(error_msg,''), created_at, shared, COALESCE(share_status,'none'), COALESCE(share_reject_reason,'') FROM generations WHERE user_id=? ORDER BY id DESC LIMIT ? OFFSET ?", userID, pageSize, (page-1)*pageSize)
 	if err != nil { return nil, 0, err }
 	defer rows.Close()
 	var gens []model.Generation
 	for rows.Next() {
 		var g model.Generation
-		rows.Scan(&g.ID, &g.UserID, &g.Prompt, &g.Model, &g.Size, &g.ImageB64, &g.ImageURL, &g.Status, &g.ErrorMsg, &g.CreatedAt, &g.Shared)
+		rows.Scan(&g.ID, &g.UserID, &g.Prompt, &g.Model, &g.Size, &g.ImageB64, &g.ImageURL, &g.Status, &g.ErrorMsg, &g.CreatedAt, &g.Shared, &g.ShareStatus, &g.ShareRejectReason)
 		gens = append(gens, g)
 	}
 	if err := rows.Err(); err != nil {
@@ -786,13 +799,13 @@ func (s *MySQLStore) GetUserGenerations(userID int64, page, pageSize int) ([]mod
 func (s *MySQLStore) GetAllGenerations(page, pageSize int) ([]model.Generation, int, error) {
 	var total int
 	s.db.QueryRow("SELECT COUNT(*) FROM generations").Scan(&total)
-	rows, err := s.db.Query("SELECT g.id, g.user_id, g.prompt, g.model, COALESCE(g.size,''), COALESCE(g.image_b64,''), COALESCE(g.image_url,''), g.status, COALESCE(g.error_msg,''), g.created_at, COALESCE(u.email,''), COALESCE(u.name,''), g.shared FROM generations g LEFT JOIN users u ON g.user_id=u.id ORDER BY g.id DESC LIMIT ? OFFSET ?", pageSize, (page-1)*pageSize)
+	rows, err := s.db.Query("SELECT g.id, g.user_id, g.prompt, g.model, COALESCE(g.size,''), COALESCE(g.image_b64,''), COALESCE(g.image_url,''), g.status, COALESCE(g.error_msg,''), g.created_at, COALESCE(u.email,''), COALESCE(u.name,''), g.shared, COALESCE(g.share_status,'none') FROM generations g LEFT JOIN users u ON g.user_id=u.id ORDER BY g.id DESC LIMIT ? OFFSET ?", pageSize, (page-1)*pageSize)
 	if err != nil { return nil, 0, err }
 	defer rows.Close()
 	var gens []model.Generation
 	for rows.Next() {
 		var g model.Generation
-		rows.Scan(&g.ID, &g.UserID, &g.Prompt, &g.Model, &g.Size, &g.ImageB64, &g.ImageURL, &g.Status, &g.ErrorMsg, &g.CreatedAt, &g.UserEmail, &g.UserName, &g.Shared)
+		rows.Scan(&g.ID, &g.UserID, &g.Prompt, &g.Model, &g.Size, &g.ImageB64, &g.ImageURL, &g.Status, &g.ErrorMsg, &g.CreatedAt, &g.UserEmail, &g.UserName, &g.Shared, &g.ShareStatus)
 		gens = append(gens, g)
 	}
 	if err := rows.Err(); err != nil {
@@ -1469,17 +1482,57 @@ func (s *MySQLStore) GetPlanByID(id int) (*model.Plan, error) {
 
 // --- Share / Gallery ---
 
+// ToggleShare 用户切换分享：开启=进入待审队列(pending，不公开)，关闭=撤回(none，且下架)。
+// 先审后发——shared 只有管理员审核通过才会置 1。
 func (s *MySQLStore) ToggleShare(genID, userID int64, shared bool) error {
-	res, err := s.db.Exec("UPDATE generations SET shared=? WHERE id=? AND user_id=?", shared, genID, userID)
+	var q string
+	if shared {
+		// 仅允许对已完成且有图的生成发起分享；重复发起时 pending/approved 保持幂等
+		q = "UPDATE generations SET share_status='pending' WHERE id=? AND user_id=? AND share_status IN ('none','rejected')"
+	} else {
+		q = "UPDATE generations SET share_status='none', shared=0 WHERE id=? AND user_id=?"
+	}
+	res, err := s.db.Exec(q, genID, userID)
 	if err != nil { return err }
 	n, _ := res.RowsAffected()
 	if n == 0 { return sql.ErrNoRows }
 	return nil
 }
 
-func (s *MySQLStore) AdminUnshare(genID int64) error {
-	_, err := s.db.Exec("UPDATE generations SET shared=0 WHERE id=?", genID)
+// AdminReviewShare 管理员审核：approve=通过(公开)，reject=拒绝(附原因，不公开)。
+func (s *MySQLStore) AdminReviewShare(genID int64, approve bool, reason string) error {
+	var err error
+	if approve {
+		_, err = s.db.Exec("UPDATE generations SET share_status='approved', shared=1, share_reject_reason='' WHERE id=?", genID)
+	} else {
+		_, err = s.db.Exec("UPDATE generations SET share_status='rejected', shared=0, share_reject_reason=? WHERE id=?", reason, genID)
+	}
 	return err
+}
+
+// AdminUnshare 下架已公开的分享（退回 rejected 状态，记录原因可选）。
+func (s *MySQLStore) AdminUnshare(genID int64) error {
+	_, err := s.db.Exec("UPDATE generations SET shared=0, share_status='rejected' WHERE id=?", genID)
+	return err
+}
+
+// ListPendingShares 待审分享队列（管理员）。
+func (s *MySQLStore) ListPendingShares(page, pageSize int) ([]model.Generation, int, error) {
+	var total int
+	s.db.QueryRow("SELECT COUNT(*) FROM generations WHERE share_status='pending'").Scan(&total)
+	rows, err := s.db.Query("SELECT g.id, g.user_id, g.prompt, g.model, COALESCE(g.size,\"\"), COALESCE(g.image_b64,\"\"), COALESCE(g.image_url,\"\"), g.status, COALESCE(u.email,\"\"), COALESCE(u.name,\"\"), g.shared, g.share_status, g.created_at FROM generations g LEFT JOIN users u ON g.user_id=u.id WHERE g.share_status='pending' AND g.status='completed' ORDER BY g.id ASC LIMIT ? OFFSET ?", pageSize, (page-1)*pageSize)
+	if err != nil { return nil, 0, err }
+	defer rows.Close()
+	var gens []model.Generation
+	for rows.Next() {
+		var g model.Generation
+		if err := rows.Scan(&g.ID, &g.UserID, &g.Prompt, &g.Model, &g.Size, &g.ImageB64, &g.ImageURL, &g.Status, &g.UserEmail, &g.UserName, &g.Shared, &g.ShareStatus, &g.CreatedAt); err != nil {
+			continue
+		}
+		gens = append(gens, g)
+	}
+	if err := rows.Err(); err != nil { return nil, 0, err }
+	return gens, total, nil
 }
 
 func (s *MySQLStore) ListSharedGalleries(page, pageSize int) ([]model.Generation, int, error) {
