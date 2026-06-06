@@ -181,7 +181,7 @@ export default function UserPage() {
                   欢迎回来，{user.name || "用户"}
                 </h1>
                 <p className="text-sm text-muted-foreground">{user.email}</p>
-                <div className="flex items-center gap-2.5 pt-0.5">
+                <div className="flex flex-wrap items-center gap-2.5 pt-0.5">
                   <Badge variant={isPro ? "default" : "secondary"} className="gap-1">
                     {isPro && <Crown className="size-3" />} {user.plan_name || "免费版"}
                   </Badge>
@@ -281,7 +281,7 @@ export default function UserPage() {
         {/* ═══ 功能区 Tabs ═══ */}
         <motion.div variants={fadeUp}>
           <Tabs defaultValue="keys" className="gap-5">
-            <TabsList>
+            <TabsList className="max-w-full overflow-x-auto scrollbar-hide flex-nowrap">
               <TabsTab value="keys">API 密钥</TabsTab>
               <TabsTab value="rewards">优惠与兑换</TabsTab>
               <TabsTab value="checkin">每日签到</TabsTab>
@@ -298,6 +298,10 @@ export default function UserPage() {
                     <span className={`${heading.className} text-sm font-semibold`}>API 密钥</span>
                     <Badge variant="outline" className="ml-1">{keys.length}</Badge>
                   </div>
+                  <a href="/docs" target="_blank" rel="noreferrer"
+                    className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors">
+                    <ArrowUpRight className="size-3.5" /> 接口文档
+                  </a>
                 </div>
                 <div className="p-6 space-y-4">
                   <div className="flex items-center gap-2">
@@ -506,7 +510,7 @@ export default function UserPage() {
                       </div>
                       <span className={`${heading.className} text-sm font-semibold`}>配额状态</span>
                     </div>
-                    <div className="flex items-center gap-4">
+                    <div className="flex flex-col sm:flex-row sm:items-center gap-4">
                       <div className="flex-1 space-y-1.5">
                         <div className="flex justify-between text-xs text-muted-foreground">
                           <span>当前令牌</span>
@@ -517,14 +521,15 @@ export default function UserPage() {
                             style={{ width: `${Math.min((userStats.tokens ?? 0) / (userStats.capacity ?? 50) * 100, 100)}%` }} />
                         </div>
                       </div>
-                      <div className="text-right">
-                        <p className={`${monoFont.className} text-lg font-semibold tabular-nums`}>{userStats.refill ?? 3}</p>
-                        <p className="text-[10px] text-muted-foreground">/小时恢复</p>
-                      </div>
-                      <div className="text-right">
-                        <p className={`${monoFont.className} text-lg font-semibold tabular-nums`}>{userStats.plan_name || "免费版"}</p>
-                        <p className="text-[10px] text-muted-foreground">{userStats.plan_name && userStats.plan_name !== "免费版" ? "当前套餐" : ""}</p>
-
+                      <div className="flex items-center justify-between sm:justify-end gap-6 sm:gap-4 shrink-0">
+                        <div className="text-left sm:text-right">
+                          <p className={`${monoFont.className} text-lg font-semibold tabular-nums`}>{userStats.refill ?? 3}</p>
+                          <p className="text-[10px] text-muted-foreground">/小时恢复</p>
+                        </div>
+                        <div className="text-right">
+                          <p className={`${monoFont.className} text-lg font-semibold tabular-nums truncate max-w-[120px]`}>{userStats.plan_name || "免费版"}</p>
+                          <p className="text-[10px] text-muted-foreground">{userStats.plan_name && userStats.plan_name !== "免费版" ? "当前套餐" : ""}</p>
+                        </div>
                       </div>
                     </div>
                   </div>

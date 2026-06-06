@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useAuth } from "@/lib/auth";
-import { Sparkles, User, Wand2, LogOut, Sun, Moon } from "lucide-react";
+import { Sparkles, User, Wand2, LogOut, Sun, Moon, Terminal } from "lucide-react";
 import { BASE } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { MobileTabBar } from "@/components/mobile-tab-bar";
@@ -72,6 +72,13 @@ export function Navbar() {
             className="px-2.5 py-1.5 rounded-lg text-[13px] text-zinc-500 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-all flex items-center gap-1"
           >
             <Sparkles className="w-3 h-3" /> 灵感广场
+          </Link>
+
+          <Link
+            href="/docs"
+            className="px-2.5 py-1.5 rounded-lg text-[13px] text-zinc-500 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-all flex items-center gap-1"
+          >
+            <Terminal className="w-3 h-3" /> API 文档
           </Link>
 
           {user ? (

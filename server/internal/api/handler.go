@@ -593,8 +593,9 @@ func (h *Handler) ServeGenerationImage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 鉴权：公开分享图片无需登录，私有图片需所有者或管理员
-	if !gen.Shared {
+	// 鉴权：公开分享图片无需登录；带有效 HMAC 签名的链接（OpenAI url 模式）直接放行；
+	// 否则私有图片需所有者或管理员
+	if !gen.Shared && !verifyImageSig(id, r.URL.Query().Get("exp"), r.URL.Query().Get("sig")) {
 		uid := h.resolveUserID(r)
 		if uid == 0 || gen.UserID != uid {
 			// 检查管理员 token（支持 cookie/query/admin 中间件）

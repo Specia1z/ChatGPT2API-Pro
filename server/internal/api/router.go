@@ -53,6 +53,9 @@ mux.Handle("POST /api/user/points/exchange", userAuth(http.HandlerFunc(h.Exchang
 	mux.Handle("GET /api/v1/images/generations", apiKeyAuth(http.HandlerFunc(h.GetUserGenerations)))
 	mux.Handle("GET /api/v1/user/tokens", apiKeyAuth(http.HandlerFunc(h.GetUserTokens)))
 
+	// OpenAI 兼容接口（同步返回，标准 /v1 路径，API Key 认证 + 限流）
+	mux.Handle("POST /v1/images/generations", middleware.RateLimit(apiKeyAuth(http.HandlerFunc(h.CreateImageOpenAI))))
+
 	// 管理员公开（IP限流 + 账号级锁定防刷）
 	mux.Handle("POST /api/admin/login", middleware.RateLimit(http.HandlerFunc(h.Login)))
 
