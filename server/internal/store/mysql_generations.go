@@ -143,6 +143,28 @@ func (s *MySQLStore) GetUserGenerations(userID int64, page, pageSize int) ([]mod
 	return gens, total, nil
 }
 
+// GetUserSVGGenerations 用户的 AI 矢量历史（gen_type=svg）。SVG 文本存在 image_b64 列。
+func (s *MySQLStore) GetUserSVGGenerations(userID int64, page, pageSize int) ([]model.Generation, int, error) {
+	var total int
+	s.db.QueryRow("SELECT COUNT(*) FROM generations WHERE user_id=? AND gen_type='svg'", userID).Scan(&total)
+	rows, err := s.db.Query("SELECT id, user_id, prompt, model, COALESCE(image_b64,''), status, COALESCE(error_msg,''), created_at FROM generations WHERE user_id=? AND gen_type='svg' ORDER BY id DESC LIMIT ? OFFSET ?", userID, pageSize, (page-1)*pageSize)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer rows.Close()
+	var gens []model.Generation
+	for rows.Next() {
+		var g model.Generation
+		rows.Scan(&g.ID, &g.UserID, &g.Prompt, &g.Model, &g.ImageB64, &g.Status, &g.ErrorMsg, &g.CreatedAt)
+		g.GenType = "svg"
+		gens = append(gens, g)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, 0, err
+	}
+	return gens, total, nil
+}
+
 func (s *MySQLStore) GetAllGenerations(page, pageSize int) ([]model.Generation, int, error) {
 	var total int
 	s.db.QueryRow("SELECT COUNT(*) FROM generations WHERE gen_type='image'").Scan(&total)

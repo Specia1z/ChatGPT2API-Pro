@@ -4,7 +4,7 @@ import { useState, useRef, useEffect } from "react";
 import { Outfit, DM_Mono } from "next/font/google";
 import { Shapes, Sparkles, Download, Copy, Check, Loader2, AlertCircle, X } from "lucide-react";
 import { toast } from "sonner";
-import { BASE, getToken } from "@/lib/api";
+import { BASE, getToken, api } from "@/lib/api";
 import { Navbar } from "@/components/navbar";
 import { Button } from "@/components/ui/button";
 
@@ -35,9 +35,26 @@ export default function VectorPage() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(false);
   const [copiedId, setCopiedId] = useState<number | null>(null);
+  const [history, setHistory] = useState<any[]>([]);
+  const [histLoading, setHistLoading] = useState(true);
   const abortRef = useRef<AbortController | null>(null);
 
+  const loadHistory = async () => {
+    try {
+      const r = await api<any>("/api/vector?page=1&page_size=24");
+      setHistory(r.data?.items || []);
+    } catch {}
+    setHistLoading(false);
+  };
+  useEffect(() => { loadHistory(); }, []);
   useEffect(() => () => abortRef.current?.abort(), []);
+
+  const delHistory = async (id: number) => {
+    try {
+      await api("/api/vector", { method: "DELETE", body: JSON.stringify({ id }) });
+      setHistory(prev => prev.filter(h => h.id !== id));
+    } catch (e: any) { toast.error(e.message || "删除失败"); }
+  };
 
   // 更新单个任务（按 id）
   const patchTask = (id: number, patch: Partial<Task>) =>
@@ -107,6 +124,7 @@ export default function VectorPage() {
     // 并发跑所有任务（各自独立扣令牌/占调度位，429 由 runOne 退避兜底）
     await Promise.all(init.map(t => runOne(t.id, p, ctrl.signal)));
     setLoading(false);
+    loadHistory(); // 生成完刷新历史
   };
 
   const cancel = () => { abortRef.current?.abort(); setLoading(false); };
@@ -200,6 +218,48 @@ export default function VectorPage() {
             })}
           </div>
         )}
+
+        {/* 我的矢量历史 */}
+        <div className="mt-10">
+          <div className="flex items-center gap-2 mb-4">
+            <h2 className={`${heading.className} text-sm font-semibold`}>我的矢量历史</h2>
+            {history.length > 0 && <span className="text-[11px] text-muted-foreground">{history.length} 条</span>}
+          </div>
+          {histLoading ? (
+            <div className="py-10 text-center text-muted-foreground"><Loader2 className="size-5 animate-spin mx-auto" /></div>
+          ) : history.length === 0 ? (
+            <div className="py-10 text-center text-muted-foreground/50 text-xs">还没有生成记录</div>
+          ) : (
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+              {history.map(h => {
+                const svg = h.image_b64 || "";
+                const ok = h.status === "completed" && svg.includes("<svg");
+                return (
+                  <div key={h.id} className="group rounded-xl border bg-card overflow-hidden flex flex-col">
+                    <div className="relative h-40 flex items-center justify-center p-3 overflow-hidden border-b bg-muted/20">
+                      {ok ? (
+                        <div className="relative w-full h-full [&>svg]:!w-full [&>svg]:!h-full [&>svg]:!max-w-full [&>svg]:!max-h-full" dangerouslySetInnerHTML={{ __html: svg }} />
+                      ) : (
+                        <div className="text-center text-muted-foreground/50"><AlertCircle className="size-5 mx-auto mb-1" /><p className="text-[10px]">{h.status === "failed" ? "生成失败" : "无效"}</p></div>
+                      )}
+                      {/* hover 操作 */}
+                      <div className="absolute top-1.5 right-1.5 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        {ok && (
+                          <>
+                            <button onClick={() => { navigator.clipboard.writeText(svg); setCopiedId(h.id); setTimeout(() => setCopiedId(null), 1500); }} className="size-6 rounded-md bg-background/90 border flex items-center justify-center hover:text-fuchsia-500" title="复制">{copiedId === h.id ? <Check className="size-3 text-emerald-500" /> : <Copy className="size-3" />}</button>
+                            <button onClick={() => { const b = new Blob([svg], { type: "image/svg+xml" }); const u = URL.createObjectURL(b); const a = document.createElement("a"); a.href = u; a.download = `vector-${h.id}.svg`; a.click(); URL.revokeObjectURL(u); }} className="size-6 rounded-md bg-background/90 border flex items-center justify-center hover:text-fuchsia-500" title="下载"><Download className="size-3" /></button>
+                          </>
+                        )}
+                        <button onClick={() => delHistory(h.id)} className="size-6 rounded-md bg-background/90 border flex items-center justify-center hover:text-red-500" title="删除"><X className="size-3" /></button>
+                      </div>
+                    </div>
+                    <p className="px-2.5 py-2 text-[11px] text-muted-foreground line-clamp-2" title={h.prompt}>{h.prompt}</p>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
       </main>
     </div>
   );

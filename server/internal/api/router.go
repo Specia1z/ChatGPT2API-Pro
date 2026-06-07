@@ -46,6 +46,8 @@ func NewRouter(mysql *store.MySQLStore, redis *store.RedisStore, cleaner *servic
 	// 生图
 	mux.Handle("POST /api/generations", userAuth(http.HandlerFunc(h.CreateGeneration)))
 	mux.Handle("POST /api/vector", userAuth(http.HandlerFunc(h.CreateVector)))
+	mux.Handle("GET /api/vector", userAuth(http.HandlerFunc(h.ListVector)))
+	mux.Handle("DELETE /api/vector", userAuth(http.HandlerFunc(h.DeleteVector)))
 	mux.Handle("DELETE /api/generations", userAuth(http.HandlerFunc(h.DeleteGeneration)))
 	mux.Handle("POST /api/user/checkin", userAuth(http.HandlerFunc(h.Checkin)))
 	mux.Handle("GET /api/user/checkin/status", userAuth(http.HandlerFunc(h.CheckinStatus)))

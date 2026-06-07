@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"chatgpt2api-pro/internal/middleware"
@@ -130,6 +131,56 @@ func (h *Handler) CreateVector(w http.ResponseWriter, r *http.Request) {
 	svg := extractSVG(full)
 	h.MySQL.UpdateSVGGeneration(genID, svg, "completed", "")
 	sendEvent("done", map[string]any{"id": genID, "svg": svg, "raw": full})
+}
+
+// GET /api/vector — 用户的 AI 矢量历史（分页）
+func (h *Handler) ListVector(w http.ResponseWriter, r *http.Request) {
+	uid, ok := r.Context().Value(middleware.UserIDKey).(int64)
+	if !ok {
+		writeJSON(w, 401, model.APIResponse{Code: 401, Message: "未登录"})
+		return
+	}
+	q := r.URL.Query()
+	page, _ := strconv.Atoi(q.Get("page"))
+	pageSize, _ := strconv.Atoi(q.Get("page_size"))
+	if page < 1 {
+		page = 1
+	}
+	if pageSize < 1 || pageSize > 50 {
+		pageSize = 20
+	}
+	items, total, err := h.MySQL.GetUserSVGGenerations(uid, page, pageSize)
+	if err != nil {
+		writeJSON(w, 500, model.APIResponse{Code: 500, Message: "获取失败"})
+		return
+	}
+	if items == nil {
+		items = []model.Generation{}
+	}
+	writeJSON(w, 200, model.APIResponse{Code: 200, Data: map[string]any{"items": items, "total": total, "page": page, "page_size": pageSize}})
+}
+
+// DELETE /api/vector — 删除一条矢量历史（复用 DeleteUserGeneration，带 user_id 防越权）
+func (h *Handler) DeleteVector(w http.ResponseWriter, r *http.Request) {
+	uid, ok := r.Context().Value(middleware.UserIDKey).(int64)
+	if !ok {
+		writeJSON(w, 401, model.APIResponse{Code: 401, Message: "未登录"})
+		return
+	}
+	body, _ := io.ReadAll(io.LimitReader(r.Body, 1<<16))
+	var req struct {
+		ID int64 `json:"id"`
+	}
+	json.Unmarshal(body, &req)
+	if req.ID <= 0 {
+		writeJSON(w, 400, model.APIResponse{Code: 400, Message: "参数错误"})
+		return
+	}
+	if err := h.MySQL.DeleteUserGeneration(req.ID, uid); err != nil {
+		writeJSON(w, 404, model.APIResponse{Code: 404, Message: "记录不存在或无权删除"})
+		return
+	}
+	writeJSON(w, 200, model.APIResponse{Code: 200, Message: "已删除"})
 }
 
 // extractSVG 从模型回复里抽出 <svg>...</svg>（去掉 markdown 围栏/解释文字）；找不到则原样返回。
