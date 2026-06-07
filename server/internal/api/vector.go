@@ -133,6 +133,92 @@ func (h *Handler) CreateVector(w http.ResponseWriter, r *http.Request) {
 	sendEvent("done", map[string]any{"id": genID, "svg": svg, "raw": full})
 }
 
+// POST /api/v1/vector — API Key 调用的同步矢量生成（阻塞直到完成，返回 JSON）。
+// 与网页 SSE 版同源逻辑：复用 svg_model / 令牌桶 / 调度器 / 账号池。
+func (h *Handler) CreateVectorAPI(w http.ResponseWriter, r *http.Request) {
+	uid, ok := r.Context().Value(middleware.UserIDKey).(int64)
+	if !ok {
+		writeJSON(w, 401, model.APIResponse{Code: 401, Message: "未授权"})
+		return
+	}
+	body, _ := io.ReadAll(io.LimitReader(r.Body, 1<<20))
+	var req struct {
+		Prompt string `json:"prompt"`
+	}
+	json.Unmarshal(body, &req)
+	req.Prompt = strings.TrimSpace(req.Prompt)
+	if req.Prompt == "" {
+		writeJSON(w, 400, model.APIResponse{Code: 400, Message: "prompt 不能为空"})
+		return
+	}
+	if len(req.Prompt) > 2000 {
+		writeJSON(w, 400, model.APIResponse{Code: 400, Message: "prompt 超长（≤2000）"})
+		return
+	}
+
+	settings, _ := h.MySQL.GetSettings()
+	svgModel := strings.TrimSpace(settings.SVGModel)
+	if svgModel == "" {
+		writeJSON(w, 503, model.APIResponse{Code: 503, Message: "AI 矢量生成未启用"})
+		return
+	}
+	if settings.BannedWords != "" {
+		lp := strings.ToLower(req.Prompt)
+		for _, word := range strings.Split(settings.BannedWords, ",") {
+			word = strings.TrimSpace(strings.ToLower(word))
+			if word != "" && strings.Contains(lp, word) {
+				writeJSON(w, 400, model.APIResponse{Code: 400, Message: "提示词包含违规内容"})
+				return
+			}
+		}
+	}
+
+	user, _ := h.MySQL.GetUserByID(uid)
+	capacity, refillRate, maxConcurrent := 50, 3, 1
+	if user != nil {
+		capacity = valOr(user.TokenCapacity, 50)
+		refillRate = valOr(user.TokenRefillPerHour, 3)
+		maxConcurrent = valOr(user.PlanConcurrency, 1)
+	}
+	cost := valOr(settings.TokensPerImage, 1)
+
+	sched := service.GetScheduler()
+	if err := sched.CheckCapacity(uid, 1, maxConcurrent); err != nil {
+		writeJSON(w, 429, model.APIResponse{Code: 429, Message: err.Error()})
+		return
+	}
+	normal, burst, okTok, waitSec, _ := h.Redis.ConsumeToken(uid, capacity, refillRate, cost)
+	if !okTok {
+		writeJSON(w, 429, model.APIResponse{Code: 429, Message: fmt.Sprintf("令牌不足 (剩余%.0f, 需%d个, 等待%ds)", normal+burst, cost, waitSec)})
+		return
+	}
+	genID, err := h.MySQL.CreateSVGGeneration(uid, req.Prompt, svgModel)
+	if err != nil {
+		h.Redis.RefundToken(uid, capacity, refillRate, cost)
+		writeJSON(w, 500, model.APIResponse{Code: 500, Message: "创建记录失败"})
+		return
+	}
+	if err := sched.Acquire(uid, maxConcurrent); err != nil {
+		h.Redis.RefundToken(uid, capacity, refillRate, cost)
+		h.MySQL.UpdateSVGGeneration(genID, "", "failed", err.Error())
+		writeJSON(w, 429, model.APIResponse{Code: 429, Message: err.Error()})
+		return
+	}
+	defer sched.Release(uid)
+
+	svc := service.NewSVGGenService(h.MySQL, h.Redis)
+	full, genErr := svc.GenerateSVG(r.Context(), svgModel, req.Prompt, nil) // API 同步，不需逐字回调
+	if genErr != nil {
+		h.Redis.RefundToken(uid, capacity, refillRate, cost)
+		h.MySQL.UpdateSVGGeneration(genID, "", "failed", genErr.Error())
+		writeJSON(w, 502, model.APIResponse{Code: 502, Message: genErr.Error()})
+		return
+	}
+	svg := extractSVG(full)
+	h.MySQL.UpdateSVGGeneration(genID, svg, "completed", "")
+	writeJSON(w, 200, model.APIResponse{Code: 200, Data: map[string]any{"id": genID, "model": svgModel, "svg": svg}})
+}
+
 // GET /api/vector — 用户的 AI 矢量历史（分页）
 func (h *Handler) ListVector(w http.ResponseWriter, r *http.Request) {
 	uid, ok := r.Context().Value(middleware.UserIDKey).(int64)

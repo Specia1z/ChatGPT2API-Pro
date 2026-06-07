@@ -71,6 +71,7 @@ mux.Handle("POST /api/user/points/exchange", middleware.RateLimit(userAuth(http.
 	apiUserRL := func(h http.Handler) http.Handler { return middleware.UserRateLimit(redis, 30, time.Minute)(h) }
 	mux.Handle("POST /api/v1/images/generations", middleware.RateLimit(apiKeyAuth(apiUserRL(http.HandlerFunc(h.CreateGeneration)))))
 	mux.Handle("GET /api/v1/images/generations", apiKeyAuth(apiUserRL(http.HandlerFunc(h.GetUserGenerations))))
+	mux.Handle("POST /api/v1/vector", middleware.RateLimit(apiKeyAuth(apiUserRL(http.HandlerFunc(h.CreateVectorAPI)))))
 	mux.Handle("GET /api/v1/user/tokens", apiKeyAuth(apiUserRL(http.HandlerFunc(h.GetUserTokens))))
 
 	// OpenAI 兼容接口（同步返回，标准 /v1 路径，API Key 认证 + IP/uid 双限流）

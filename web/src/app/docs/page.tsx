@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { Navbar } from "@/components/navbar";
-import { Copy, Check, KeyRound, Image as ImageIcon, Clock, AlertTriangle, Terminal } from "lucide-react";
+import { Copy, Check, KeyRound, Image as ImageIcon, Clock, AlertTriangle, Terminal, Shapes } from "lucide-react";
 
 /* ── 复制按钮 ─────────────────────────────── */
 function CodeBlock({ code, lang = "bash" }: { code: string; lang?: string }) {
@@ -84,6 +84,7 @@ const NAV = [
   { id: "query", label: "查询结果" },
   { id: "tokens", label: "查询额度" },
   { id: "openai", label: "OpenAI 兼容" },
+  { id: "vector", label: "矢量图(SVG)" },
   { id: "errors", label: "错误码" },
   { id: "limits", label: "限流与配额" },
 ];
@@ -323,6 +324,45 @@ print(resp.data[0].b64_json[:40])`} />
             </div>
           </Section>
 
+          {/* 矢量图 SVG */}
+          <Section id="vector" icon={<Shapes className="w-4 h-4" />} title="矢量图生成 (SVG)">
+            <div className="flex items-center gap-2 text-sm">
+              <span className="font-mono text-[11px] font-bold px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">POST</span>
+              <code className="font-mono text-[13px] text-zinc-700 dark:text-zinc-300">/api/v1/vector</code>
+            </div>
+            <p className="text-sm text-zinc-600 dark:text-zinc-400 leading-relaxed">
+              用 AI 文本模型生成 <strong className="text-zinc-700 dark:text-zinc-300">SVG 矢量图</strong>（可无限缩放、可编辑）。
+              <strong className="text-zinc-700 dark:text-zinc-300">同步</strong>接口，一次请求阻塞直到生成完成，直接返回 SVG 源码。
+              使用的模型由站点管理员统一配置（你无需也无法指定）。
+            </p>
+            <h3 className="text-[13px] font-semibold text-zinc-700 dark:text-zinc-300 pt-1">请求参数</h3>
+            <FieldTable rows={[
+              { name: "prompt", type: "string", required: "是", desc: "图形描述，最长 2000 字符。例如「一个简约的蓝色火箭图标，扁平风格」" },
+            ]} />
+            <h3 className="text-[13px] font-semibold text-zinc-700 dark:text-zinc-300 pt-1">cURL 示例</h3>
+            <CodeBlock code={`curl -X POST ${origin}/api/v1/vector \\
+  -H "Authorization: Bearer sk-你的密钥" \\
+  -H "Content-Type: application/json" \\
+  -d '{ "prompt": "一个简约的蓝色火箭图标，扁平风格" }'`} />
+            <h3 className="text-[13px] font-semibold text-zinc-700 dark:text-zinc-300 pt-1">响应</h3>
+            <CodeBlock lang="json" code={`{
+  "code": 200,
+  "data": {
+    "id": 12345,
+    "model": "gpt-5.3",
+    "svg": "<svg viewBox=\\"0 0 128 128\\" xmlns=\\"http://www.w3.org/2000/svg\\">...</svg>"
+  }
+}`} />
+            <div className="space-y-1.5 text-xs text-zinc-500 dark:text-zinc-500 pt-1">
+              <p><strong className="text-zinc-700 dark:text-zinc-300">svg</strong> 字段即可直接渲染或保存为 .svg 文件。</p>
+              <p>每次生成与生图<strong className="text-zinc-700 dark:text-zinc-300">共用令牌</strong>（消耗规则同下方「限流与配额」）。</p>
+            </div>
+            <div className="rounded-xl border border-amber-300/40 dark:border-amber-500/20 bg-amber-50/60 dark:bg-amber-500/[0.06] p-4 flex items-start gap-2 text-[13px] text-amber-700 dark:text-amber-400">
+              <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" />
+              <span>同步接口，单次通常耗时 5–30 秒；请把客户端超时设到 <strong>60 秒以上</strong>。若管理员未配置矢量模型，返回 <strong>503</strong>。</span>
+            </div>
+          </Section>
+
           {/* 错误码 */}
           <Section id="errors" icon={<AlertTriangle className="w-4 h-4" />} title="错误码">
             <FieldTable rows={[
@@ -348,7 +388,7 @@ print(resp.data[0].b64_json[:40])`} />
               </li>
               <li className="flex items-start gap-2">
                 <span className="mt-1.5 w-1 h-1 rounded-full bg-zinc-400 shrink-0" />
-                <span><strong className="text-zinc-700 dark:text-zinc-300">令牌桶</strong>：生成 count 张消耗 count 个令牌；令牌按套餐速率每小时恢复，不足时返回 429 并提示等待时长。</span>
+                <span><strong className="text-zinc-700 dark:text-zinc-300">令牌桶</strong>：每张图/每次矢量生成消耗固定令牌数（默认 1，由管理员配置）；生成 count 张即消耗 count × 单价。令牌按套餐速率每小时恢复，不足时返回 429 并提示等待时长。</span>
               </li>
               <li className="flex items-start gap-2">
                 <span className="mt-1.5 w-1 h-1 rounded-full bg-zinc-400 shrink-0" />
