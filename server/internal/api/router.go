@@ -11,6 +11,8 @@ import (
 
 func NewRouter(mysql *store.MySQLStore, redis *store.RedisStore, cleaner *service.StorageCleaner) http.Handler {
 	h := &Handler{MySQL: mysql, Redis: redis, Cleaner: cleaner}
+	// 注册支付网关适配器（第一阶段仅支付宝；新增渠道在此注册即可）
+	registerGateway(&alipayGatewayAdapter{})
 	adminAuth := middleware.AdminAuth(redis, mysql)
 	userAuth := middleware.UserAuth(redis, mysql)
 	apiKeyAuth := middleware.ApiKeyAuth(mysql)
@@ -151,6 +153,8 @@ mux.Handle("POST /api/user/points/exchange", middleware.RateLimit(userAuth(http.
 	mux.Handle("GET /api/orders", userAuth(http.HandlerFunc(h.GetUserOrders)))
 	mux.Handle("GET /api/orders/{orderNo}", userAuth(http.HandlerFunc(h.GetOrderStatus)))
 	mux.HandleFunc("POST /api/orders/alipay/notify", h.AlipayNotify)
+	// 通用支付回调入口（新渠道走此路由，按 {gateway} 分发）
+	mux.HandleFunc("POST /api/orders/{gateway}/notify", h.PaymentCallback)
 
 	// 本地存储图片统一经 GET /api/images/{id} 代理读取（按 object key 实时定位文件），
 	// 不再挂载 /uploads/ 静态目录——避免热切换存储路径需重启，也不暴露真实目录结构。

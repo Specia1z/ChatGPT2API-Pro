@@ -4,10 +4,8 @@ import (
 	"crypto/rand"
 	"encoding/json"
 	"fmt"
-	"io"
 	"log"
 	"net/http"
-	"net/url"
 	"strconv"
 	"time"
 
@@ -102,17 +100,18 @@ func (h *Handler) CreateOrder(w http.ResponseWriter, r *http.Request) {
 	}
 
 	settings, _ := h.MySQL.GetSettings()
-	if !settings.AlipayEnabled || settings.AlipayAppID == "" {
+	gw := firstEnabledGateway(settings)
+	if gw == nil {
 		writeJSON(w, 200, model.APIResponse{Code: 200, Data: map[string]any{"order": order, "alipay": nil, "message": "支付未配置"}})
 		return
 	}
-	qrCode, qrErr := alipayPrecreate(settings, orderNo, subject, amount)
+	pay, qrErr := gw.CreatePayment(settings, orderNo, subject, amount)
 	if qrErr != nil {
-		log.Printf("[payment] precreate err: %v", qrErr)
+		log.Printf("[payment] %s create err: %v", gw.Name(), qrErr)
 		writeJSON(w, 200, model.APIResponse{Code: 200, Data: map[string]any{"order": order, "qr_code": nil, "alipay_app_id": "", "message": "支付服务暂不可用"}})
 		return
 	}
-	writeJSON(w, 200, model.APIResponse{Code: 200, Data: map[string]any{"order": order, "qr_code": qrCode, "alipay_app_id": settings.AlipayAppID}})
+	writeJSON(w, 200, model.APIResponse{Code: 200, Data: map[string]any{"order": order, "qr_code": pay.QRCode, "gateway": gw.Name(), "alipay_app_id": settings.AlipayAppID}})
 }
 
 // GET /api/orders — 用户订单列表
@@ -213,17 +212,18 @@ func (h *Handler) UpgradeOrder(w http.ResponseWriter, r *http.Request) {
 
 	subject := newPlan.Name + "(" + billing + ")"
 	settings, _ := h.MySQL.GetSettings()
-	if !settings.AlipayEnabled || settings.AlipayAppID == "" {
+	gw := firstEnabledGateway(settings)
+	if gw == nil {
 		writeJSON(w, 200, model.APIResponse{Code: 200, Data: map[string]any{"order": order, "alipay": nil, "message": "支付未配置"}})
 		return
 	}
-	qrCode, qrErr := alipayPrecreate(settings, orderNo, subject, upgradePrice)
+	pay, qrErr := gw.CreatePayment(settings, orderNo, subject, upgradePrice)
 	if qrErr != nil {
-		log.Printf("[payment] upgrade precreate err: %v", qrErr)
+		log.Printf("[payment] %s upgrade create err: %v", gw.Name(), qrErr)
 		writeJSON(w, 200, model.APIResponse{Code: 200, Data: map[string]any{"order": order, "qr_code": nil, "alipay_app_id": "", "message": "支付服务暂不可用"}})
 		return
 	}
-	writeJSON(w, 200, model.APIResponse{Code: 200, Data: map[string]any{"order": order, "qr_code": qrCode, "alipay_app_id": settings.AlipayAppID, "original_price": originalPrice, "remaining_value": remainingValue}})
+	writeJSON(w, 200, model.APIResponse{Code: 200, Data: map[string]any{"order": order, "qr_code": pay.QRCode, "gateway": gw.Name(), "alipay_app_id": settings.AlipayAppID, "original_price": originalPrice, "remaining_value": remainingValue}})
 }
 
 func (h *Handler) GetUserOrders(w http.ResponseWriter, r *http.Request) {
@@ -269,29 +269,13 @@ func (h *Handler) GetOrderStatus(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 403, model.APIResponse{Code: 403, Message: "无权访问"})
 		return
 	}
-	// 主动查询支付宝（异步通知的补充/备选方案）
+	// 主动查询渠道（异步通知的补充/备选方案）
 	if order.Status == "pending" {
 		settings, _ := h.MySQL.GetSettings()
-		if settings.AlipayEnabled && settings.AlipayAppID != "" && settings.AlipayAppPrivateKey != "" {
-			alipayStatus, tradeNo, err := alipayQuery(settings, orderNo)
-			if err == nil && alipayStatus == "TRADE_SUCCESS" {
-				ok, _ := h.MySQL.MarkOrderPaid(orderNo, tradeNo)
-				if ok {
-					if p, _ := h.MySQL.GetPlanByID(order.PlanID); p != nil {
-						d := order.DurationDays
-						if d <= 0 {
-							d = p.DurationDays
-						}
-						if d > 0 {
-							h.MySQL.RawExec(`UPDATE users SET plan_id=?, subscription_expires_at=DATE_ADD(CASE WHEN subscription_expires_at IS NULL OR subscription_expires_at < NOW() THEN NOW() ELSE subscription_expires_at END, INTERVAL ? DAY) WHERE id=?`, order.PlanID, d, order.UserID)
-						} else {
-							h.MySQL.RawExec("UPDATE users SET plan_id=?, subscription_expires_at=NULL WHERE id=?", order.PlanID, order.UserID)
-						}
-					}
-					if order.CouponCode != "" {
-						h.MySQL.AtomicUseCoupon(order.CouponCode, order.Amount)
-					}
-					h.grantInviteRecharge(order.UserID)
+		if gw := firstEnabledGateway(settings); gw != nil {
+			paid, tradeNo, qErr := gw.Query(settings, orderNo)
+			if qErr == nil && paid {
+				if h.fulfillOrder(orderNo, tradeNo) {
 					order.Status = "paid"
 				}
 			}
@@ -323,80 +307,52 @@ func (h *Handler) AdminListOrders(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, 200, model.APIResponse{Code: 200, Data: map[string]any{"items": orders, "total": total}})
 }
 
-// POST /api/orders/alipay/notify — 支付宝异步通知
-func (h *Handler) AlipayNotify(w http.ResponseWriter, r *http.Request) {
-	body, _ := io.ReadAll(r.Body)
-	vals, _ := url.ParseQuery(string(body))
+// PaymentCallback 通用支付异步通知入口：POST /api/orders/{gateway}/notify。
+// 按 {gateway} 分发到对应适配器验签解析，成功则走统一的 fulfillOrder 开通流程。
+func (h *Handler) PaymentCallback(w http.ResponseWriter, r *http.Request) {
+	name := r.PathValue("gateway")
+	gw := getGateway(name)
+	if gw == nil {
+		http.Error(w, "fail", 400)
+		return
+	}
 	settings, _ := h.MySQL.GetSettings()
-	if settings.AlipayPublicKey == "" {
+	res, err := gw.HandleCallback(settings, r)
+	if err != nil || res == nil || !res.Verified {
 		http.Error(w, "fail", 400)
 		return
 	}
-	if !verifyAlipaySign(vals, settings.AlipayPublicKey) {
-		log.Printf("[payment] sign verify failed")
-		http.Error(w, "fail", 400)
+	if !res.Paid {
+		// 验签通过但非成功状态：应答成功避免渠道重复回调
+		http.Error(w, res.Ack, 200)
 		return
 	}
 
-	// 检查是否存在重复 key（防止参数注入绕过）
-	for k, v := range vals {
-		if len(v) > 1 {
-			log.Printf("[payment] duplicate key detected: %s", k)
-			http.Error(w, "fail", 400)
-			return
-		}
-	}
-
-	// 验证 app_id 是否匹配
-	if vals.Get("app_id") != settings.AlipayAppID {
-		log.Printf("[payment] app_id mismatch: got %s, expected %s", vals.Get("app_id"), settings.AlipayAppID)
-		http.Error(w, "fail", 400)
+	order, err := h.MySQL.GetOrderByOrderNo(res.OrderNo)
+	if err != nil || order == nil {
+		http.Error(w, res.AckFail, 400)
 		return
 	}
-
-	if vals.Get("trade_status") == "TRADE_SUCCESS" {
-		orderNo, tradeNo := vals.Get("out_trade_no"), vals.Get("trade_no")
-		order, err := h.MySQL.GetOrderByOrderNo(orderNo)
-		if err != nil || order == nil {
-			http.Error(w, "fail", 400)
-			return
-		}
-		if order.Status != "pending" {
-			http.Error(w, "success", 200)
-			return
-		}
-
-		// 验证金额是否一致
-		totalAmount := vals.Get("total_amount")
-		if totalAmount != "" {
-			notifyAmount, parseErr := strconv.ParseFloat(totalAmount, 64)
-			if parseErr != nil || notifyAmount != order.Amount {
-				log.Printf("[payment] amount mismatch: notify=%s, order=%.2f", totalAmount, order.Amount)
-				http.Error(w, "fail", 400)
-				return
-			}
-		}
-
-		if _, err := h.MySQL.MarkOrderPaid(orderNo, tradeNo); err != nil {
-			http.Error(w, "fail", 500)
-			return
-		}
-		if p, _ := h.MySQL.GetPlanByID(order.PlanID); p != nil {
-			d := order.DurationDays
-			if d <= 0 {
-				d = p.DurationDays
-			}
-			if d > 0 {
-				h.MySQL.RawExec(`UPDATE users SET plan_id=?, subscription_expires_at=DATE_ADD(CASE WHEN subscription_expires_at IS NULL OR subscription_expires_at < NOW() THEN NOW() ELSE subscription_expires_at END, INTERVAL ? DAY) WHERE id=?`, order.PlanID, d, order.UserID)
-			} else {
-				h.MySQL.RawExec("UPDATE users SET plan_id=?, subscription_expires_at=NULL WHERE id=?", order.PlanID, order.UserID)
-			}
-			if order.CouponCode != "" {
-				h.MySQL.AtomicUseCoupon(order.CouponCode, order.Amount)
-			}
-		}
-		// 邀请首充奖励（幂等，仅被邀请用户首笔付费触发）
-		h.grantInviteRecharge(order.UserID)
+	if order.Status != "pending" {
+		http.Error(w, res.Ack, 200) // 幂等
+		return
 	}
-	http.Error(w, "success", 200)
+	// 金额一致性校验（渠道提供金额时）
+	if res.Amount > 0 && res.Amount != order.Amount {
+		log.Printf("[payment] %s amount mismatch: notify=%.2f order=%.2f", name, res.Amount, order.Amount)
+		http.Error(w, res.AckFail, 400)
+		return
+	}
+	if !h.fulfillOrder(res.OrderNo, res.TradeNo) {
+		http.Error(w, res.AckFail, 500)
+		return
+	}
+	http.Error(w, res.Ack, 200)
+}
+
+// AlipayNotify 兼容旧路由 /api/orders/alipay/notify，转发到通用回调处理。
+// Deprecated: 新渠道走 PaymentCallback（/api/orders/{gateway}/notify）。
+func (h *Handler) AlipayNotify(w http.ResponseWriter, r *http.Request) {
+	r.SetPathValue("gateway", "alipay")
+	h.PaymentCallback(w, r)
 }
