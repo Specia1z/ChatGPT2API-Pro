@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { Outfit, DM_Mono } from "next/font/google";
-import { Globe, Shield, Save, Gauge, Gift, CreditCard, Database, Users, Activity, Rocket } from "lucide-react";
+import { Globe, Shield, Save, Gauge, Gift, CreditCard, Database, Users, Activity, Rocket, Coins, Layers } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
 import { AdminSidebar } from "@/components/admin-sidebar";
@@ -22,6 +22,8 @@ const SECTIONS = [
   { id: "security", label: "安全验证", icon: Shield, color: "text-primary", bg: "bg-primary/10" },
   { id: "scheduler", label: "生图调度", icon: Gauge, color: "text-emerald-500", bg: "bg-emerald-500/10" },
   { id: "apirate", label: "API 限速", icon: Activity, color: "text-rose-500", bg: "bg-rose-500/10" },
+  { id: "imgcost", label: "生图消耗", icon: Coins, color: "text-emerald-500", bg: "bg-emerald-500/10" },
+  { id: "freequota", label: "无套餐额度", icon: Layers, color: "text-sky-500", bg: "bg-sky-500/10" },
   { id: "perf", label: "性能调优", icon: Rocket, color: "text-orange-500", bg: "bg-orange-500/10" },
   { id: "payment", label: "支付配置", icon: CreditCard, color: "text-cyan-500", bg: "bg-cyan-500/10" },
   { id: "storage", label: "存储清理", icon: Database, color: "text-violet-500", bg: "bg-violet-500/10" },
@@ -237,8 +239,11 @@ export default function SettingsPage() {
                         <div className="space-y-1.5"><Label>兑换比例（积分/个）</Label><Input type="number" min={1} value={cfg?.points_exchange_rate ?? 10} onChange={e => update("points_exchange_rate", +e.target.value)} className={inputCls} placeholder="10" />
                           <p className="text-[10px] text-muted-foreground">例如 10 = 10 积分换 1 个突发令牌</p>
                         </div>
-                        <div className="space-y-1.5"><Label>大额赠送（≥50 个时）</Label><Input type="number" min={0} value={cfg?.points_exchange_bonus ?? 0} onChange={e => update("points_exchange_bonus", +e.target.value)} className={inputCls} placeholder="0" />
-                          <p className="text-[10px] text-muted-foreground">每 50 个额外赠送 N 个</p>
+                        <div className="space-y-1.5"><Label>大额赠送数量</Label><Input type="number" min={0} value={cfg?.points_exchange_bonus ?? 0} onChange={e => update("points_exchange_bonus", +e.target.value)} className={inputCls} placeholder="0" />
+                          <p className="text-[10px] text-muted-foreground">每满「赠送阈值」个，额外赠送 N 个（0=不赠送）</p>
+                        </div>
+                        <div className="space-y-1.5"><Label>赠送阈值（个）</Label><Input type="number" min={0} value={cfg?.points_exchange_bonus_threshold ?? 0} onChange={e => update("points_exchange_bonus_threshold", +e.target.value)} className={inputCls} placeholder="50" />
+                          <p className="text-[10px] text-muted-foreground">单次兑换满此数量才触发赠送（0=默认 50）</p>
                         </div>
                         <div className="space-y-1.5"><Label>突发令牌囤积上限</Label><Input type="number" min={0} value={cfg?.burst_token_cap ?? 0} onChange={e => update("burst_token_cap", +e.target.value)} className={inputCls} placeholder="0" />
                           <p className="text-[10px] text-muted-foreground">单用户突发令牌最多囤积数（0=不限），防止积分无限兑换额度</p>
@@ -333,6 +338,35 @@ export default function SettingsPage() {
                     未单独配置 API 速率的套餐统一回退此值。0 = 使用内置兜底 30 次/分钟。优先级：套餐速率 &gt; 此默认值 &gt; 内置兜底。保存后即时生效，无需重启。
                   </div>
                 </div>
+              </Card>
+
+              {/* ═══ 生图消耗 ═══ */}
+              <Card id="imgcost" icon={Coins} color="text-emerald-500" bg="bg-emerald-500/10" title="生图消耗" desc="生成图片扣除的令牌数量">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-start">
+                  <div className="space-y-1.5">
+                    <Label>每张图消耗令牌</Label>
+                    <Input type="number" min={0} value={cfg?.tokens_per_image ?? 0} onChange={e => update("tokens_per_image", +e.target.value)} className={inputCls} placeholder="1" />
+                  </div>
+                  <div className="rounded-xl bg-muted/40 p-3.5 text-xs text-muted-foreground leading-relaxed">
+                    生成 1 张图扣除的令牌数。0 = 使用内置默认 1。调高则同等令牌额度下可生成的图片更少（如设为 2，则 50 令牌只能生成 25 张）。原生接口与 OpenAI 兼容接口均生效，保存后即时生效。
+                  </div>
+                </div>
+              </Card>
+
+              {/* ═══ 无套餐默认额度 ═══ */}
+              <Card id="freequota" icon={Layers} color="text-sky-500" bg="bg-sky-500/10" title="无套餐默认额度" desc="未订阅 / 订阅过期 / 无默认套餐用户的兜底额度">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <div className="space-y-1.5"><Label>令牌容量</Label><Input type="number" min={0} value={cfg?.free_token_capacity ?? 0} onChange={e => update("free_token_capacity", +e.target.value)} className={inputCls} placeholder="50" />
+                    <p className="text-[10px] text-muted-foreground">令牌桶上限（0=默认 50）</p>
+                  </div>
+                  <div className="space-y-1.5"><Label>每小时恢复</Label><Input type="number" min={0} value={cfg?.free_token_refill_per_hour ?? 0} onChange={e => update("free_token_refill_per_hour", +e.target.value)} className={inputCls} placeholder="3" />
+                    <p className="text-[10px] text-muted-foreground">每小时恢复令牌数（0=默认 3）</p>
+                  </div>
+                  <div className="space-y-1.5"><Label>并发上限</Label><Input type="number" min={0} value={cfg?.free_concurrency ?? 0} onChange={e => update("free_concurrency", +e.target.value)} className={inputCls} placeholder="1" />
+                    <p className="text-[10px] text-muted-foreground">同时生成数（0=默认 1）</p>
+                  </div>
+                </div>
+                <p className="text-[10px] text-muted-foreground mt-3 leading-relaxed">优先级：用户当前有效套餐 &gt; 此处默认额度 &gt; 内置兜底 50/3/1。对所有没有有效套餐的用户生效（含新注册未配默认套餐、付费用户订阅过期）。</p>
               </Card>
 
               {/* ═══ 性能调优 ═══ */}

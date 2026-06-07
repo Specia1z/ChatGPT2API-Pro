@@ -43,11 +43,15 @@ func (h *Handler) ExchangePoints(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 计算所需积分
-	// 大额兑换（>= 50 令牌）享受额外赠送
+	// 大额兑换（>= 阈值）享受额外赠送，阈值后台可调（0=默认 50）
+	bonusThreshold := settings.PointsExchangeBonusThreshold
+	if bonusThreshold <= 0 {
+		bonusThreshold = 50
+	}
 	bonus := 0
 	pointsCost := req.Tokens * rate
-	if settings.PointsExchangeBonus > 0 && req.Tokens >= 50 {
-		bonus = settings.PointsExchangeBonus * (req.Tokens / 50)
+	if settings.PointsExchangeBonus > 0 && req.Tokens >= bonusThreshold {
+		bonus = settings.PointsExchangeBonus * (req.Tokens / bonusThreshold)
 		pointsCost = req.Tokens * rate // 额外赠送不额外扣积分
 	}
 

@@ -156,10 +156,12 @@ func (h *Handler) CreateImageOpenAI(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 令牌桶：原子消耗 n 个
-	normal, burst, okTok, waitSec, _ := h.Redis.ConsumeToken(uid, capacity, refillRate, n)
+	// 令牌桶：原子消耗（每张图 tokensPerImage 个，后台可调，0=默认 1）
+	perImage := valOr(settings.TokensPerImage, 1)
+	cost := n * perImage
+	normal, burst, okTok, waitSec, _ := h.Redis.ConsumeToken(uid, capacity, refillRate, cost)
 	if !okTok {
-		writeOpenAIError(w, 429, fmt.Sprintf("令牌不足 (剩余%.0f, 需%d个, 等待%ds)", normal+burst, n, waitSec), "rate_limit_error")
+		writeOpenAIError(w, 429, fmt.Sprintf("令牌不足 (剩余%.0f, 需%d个, 等待%ds)", normal+burst, cost, waitSec), "rate_limit_error")
 		return
 	}
 
@@ -180,13 +182,13 @@ func (h *Handler) CreateImageOpenAI(w http.ResponseWriter, r *http.Request) {
 			defer func() {
 				if rec := recover(); rec != nil {
 					results[idx].err = fmt.Errorf("内部错误: %v", rec)
-					h.Redis.RefundToken(uid, capacity, refillRate, 1)
+					h.Redis.RefundToken(uid, capacity, refillRate, perImage)
 				}
 			}()
 
 			if err := sched.Acquire(uid, maxConcurrent); err != nil {
 				results[idx].err = err
-				h.Redis.RefundToken(uid, capacity, refillRate, 1)
+				h.Redis.RefundToken(uid, capacity, refillRate, perImage)
 				return
 			}
 			defer sched.Release(uid)
@@ -194,7 +196,7 @@ func (h *Handler) CreateImageOpenAI(w http.ResponseWriter, r *http.Request) {
 			genID, dbErr := h.MySQL.CreateGeneration(uid, req.Prompt, "gpt-image-2", size)
 			if dbErr != nil {
 				results[idx].err = dbErr
-				h.Redis.RefundToken(uid, capacity, refillRate, 1)
+				h.Redis.RefundToken(uid, capacity, refillRate, perImage)
 				return
 			}
 
@@ -203,7 +205,7 @@ func (h *Handler) CreateImageOpenAI(w http.ResponseWriter, r *http.Request) {
 			imageB64, genErr := svc.Generate(context.Background(), req.Prompt, size)
 			if genErr != nil {
 				h.MySQL.UpdateGeneration(genID, "", "failed", genErr.Error(), "")
-				h.Redis.RefundToken(uid, capacity, refillRate, 1)
+				h.Redis.RefundToken(uid, capacity, refillRate, perImage)
 				results[idx].err = genErr
 				return
 			}

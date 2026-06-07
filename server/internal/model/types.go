@@ -223,6 +223,9 @@ type Settings struct {
 	CFTurnstileSiteKey  string `json:"cf_turnstile_site_key"`
 	CFTurnstileSecretKey string `json:"cf_turnstile_secret_key"`
 	DefaultPlanID       int    `json:"default_plan_id"`
+	FreeTokenCapacity   int    `json:"free_token_capacity"`     // 无套餐/订阅过期时的令牌容量（0=内置默认 50）
+	FreeTokenRefillPerHour int `json:"free_token_refill_per_hour"` // 无套餐时每小时恢复令牌数（0=内置默认 3）
+	FreeConcurrency     int    `json:"free_concurrency"`        // 无套餐时并发上限（0=内置默认 1）
 	BannedWords         string `json:"banned_words"`
 	CheckinEnabled      bool   `json:"checkin_enabled"`
 	CheckinBase         int    `json:"checkin_base"`
@@ -238,6 +241,8 @@ type Settings struct {
 	StorageCleanupDays  int    `json:"storage_cleanup_days"`
 	PointsExchangeRate  int    `json:"points_exchange_rate"`
 	PointsExchangeBonus int    `json:"points_exchange_bonus"`
+	PointsExchangeBonusThreshold int `json:"points_exchange_bonus_threshold"` // 大额兑换赠送的触发阈值（每满 N 个赠送一档；0=用内置默认 50）
+	TokensPerImage      int    `json:"tokens_per_image"` // 每生成 1 张图消耗的令牌数（0=用内置默认 1）
 	BurstTokenCap       int    `json:"burst_token_cap"` // 突发令牌囤积上限（0=不限），防积分兑换无限囤额度
 	DefaultRateLimitPerMin int `json:"default_rate_limit_per_min"` // API Key 默认每分钟请求上限（套餐未配 rate_limit_per_min 时回退此值；0=用内置兜底 30）
 	ConfigCacheTTLSeconds  int `json:"config_cache_ttl_seconds"`   // 配置(settings/storage)进程内缓存秒数（0=不缓存，写时自动失效）

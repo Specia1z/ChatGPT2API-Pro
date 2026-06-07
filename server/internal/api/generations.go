@@ -293,17 +293,20 @@ func (h *Handler) CreateGeneration(w http.ResponseWriter, r *http.Request) {
 
 
 
-	// 令牌桶检查 — 原子消耗 count 个令牌（同步，确保返回时已扣减）
+	// 令牌桶检查 — 原子消耗令牌（同步，确保返回时已扣减）
+	// 每张图消耗 tokensPerImage 个令牌（后台可调，0=默认 1）
+	perImage := valOr(settings.TokensPerImage, 1)
+	cost := count * perImage
 
-	normal, burst, ok, waitSec, _ := h.Redis.ConsumeToken(userID, capacity, refillRate, count)
+	normal, burst, ok, waitSec, _ := h.Redis.ConsumeToken(userID, capacity, refillRate, cost)
 	totalRemain := normal + burst
-	
+
 	if !ok {
-	
-		writeJSON(w, 429, model.APIResponse{Code: 429, Message: fmt.Sprintf("令牌不足 (剩余%.0f, 需%d个, 等待%ds)", totalRemain, count, waitSec)})
-	
+
+		writeJSON(w, 429, model.APIResponse{Code: 429, Message: fmt.Sprintf("令牌不足 (剩余%.0f, 需%d个, 等待%ds)", totalRemain, cost, waitSec)})
+
 		return
-	
+
 	}
 
 
@@ -318,10 +321,10 @@ func (h *Handler) CreateGeneration(w http.ResponseWriter, r *http.Request) {
 
 		if err != nil {
 
-			// 已扣减 count 个令牌，但从第 i 条起未能建记录（不会进入下方 goroutine 退款），
-			// 退还这部分未使用的令牌，避免令牌泄漏
+			// 已扣减 cost 个令牌，但从第 i 条起未能建记录（不会进入下方 goroutine 退款），
+			// 退还这部分未使用的令牌（按每图倍率），避免令牌泄漏
 
-			h.Redis.RefundToken(userID, capacity, refillRate, count-i)
+			h.Redis.RefundToken(userID, capacity, refillRate, (count-i)*perImage)
 
 			writeJSON(w, 500, model.APIResponse{Code: 500, Message: err.Error()})
 
@@ -353,7 +356,7 @@ func (h *Handler) CreateGeneration(w http.ResponseWriter, r *http.Request) {
 
 					if err := h.MySQL.UpdateGeneration(genID, "", "failed", fmt.Sprintf("内部错误: %v", r), ""); err != nil { log.Printf("[gen %d] update fail: %v", genID, err) }
 
-					h.Redis.RefundToken(userID, capacity, refillRate, 1)
+					h.Redis.RefundToken(userID, capacity, refillRate, perImage)
 
 				}
 
@@ -367,7 +370,7 @@ func (h *Handler) CreateGeneration(w http.ResponseWriter, r *http.Request) {
 
 				if err := h.MySQL.UpdateGeneration(genID, "", "failed", err.Error(), ""); err != nil { log.Printf("[gen %d] update fail: %v", genID, err) }
 
-				h.Redis.RefundToken(userID, capacity, refillRate, 1)
+				h.Redis.RefundToken(userID, capacity, refillRate, perImage)
 
 				return
 
@@ -389,7 +392,7 @@ func (h *Handler) CreateGeneration(w http.ResponseWriter, r *http.Request) {
 
 				if err := h.MySQL.UpdateGeneration(genID, "", "failed", err.Error(), ""); err != nil { log.Printf("[gen %d] update fail: %v", genID, err) }
 
-				h.Redis.RefundToken(userID, capacity, refillRate, 1)
+				h.Redis.RefundToken(userID, capacity, refillRate, perImage)
 
 				return
 
