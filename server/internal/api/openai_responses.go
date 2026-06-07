@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"strings"
 	"time"
@@ -96,6 +97,11 @@ func (h *Handler) Responses(w http.ResponseWriter, r *http.Request) {
 		writeOpenAIError(w, 400, "请求体解析失败", "invalid_request_error")
 		return
 	}
+	blen := len(body)
+	if blen > 600 {
+		blen = 600
+	}
+	log.Printf("[responses] model=%s stream=%v body=%s", req.Model, req.Stream, string(body[:blen]))
 	msgs := parseResponsesInput(req.Input)
 	if len(msgs) == 0 {
 		writeOpenAIError(w, 400, "input 不能为空", "invalid_request_error")
@@ -146,34 +152,72 @@ func buildResponsesObject(id, modelSlug string, created int64, text, status stri
 	}
 }
 
-// responsesStream 以 Responses 流式事件输出（response.output_text.delta + response.completed）。
+// responsesStream 以完整 Responses 流式事件链输出。codex CLI / Agents SDK 需要
+// output_item / content_part 的 added/done 事件才能提取文本，缺则静默返回空。
 func (h *Handler) responsesStream(w http.ResponseWriter, r *http.Request, svc *service.ChatGenService, modelSlug string, msgs []service.ChatMessage, id string, created int64, refund func()) {
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.Header().Set("Cache-Control", "no-cache")
 	w.Header().Set("Connection", "keep-alive")
 	flusher, _ := w.(http.Flusher)
-	send := func(event string, obj any) {
+	seq := 0
+	send := func(event string, obj map[string]any) {
+		obj["sequence_number"] = seq
+		seq++
 		b, _ := json.Marshal(obj)
 		fmt.Fprintf(w, "event: %s\ndata: %s\n\n", event, b)
 		if flusher != nil {
 			flusher.Flush()
 		}
 	}
-	// 起始事件
-	send("response.created", map[string]any{"type": "response.created", "response": buildResponsesObject(id, modelSlug, created, "", "in_progress")})
+	itemID := "msg_" + newReqID()
+	inProgress := buildResponsesObject(id, modelSlug, created, "", "in_progress")
+	inProgress["output"] = []any{} // 进行中还没有 output
+
+	// 1. response.created / in_progress
+	send("response.created", map[string]any{"type": "response.created", "response": inProgress})
+	send("response.in_progress", map[string]any{"type": "response.in_progress", "response": inProgress})
+	// 2. output_item.added（message）
+	emptyItem := map[string]any{"type": "message", "id": itemID, "status": "in_progress", "role": "assistant", "content": []any{}}
+	send("response.output_item.added", map[string]any{"type": "response.output_item.added", "output_index": 0, "item": emptyItem})
+	// 3. content_part.added（output_text）
+	send("response.content_part.added", map[string]any{
+		"type": "response.content_part.added", "item_id": itemID, "output_index": 0, "content_index": 0,
+		"part": map[string]any{"type": "output_text", "text": "", "annotations": []any{}},
+	})
 
 	var full strings.Builder
 	sent := false
 	_, genErr := svc.Chat(r.Context(), modelSlug, msgs, func(delta string) {
 		sent = true
 		full.WriteString(delta)
-		send("response.output_text.delta", map[string]any{"type": "response.output_text.delta", "delta": delta})
+		// 4. 文本增量
+		send("response.output_text.delta", map[string]any{
+			"type": "response.output_text.delta", "item_id": itemID, "output_index": 0, "content_index": 0, "delta": delta,
+		})
 	})
 	if genErr != nil && !sent {
 		refund()
-		send("response.failed", map[string]any{"type": "response.failed", "response": map[string]any{"id": id, "status": "failed", "error": map[string]any{"message": genErr.Error()}}})
+		failed := buildResponsesObject(id, modelSlug, created, "", "failed")
+		failed["error"] = map[string]any{"message": genErr.Error()}
+		send("response.failed", map[string]any{"type": "response.failed", "response": failed})
 		return
 	}
 	text := cleanReply(full.String())
+	// 5. output_text.done
+	send("response.output_text.done", map[string]any{
+		"type": "response.output_text.done", "item_id": itemID, "output_index": 0, "content_index": 0, "text": text,
+	})
+	// 6. content_part.done
+	send("response.content_part.done", map[string]any{
+		"type": "response.content_part.done", "item_id": itemID, "output_index": 0, "content_index": 0,
+		"part": map[string]any{"type": "output_text", "text": text, "annotations": []any{}},
+	})
+	// 7. output_item.done（完整 message item）
+	doneItem := map[string]any{
+		"type": "message", "id": itemID, "status": "completed", "role": "assistant",
+		"content": []map[string]any{{"type": "output_text", "text": text, "annotations": []any{}}},
+	}
+	send("response.output_item.done", map[string]any{"type": "response.output_item.done", "output_index": 0, "item": doneItem})
+	// 8. response.completed
 	send("response.completed", map[string]any{"type": "response.completed", "response": buildResponsesObject(id, modelSlug, created, text, "completed")})
 }
