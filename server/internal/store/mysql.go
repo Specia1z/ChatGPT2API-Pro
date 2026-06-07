@@ -259,6 +259,9 @@ func (s *MySQLStore) autoMigrate() {
 	if !s.columnExists(dbName, "settings", "invite_config") {
 		s.db.Exec("ALTER TABLE settings ADD COLUMN invite_config TEXT AFTER email_config")
 	}
+	if !s.columnExists(dbName, "settings", "shop_config") {
+		s.db.Exec("ALTER TABLE settings ADD COLUMN shop_config TEXT AFTER invite_config")
+	}
 	s.db.Exec(`CREATE TABLE IF NOT EXISTS announcements (
 		id BIGINT AUTO_INCREMENT PRIMARY KEY,
 		title VARCHAR(128) NOT NULL DEFAULT '',

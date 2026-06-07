@@ -402,3 +402,42 @@ func generateAPIKey() string {
 	}
 	return "sk-" + string(b)
 }
+
+// RedeemShopPlan 积分商城兑换套餐时长：单事务内原子扣积分 + 续期，保证钱-货一致。
+// 仅当 points>=cost 才扣；扣成功才续期；任一步失败整体回滚。
+// 返回 remaining=兑换后积分余额，ok=false 表示积分不足（未扣未发）。
+func (s *MySQLStore) RedeemShopPlan(userID int64, planID, days, cost int) (remaining int, ok bool, err error) {
+	tx, err := s.db.Begin()
+	if err != nil {
+		return 0, false, err
+	}
+	defer tx.Rollback()
+
+	// 1. 原子扣分（条件 points>=cost）
+	res, err := tx.Exec("UPDATE users SET points = points - ? WHERE id=? AND points >= ?", cost, userID, cost)
+	if err != nil {
+		return 0, false, err
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		// 余额不足：读当前余额返回，不扣不发
+		tx.QueryRow("SELECT points FROM users WHERE id=?", userID).Scan(&remaining)
+		return remaining, false, nil
+	}
+
+	// 2. 续期（未过期从原到期日累加，过期/NULL 从现在算起；days<=0 视为永久 NULL）
+	if days > 0 {
+		_, err = tx.Exec(`UPDATE users SET plan_id=?, subscription_expires_at=DATE_ADD(CASE WHEN subscription_expires_at IS NULL OR subscription_expires_at < NOW() THEN NOW() ELSE subscription_expires_at END, INTERVAL ? DAY) WHERE id=?`,
+			planID, days, userID)
+	} else {
+		_, err = tx.Exec("UPDATE users SET plan_id=?, subscription_expires_at=NULL WHERE id=?", planID, userID)
+	}
+	if err != nil {
+		return 0, false, err
+	}
+
+	if err = tx.Commit(); err != nil {
+		return 0, false, err
+	}
+	s.db.QueryRow("SELECT points FROM users WHERE id=?", userID).Scan(&remaining)
+	return remaining, true, nil
+}

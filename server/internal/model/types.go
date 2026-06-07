@@ -255,6 +255,17 @@ type Settings struct {
 	StylePresets string `json:"style_presets"` // JSON 数组：风格预设
 	EmailConfig string `json:"email_config"` // JSON：SMTP+域名规则
 	InviteConfig string `json:"invite_config"` // JSON：邀请裂变配置
+	ShopConfig string `json:"shop_config"` // JSON：积分商城商品列表（[]ShopItem）
+}
+
+// ShopItem 积分商城商品（第一期：积分换套餐时长）。存于 settings.shop_config 的 JSON 数组。
+type ShopItem struct {
+	ID      string `json:"id"`       // 商品唯一标识
+	Name    string `json:"name"`     // 展示名，如「7天专业版」
+	PlanID  int    `json:"plan_id"`  // 兑换的套餐 ID
+	Days    int    `json:"days"`     // 兑换的天数（0=永久）
+	Points  int    `json:"points"`   // 所需积分
+	Enabled bool   `json:"enabled"`  // 是否上架
 }
 
 // InviteConfig 邀请裂变配置（存于 settings.invite_config）
