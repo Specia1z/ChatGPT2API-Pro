@@ -42,21 +42,28 @@ export default function AdminOrdersPage() {
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
   const [status, setStatus] = useState("");
+  const [search, setSearch] = useState("");
+  const [searchInput, setSearchInput] = useState("");
   const pageSize = 20;
 
   const fetchOrders = useCallback(async (p: number) => {
     setLoading(true);
     try {
-      const q = `page=${p}&page_size=${pageSize}${status ? `&status=${status}` : ""}`;
+      const q = `page=${p}&page_size=${pageSize}${status ? `&status=${status}` : ""}${search ? `&search=${encodeURIComponent(search)}` : ""}`;
       const r = await api(`/api/admin/orders?${q}`);
       setOrders(r.data?.items || []);
       setTotal(r.data?.total || 0);
     } catch {}
     setLoading(false);
-  }, [status]);
+  }, [status, search]);
 
-  useEffect(() => { setPage(1); }, [status]);
+  useEffect(() => { setPage(1); }, [status, search]);
   useEffect(() => { fetchOrders(page); }, [page, fetchOrders]);
+  // 输入防抖：停止输入 400ms 后触发搜索
+  useEffect(() => {
+    const t = setTimeout(() => setSearch(searchInput.trim()), 400);
+    return () => clearTimeout(t);
+  }, [searchInput]);
 
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
   const fmtDate = (s: string) => s ? s.slice(0, 19).replace("T", " ") : "";
@@ -86,9 +93,20 @@ export default function AdminOrdersPage() {
             <h1 className={`${heading.className} text-sm sm:text-base font-semibold tracking-tight`}>订单管理</h1>
             <p className="text-[10px] sm:text-xs text-muted-foreground mt-0.5">共 <span className="font-semibold text-foreground tabular-nums">{total}</span> 笔订单</p>
           </div>
-          <Button variant="ghost" size="sm" onClick={() => fetchOrders(page)} className="gap-1 sm:gap-1.5 text-[10px] sm:text-xs text-muted-foreground px-1.5 sm:px-2 shrink-0">
-            <RefreshCw className={`size-3 sm:size-3.5 ${loading ? "animate-spin" : ""}`} /> <span className="hidden sm:inline">刷新</span>
-          </Button>
+          <div className="flex items-center gap-2 shrink-0">
+            <div className="relative">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground pointer-events-none" />
+              <input
+                value={searchInput}
+                onChange={e => setSearchInput(e.target.value)}
+                placeholder="订单号 / 邮箱 / 昵称 / 交易号"
+                className="h-8 w-40 sm:w-60 rounded-lg border bg-background pl-8 pr-2 text-xs outline-none focus:ring-2 focus:ring-primary/20"
+              />
+            </div>
+            <Button variant="ghost" size="sm" onClick={() => fetchOrders(page)} className="gap-1 sm:gap-1.5 text-[10px] sm:text-xs text-muted-foreground px-1.5 sm:px-2 shrink-0">
+              <RefreshCw className={`size-3 sm:size-3.5 ${loading ? "animate-spin" : ""}`} /> <span className="hidden sm:inline">刷新</span>
+            </Button>
+          </div>
         </div>
 
         {/* ═══ 状态标签 ═══ */}

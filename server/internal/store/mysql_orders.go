@@ -2,6 +2,7 @@ package store
 
 import (
 	"database/sql"
+	"strings"
 	"time"
 
 	"chatgpt2api-pro/internal/model"
@@ -138,15 +139,42 @@ func (s *MySQLStore) MarkOrderPaid(orderNo, alipayTradeNo string) (bool, error) 
 	return n > 0, nil
 }
 
-func (s *MySQLStore) GetAllOrders(page, pageSize int, status string) ([]model.Order, int, error) {
+// ExpireStaleOrders 把创建超过 timeoutMinutes 分钟仍待支付的订单置为 expired。
+// 仅影响 pending 订单，不动 paid；返回受影响行数。timeoutMinutes<=0 时不处理。
+func (s *MySQLStore) ExpireStaleOrders(timeoutMinutes int) (int64, error) {
+	if timeoutMinutes <= 0 {
+		return 0, nil
+	}
+	res, err := s.db.Exec(
+		"UPDATE orders SET status='expired' WHERE status='pending' AND created_at < DATE_SUB(NOW(), INTERVAL ? MINUTE)",
+		timeoutMinutes)
+	if err != nil {
+		return 0, err
+	}
+	n, _ := res.RowsAffected()
+	return n, nil
+}
+
+func (s *MySQLStore) GetAllOrders(page, pageSize int, status, search string) ([]model.Order, int, error) {
 	var total int
-	where := ""
+	var conds []string
 	args := []any{}
 	if status != "" {
-		where = " WHERE o.status=?"
+		conds = append(conds, "o.status=?")
 		args = append(args, status)
 	}
-	s.db.QueryRow("SELECT COUNT(*) FROM orders o"+where, args...).Scan(&total)
+	if search != "" {
+		// 按订单号 / 用户邮箱 / 用户昵称 / 支付交易号模糊匹配
+		conds = append(conds, "(o.order_no LIKE ? OR u.email LIKE ? OR u.name LIKE ? OR o.alipay_trade_no LIKE ?)")
+		kw := "%" + search + "%"
+		args = append(args, kw, kw, kw, kw)
+	}
+	where := ""
+	if len(conds) > 0 {
+		where = " WHERE " + strings.Join(conds, " AND ")
+	}
+	// 搜索关联 users，故 COUNT 也需 JOIN
+	s.db.QueryRow("SELECT COUNT(*) FROM orders o LEFT JOIN users u ON o.user_id=u.id"+where, args...).Scan(&total)
 	query := `SELECT o.id, o.order_no, o.user_id, COALESCE(u.email,''), COALESCE(u.name,''),
 		o.plan_id, COALESCE(o.plan_name,''), COALESCE(o.duration_days,0), o.amount, o.status,
 		COALESCE(o.alipay_trade_no,''), COALESCE(o.coupon_code,''), o.created_at, o.updated_at

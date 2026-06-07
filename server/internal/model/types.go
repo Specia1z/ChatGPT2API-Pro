@@ -249,6 +249,7 @@ type Settings struct {
 	APIKeyLastUsedThrottleSeconds int `json:"apikey_lastused_throttle_seconds"` // API Key last_used 写入最小间隔秒数（0=每次都写）
 	PublicCacheTTLSeconds  int `json:"public_cache_ttl_seconds"`   // 公开 GET 接口(plans/gallery/公告/stats)缓存秒数（0=不缓存）
 	DBMaxOpenConns         int `json:"db_max_open_conns"`          // MySQL 最大连接数（0=用内置默认 25；上限 200 防爆内存）
+	OrderTimeoutMinutes    int `json:"order_timeout_minutes"`      // 待支付订单超时分钟数，超时自动置为 expired（0=不自动处理）
 	StylePresets string `json:"style_presets"` // JSON 数组：风格预设
 	EmailConfig string `json:"email_config"` // JSON：SMTP+域名规则
 	InviteConfig string `json:"invite_config"` // JSON：邀请裂变配置

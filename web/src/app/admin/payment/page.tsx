@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { Outfit, DM_Mono } from "next/font/google";
-import { CreditCard, Check, Loader2, ShieldCheck, KeyRound, Globe, Wallet } from "lucide-react";
+import { CreditCard, Check, Loader2, ShieldCheck, KeyRound, Globe, Wallet, Clock } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
 import { AdminSidebar } from "@/components/admin-sidebar";
@@ -130,6 +130,30 @@ export default function PaymentPage() {
                 ) : (
                   <p className="text-sm text-muted-foreground">未启用支付宝支付。开启后用户可在定价页通过支付宝扫码购买套餐。</p>
                 )}
+              </div>
+            </motion.section>
+
+            {/* ── 订单设置 ── */}
+            <motion.section initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, delay: 0.05 }}
+              className="rounded-2xl border bg-card overflow-hidden">
+              <div className="px-4 sm:px-6 py-3 sm:py-4 border-b flex items-center gap-3">
+                <div className="size-8 sm:size-9 rounded-xl bg-amber-500/10 flex items-center justify-center shrink-0">
+                  <Clock className="size-4 sm:size-[18px] text-amber-500" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <h2 className={`${heading.className} text-sm font-semibold`}>订单设置</h2>
+                  <p className="text-[10px] sm:text-xs text-muted-foreground mt-0.5">待支付订单的超时处理</p>
+                </div>
+              </div>
+              <div className="p-4 sm:p-6">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-start">
+                  <Field icon={Clock} label="待支付超时（分钟）">
+                    <Input type="number" min={0} value={cfg?.order_timeout_minutes ?? 0} onChange={e => update("order_timeout_minutes", +e.target.value)} placeholder="0" className={inputCls} />
+                  </Field>
+                  <div className="rounded-xl bg-muted/40 p-3.5 text-[11px] text-muted-foreground leading-relaxed">
+                    待支付订单超过此分钟数后自动置为「已过期」（订单记录保留，不再可支付）。0 = 不自动处理。系统每分钟检查一次。
+                  </div>
+                </div>
               </div>
             </motion.section>
 

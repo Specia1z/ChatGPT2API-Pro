@@ -245,6 +245,7 @@ func (s *MySQLStore) autoMigrate() {
 	s.db.Exec("ALTER TABLE settings ADD COLUMN apikey_lastused_throttle_seconds INT NOT NULL DEFAULT 0 AFTER config_cache_ttl_seconds")
 	s.db.Exec("ALTER TABLE settings ADD COLUMN public_cache_ttl_seconds INT NOT NULL DEFAULT 0 AFTER apikey_lastused_throttle_seconds")
 	s.db.Exec("ALTER TABLE settings ADD COLUMN db_max_open_conns INT NOT NULL DEFAULT 0 AFTER public_cache_ttl_seconds")
+	s.db.Exec("ALTER TABLE settings ADD COLUMN order_timeout_minutes INT NOT NULL DEFAULT 0 AFTER db_max_open_conns")
 	if !s.columnExists(dbName, "settings", "style_presets") {
 		s.db.Exec("ALTER TABLE settings ADD COLUMN style_presets TEXT AFTER points_exchange_bonus")
 	}

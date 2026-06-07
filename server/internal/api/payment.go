@@ -7,6 +7,7 @@ import (
 	"log"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"chatgpt2api-pro/internal/middleware"
@@ -290,13 +291,14 @@ func (h *Handler) AdminListOrders(w http.ResponseWriter, r *http.Request) {
 	page, _ := strconv.Atoi(q.Get("page"))
 	pageSize, _ := strconv.Atoi(q.Get("page_size"))
 	status := q.Get("status")
+	search := strings.TrimSpace(q.Get("search"))
 	if page < 1 {
 		page = 1
 	}
 	if pageSize < 1 || pageSize > 100 {
 		pageSize = 20
 	}
-	orders, total, err := h.MySQL.GetAllOrders(page, pageSize, status)
+	orders, total, err := h.MySQL.GetAllOrders(page, pageSize, status, search)
 	if err != nil {
 		writeJSON(w, 500, model.APIResponse{Code: 500, Message: "获取订单失败"})
 		return

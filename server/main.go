@@ -53,6 +53,9 @@ func main() {
 		cleaner.Start()
 	}
 
+	// 待支付订单超时关闭（每分钟检查，阈值由 settings.order_timeout_minutes 控制）
+	service.NewOrderExpirer(mysql).Start()
+
 	log.Printf("[http] 监听 :%s", cfg.Port)
 	log.Printf("[http] http://localhost:%s", cfg.Port)
 
