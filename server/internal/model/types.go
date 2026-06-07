@@ -197,6 +197,7 @@ type Generation struct {
 	Prompt    string `json:"prompt"`
 	Model     string `json:"model"`
 	Size      string `json:"size,omitempty"`
+	GenType   string `json:"gen_type,omitempty"` // image（默认）| svg
 	ImageB64  string `json:"image_b64,omitempty"`
 		ImageURL  string `json:"image_url,omitempty"`
 	Status    string `json:"status"`
@@ -250,6 +251,7 @@ type Settings struct {
 	PublicCacheTTLSeconds  int `json:"public_cache_ttl_seconds"`   // 公开 GET 接口(plans/gallery/公告/stats)缓存秒数（0=不缓存）
 	DBMaxOpenConns         int `json:"db_max_open_conns"`          // MySQL 最大连接数（0=用内置默认 25；上限 200 防爆内存）
 	OrderTimeoutMinutes    int `json:"order_timeout_minutes"`      // 待支付订单超时分钟数，超时自动置为 expired（0=不自动处理）
+	SVGModel               string `json:"svg_model"`               // AI 矢量生成使用的对话模型 slug（空=功能关闭）
 	StylePresets string `json:"style_presets"` // JSON 数组：风格预设
 	EmailConfig string `json:"email_config"` // JSON：SMTP+域名规则
 	InviteConfig string `json:"invite_config"` // JSON：邀请裂变配置

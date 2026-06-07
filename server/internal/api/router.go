@@ -45,6 +45,7 @@ func NewRouter(mysql *store.MySQLStore, redis *store.RedisStore, cleaner *servic
 
 	// 生图
 	mux.Handle("POST /api/generations", userAuth(http.HandlerFunc(h.CreateGeneration)))
+	mux.Handle("POST /api/vector", userAuth(http.HandlerFunc(h.CreateVector)))
 	mux.Handle("DELETE /api/generations", userAuth(http.HandlerFunc(h.DeleteGeneration)))
 	mux.Handle("POST /api/user/checkin", userAuth(http.HandlerFunc(h.Checkin)))
 	mux.Handle("GET /api/user/checkin/status", userAuth(http.HandlerFunc(h.CheckinStatus)))
@@ -107,6 +108,7 @@ mux.Handle("POST /api/user/points/exchange", middleware.RateLimit(userAuth(http.
 	mux.Handle("PUT /api/admin/announcements", adminAuth(http.HandlerFunc(h.UpdateAnnouncement)))
 	mux.Handle("DELETE /api/admin/announcements", adminAuth(http.HandlerFunc(h.DeleteAnnouncement)))
 	mux.Handle("GET /api/admin/users", adminAuth(http.HandlerFunc(h.ListUsers)))
+	mux.Handle("GET /api/admin/models", adminAuth(http.HandlerFunc(h.AdminListModels)))
 	mux.Handle("GET /api/admin/users/{id}/profile", adminAuth(http.HandlerFunc(h.AdminUserProfile)))
 	mux.Handle("POST /api/admin/users/create", adminAuth(http.HandlerFunc(h.AdminCreateUser)))
 	mux.Handle("POST /api/admin/users/update", adminAuth(http.HandlerFunc(h.UpdateUser)))

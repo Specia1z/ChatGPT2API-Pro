@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useAuth } from "@/lib/auth";
-import { Sparkles, User, Wand2, LogOut, Sun, Moon, Terminal } from "lucide-react";
+import { Sparkles, User, Wand2, LogOut, Sun, Moon, Terminal, Shapes } from "lucide-react";
 import { BASE } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { MobileTabBar } from "@/components/mobile-tab-bar";
@@ -94,6 +94,11 @@ export function Navbar() {
           <Link href="/gallery" className={navLink("/gallery")}>
             <Sparkles className="w-3 h-3" /> 灵感广场
             {pathname === "/gallery" && <span className="absolute -bottom-px left-1/2 -translate-x-1/2 h-0.5 w-5 rounded-full bg-gradient-to-r from-cyan-400 to-violet-400" />}
+          </Link>
+
+          <Link href="/vector" className={navLink("/vector")}>
+            <Shapes className="w-3 h-3" /> AI 矢量
+            {pathname === "/vector" && <span className="absolute -bottom-px left-1/2 -translate-x-1/2 h-0.5 w-5 rounded-full bg-gradient-to-r from-cyan-400 to-violet-400" />}
           </Link>
 
           <Link href="/docs" className={navLink("/docs")}>

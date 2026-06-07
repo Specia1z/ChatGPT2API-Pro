@@ -18,6 +18,21 @@ func (s *MySQLStore) CreateGeneration(userID int64, prompt, model, size string) 
 	return res.LastInsertId()
 }
 
+// CreateSVGGeneration 新建一条 AI 矢量(svg)生成记录（pending）。内容后续 UpdateSVGGeneration 写入。
+func (s *MySQLStore) CreateSVGGeneration(userID int64, prompt, model string) (int64, error) {
+	res, err := s.db.Exec(`INSERT INTO generations (user_id, prompt, model, gen_type, status) VALUES (?, ?, ?, 'svg', 'pending')`, userID, prompt, model)
+	if err != nil {
+		return 0, err
+	}
+	return res.LastInsertId()
+}
+
+// UpdateSVGGeneration 写入 svg 结果：成功时 svg 文本存 image_b64(MEDIUMTEXT)，status=completed；失败写 error_msg。
+func (s *MySQLStore) UpdateSVGGeneration(id int64, svg, status, errMsg string) error {
+	_, err := s.db.Exec("UPDATE generations SET image_b64=?, status=?, error_msg=? WHERE id=?", svg, status, errMsg, id)
+	return err
+}
+
 func (s *MySQLStore) SetUserCooldown(userID int64, minutes int) error {
 	_, err := s.db.Exec("UPDATE users SET cooldown_until = DATE_ADD(NOW(), INTERVAL ? MINUTE) WHERE id=?", minutes, userID)
 	return err

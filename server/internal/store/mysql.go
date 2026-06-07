@@ -246,6 +246,7 @@ func (s *MySQLStore) autoMigrate() {
 	s.db.Exec("ALTER TABLE settings ADD COLUMN public_cache_ttl_seconds INT NOT NULL DEFAULT 0 AFTER apikey_lastused_throttle_seconds")
 	s.db.Exec("ALTER TABLE settings ADD COLUMN db_max_open_conns INT NOT NULL DEFAULT 0 AFTER public_cache_ttl_seconds")
 	s.db.Exec("ALTER TABLE settings ADD COLUMN order_timeout_minutes INT NOT NULL DEFAULT 0 AFTER db_max_open_conns")
+	s.db.Exec("ALTER TABLE settings ADD COLUMN svg_model VARCHAR(64) NOT NULL DEFAULT '' AFTER order_timeout_minutes")
 	if !s.columnExists(dbName, "settings", "style_presets") {
 		s.db.Exec("ALTER TABLE settings ADD COLUMN style_presets TEXT AFTER points_exchange_bonus")
 	}
@@ -383,6 +384,8 @@ func (s *MySQLStore) autoMigrate() {
 			fmt.Printf("[migrate] ALTER generations size: %v\n", err)
 		}
 	}
+	// 生成类型：image=出图（默认，兼容旧数据） / svg=AI 矢量。文本/SVG 内容复用 image_b64(MEDIUMTEXT) 存储。
+	s.db.Exec("ALTER TABLE generations ADD COLUMN gen_type VARCHAR(16) NOT NULL DEFAULT 'image' AFTER size")
 	_, err = s.db.Exec("ALTER TABLE generations ADD COLUMN shared TINYINT(1) NOT NULL DEFAULT 0")
 	if err != nil {
 		if !strings.Contains(err.Error(), "Duplicate column") {

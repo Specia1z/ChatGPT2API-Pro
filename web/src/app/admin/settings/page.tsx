@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { Outfit, DM_Mono } from "next/font/google";
-import { Globe, Shield, Save, Gauge, Gift, Database, Users, Activity, Rocket, Coins, Layers } from "lucide-react";
+import { Globe, Shield, Save, Gauge, Gift, Database, Users, Activity, Rocket, Coins, Layers, Shapes, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
 import { AdminSidebar } from "@/components/admin-sidebar";
@@ -23,6 +23,7 @@ const SECTIONS = [
   { id: "scheduler", label: "生图调度", icon: Gauge, color: "text-emerald-500", bg: "bg-emerald-500/10" },
   { id: "apirate", label: "API 限速", icon: Activity, color: "text-rose-500", bg: "bg-rose-500/10" },
   { id: "imgcost", label: "生图消耗", icon: Coins, color: "text-emerald-500", bg: "bg-emerald-500/10" },
+  { id: "svg", label: "AI 矢量", icon: Shapes, color: "text-fuchsia-500", bg: "bg-fuchsia-500/10" },
   { id: "freequota", label: "无套餐额度", icon: Layers, color: "text-sky-500", bg: "bg-sky-500/10" },
   { id: "perf", label: "性能调优", icon: Rocket, color: "text-orange-500", bg: "bg-orange-500/10" },
   { id: "storage", label: "存储清理", icon: Database, color: "text-violet-500", bg: "bg-violet-500/10" },
@@ -77,6 +78,18 @@ export default function SettingsPage() {
   const [saving, setSaving] = useState(false);
   const [savingSched, setSavingSched] = useState(false);
   const [activeSection, setActiveSection] = useState("site");
+  const [svgModels, setSvgModels] = useState<any[]>([]);
+  const [loadingModels, setLoadingModels] = useState(false);
+
+  const loadModels = async () => {
+    setLoadingModels(true);
+    try {
+      const r = await api<any>("/api/admin/models");
+      setSvgModels(r.data || []);
+      toast.success(`获取到 ${r.data?.length || 0} 个模型`);
+    } catch (e: any) { toast.error(e.message || "获取模型失败"); }
+    setLoadingModels(false);
+  };
 
   useEffect(() => {
     Promise.all([api("/api/settings"), api("/api/admin/scheduler/config"), api("/api/admin/plans")])
@@ -348,6 +361,33 @@ export default function SettingsPage() {
                   </div>
                   <div className="rounded-xl bg-muted/40 p-3.5 text-xs text-muted-foreground leading-relaxed">
                     生成 1 张图扣除的令牌数。0 = 使用内置默认 1。调高则同等令牌额度下可生成的图片更少（如设为 2，则 50 令牌只能生成 25 张）。原生接口与 OpenAI 兼容接口均生效，保存后即时生效。
+                  </div>
+                </div>
+              </Card>
+
+              {/* ═══ AI 矢量生成 ═══ */}
+              <Card id="svg" icon={Shapes} color="text-fuchsia-500" bg="bg-fuchsia-500/10" title="AI 矢量生成" desc="用 ChatGPT 文本模型生成 SVG 矢量图（用户端 /vector 页面）">
+                <div className="space-y-4">
+                  <div className="flex items-end gap-2">
+                    <div className="flex-1 space-y-1.5">
+                      <Label>使用模型</Label>
+                      <select value={cfg?.svg_model || ""} onChange={e => update("svg_model", e.target.value)}
+                        className="w-full h-9 rounded-lg border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-primary/20">
+                        <option value="">未启用（留空 = 关闭功能）</option>
+                        {cfg?.svg_model && !svgModels.some((m: any) => m.slug === cfg.svg_model) && (
+                          <option value={cfg.svg_model}>{cfg.svg_model}（当前）</option>
+                        )}
+                        {svgModels.map((m: any) => <option key={m.slug} value={m.slug}>{m.title}（{m.slug}）</option>)}
+                      </select>
+                    </div>
+                    <Button variant="outline" onClick={loadModels} disabled={loadingModels} className="gap-1.5 text-xs h-9 shrink-0">
+                      {loadingModels ? <div className="size-3 border-2 border-current/30 border-t-current rounded-full animate-spin" /> : <RefreshCw className="size-3.5" />}
+                      获取模型列表
+                    </Button>
+                  </div>
+                  <div className="rounded-xl bg-muted/40 p-3.5 text-xs text-muted-foreground leading-relaxed">
+                    点「获取模型列表」实时拉取号池账号可用的模型，选定后保存即生效。留空则关闭用户端矢量生成功能。
+                    每次生成扣除与生图相同的令牌数（tokens_per_image）。模型可用性取决于账号套餐授权。
                   </div>
                 </div>
               </Card>
