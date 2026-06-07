@@ -139,6 +139,8 @@ type User struct {
 	Name                 string     `json:"name"`
 	Points               int        `json:"points"`
 	Status               bool       `json:"status"`
+	Role                 int        `json:"role"`                    // 0=普通用户 1=管理员（superadmin 由 .env 邮箱实时判定，不入库）
+	IsSuperAdmin         bool       `json:"is_super_admin"`          // 计算字段：email == SUPERADMIN_EMAIL，不存库
 	BanReason            string     `json:"ban_reason,omitempty"`
 	PasswordHash         string     `json:"-"`
 	PlanID               int        `json:"plan_id"`

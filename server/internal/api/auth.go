@@ -419,6 +419,9 @@ func (h *Handler) UserLogin(w http.ResponseWriter, r *http.Request) {
 
 	keys, _ := h.MySQL.ListAPIKeys(user.ID)
 
+	// 标注是否为 superadmin（按 .env 邮箱实时判定，不入库），供前端显示后台入口
+	user.IsSuperAdmin = middleware.IsSuperAdminEmail(user.Email)
+
 	writeJSON(w, 200, model.APIResponse{Code: 200, Data: map[string]any{
 		"token":     token,
 		"user":      user,
@@ -436,6 +439,7 @@ func (h *Handler) UserProfile(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 404, model.APIResponse{Code: 404, Message: "用户不存在"})
 		return
 	}
+	user.IsSuperAdmin = middleware.IsSuperAdminEmail(user.Email)
 	writeJSON(w, 200, model.APIResponse{Code: 200, Data: user})
 }
 

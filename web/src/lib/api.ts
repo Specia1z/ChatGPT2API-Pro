@@ -7,7 +7,7 @@ export const BASE = runtimeURL || process.env.NEXT_PUBLIC_API_URL || "";
 
 let token: string | null = null;
 if (typeof window !== "undefined") {
-  token = localStorage.getItem("auth-token") || localStorage.getItem("admin-token");
+  token = localStorage.getItem("auth-token");
   // 同步写入 cookie，供 img 标签自动携带（img 无法发送 Authorization 头）
   if (token) document.cookie = `token=${token}; path=/; max-age=86400`;
 }

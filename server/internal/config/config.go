@@ -15,6 +15,10 @@ type Config struct {
 	RedisPass string
 	JWTSecret string
 
+	// SuperAdminEmail：该邮箱的用户登录后强制拥有最高权限（superadmin）。
+	// 不入库、按邮箱实时判定，是可靠的权限 bootstrap，且无法被其他 admin 在 UI 降权。
+	SuperAdminEmail string
+
 	// HTTP server 超时（高并发健壮性，防慢连接堆积吃内存）。
 	// 注意：不设 WriteTimeout——会掐断 SSE 长连接（账号监控/注册机实时日志）。
 	ReadHeaderTimeout time.Duration
@@ -46,6 +50,7 @@ func Load() *Config {
 		RedisAddr: redisHost + ":" + redisPort,
 		RedisPass: env("REDIS_PASS", ""),
 		JWTSecret: env("JWT_SECRET", "change-me"),
+		SuperAdminEmail: strings.ToLower(strings.TrimSpace(env("SUPERADMIN_EMAIL", ""))),
 		// 默认：读头 15s（防 slowloris），空闲 120s 回收。0 可显式关闭。
 		ReadHeaderTimeout: time.Duration(envInt("HTTP_READ_HEADER_TIMEOUT_SEC", 15)) * time.Second,
 		IdleTimeout:       time.Duration(envInt("HTTP_IDLE_TIMEOUT_SEC", 120)) * time.Second,

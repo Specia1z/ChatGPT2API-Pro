@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"strings"
 
+	"chatgpt2api-pro/internal/middleware"
 	"chatgpt2api-pro/internal/model"
 
 	"golang.org/x/crypto/bcrypt"
@@ -28,9 +29,46 @@ func (h *Handler) ListUsers(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 500, model.APIResponse{Code: 500, Message: err.Error()})
 		return
 	}
+	// 标注 superadmin（按 .env 邮箱实时判定）
+	for i := range users {
+		users[i].IsSuperAdmin = middleware.IsSuperAdminEmail(users[i].Email)
+	}
 	writeJSON(w, 200, model.APIResponse{Code: 200, Data: map[string]any{
 		"items": users, "total": total, "page": page, "page_size": pageSize,
 	}})
+}
+
+// POST /api/admin/users/set-role — 授予/撤销管理员（仅 superadmin）
+func (h *Handler) AdminSetUserRole(w http.ResponseWriter, r *http.Request) {
+	body, _ := io.ReadAll(r.Body)
+	var req struct {
+		ID   int64 `json:"id"`
+		Role int   `json:"role"` // 0=普通 1=admin
+	}
+	json.Unmarshal(body, &req)
+	if req.ID <= 0 || (req.Role != 0 && req.Role != 1) {
+		writeJSON(w, 400, model.APIResponse{Code: 400, Message: "参数错误"})
+		return
+	}
+	// 目标用户若为 superadmin（.env 邮箱），不可被降权——其权限不由 DB role 决定
+	target, _ := h.MySQL.GetUserByID(req.ID)
+	if target == nil {
+		writeJSON(w, 404, model.APIResponse{Code: 404, Message: "用户不存在"})
+		return
+	}
+	if middleware.IsSuperAdminEmail(target.Email) {
+		writeJSON(w, 400, model.APIResponse{Code: 400, Message: "超级管理员权限由配置决定，无法在此修改"})
+		return
+	}
+	if err := h.MySQL.SetUserRole(req.ID, req.Role); err != nil {
+		writeJSON(w, 500, model.APIResponse{Code: 500, Message: err.Error()})
+		return
+	}
+	msg := "已设为管理员"
+	if req.Role == 0 {
+		msg = "已取消管理员"
+	}
+	writeJSON(w, 200, model.APIResponse{Code: 200, Message: msg})
 }
 
 // POST /api/admin/users/update
@@ -118,6 +156,46 @@ func (h *Handler) ToggleUserStatus(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, 200, model.APIResponse{Code: 200, Message: "已切换"})
+}
+
+// POST /api/admin/users/subscription — 管理员为已有用户开通/续期/清除套餐
+func (h *Handler) AdminSetUserSubscription(w http.ResponseWriter, r *http.Request) {
+	body, _ := io.ReadAll(r.Body)
+	var req struct {
+		ID     int64  `json:"id"`
+		PlanID int    `json:"plan_id"`
+		Days   int    `json:"days"`
+		Mode   string `json:"mode"` // renew | set | clear
+	}
+	json.Unmarshal(body, &req)
+	if req.ID <= 0 {
+		writeJSON(w, 400, model.APIResponse{Code: 400, Message: "参数错误"})
+		return
+	}
+	if req.Mode == "" {
+		req.Mode = "renew"
+	}
+	if req.Mode != "clear" {
+		// 校验套餐存在
+		if req.PlanID <= 0 {
+			writeJSON(w, 400, model.APIResponse{Code: 400, Message: "请选择套餐"})
+			return
+		}
+		plan, _ := h.MySQL.GetPlanByID(req.PlanID)
+		if plan == nil {
+			writeJSON(w, 400, model.APIResponse{Code: 400, Message: "套餐不存在"})
+			return
+		}
+		// days<=0 时从套餐默认有效期读取（0 代表永久）
+		if req.Days <= 0 {
+			req.Days = plan.DurationDays
+		}
+	}
+	if err := h.MySQL.AdminSetUserSubscription(req.ID, req.PlanID, req.Days, req.Mode); err != nil {
+		writeJSON(w, 500, model.APIResponse{Code: 500, Message: err.Error()})
+		return
+	}
+	writeJSON(w, 200, model.APIResponse{Code: 200, Message: "订阅已更新"})
 }
 
 // POST /api/admin/users/create

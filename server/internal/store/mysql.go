@@ -319,6 +319,10 @@ func (s *MySQLStore) autoMigrate() {
 	if !s.columnExists(dbName, "users", "ban_reason") {
 		s.db.Exec("ALTER TABLE users ADD COLUMN ban_reason VARCHAR(512) DEFAULT '' AFTER status")
 	}
+	// 管理员角色：0=普通 1=admin。superadmin 不入库，由 .env SUPERADMIN_EMAIL 实时判定。
+	if !s.columnExists(dbName, "users", "role") {
+		s.db.Exec("ALTER TABLE users ADD COLUMN role TINYINT NOT NULL DEFAULT 0 AFTER status")
+	}
 	// 邀请裂变：专属邀请码 + 邀请人绑定。invite_code 用 NULL 默认值——
 	// MySQL 唯一索引允许多个 NULL，避免存量用户空串撞唯一约束（首次访问邀请页时懒生成）。
 	if !s.columnExists(dbName, "users", "invite_code") {
@@ -937,8 +941,8 @@ func (s *MySQLStore) CreateUser(email, passwordHash, name string) (int64, error)
 
 func (s *MySQLStore) GetUserByEmail(email string) (*model.User, error) {
 	var u model.User
-	err := s.db.QueryRow(`SELECT u.id, u.email, u.password_hash, COALESCE(u.name,''), u.points, u.status, COALESCE(u.ban_reason,''), u.plan_id, u.subscription_expires_at, u.cooldown_until, COALESCE(NULLIF(p2.concurrency,0),1), COALESCE(NULLIF(p2.token_capacity,0),50), COALESCE(NULLIF(p2.token_refill_per_hour,0),3), COALESCE(p2.name,''), u.created_at FROM users u LEFT JOIN plans p2 ON (CASE WHEN u.subscription_expires_at IS NOT NULL AND u.subscription_expires_at < NOW() THEN NULL ELSE u.plan_id END) = p2.id WHERE u.email=?`,
-		email).Scan(&u.ID, &u.Email, &u.PasswordHash, &u.Name, &u.Points, &u.Status, &u.BanReason, &u.PlanID, &u.SubscriptionExpiresAt, &u.CooldownUntil, &u.PlanConcurrency, &u.TokenCapacity, &u.TokenRefillPerHour, &u.PlanName, &u.CreatedAt)
+	err := s.db.QueryRow(`SELECT u.id, u.email, u.password_hash, COALESCE(u.name,''), u.points, u.status, COALESCE(u.role,0), COALESCE(u.ban_reason,''), u.plan_id, u.subscription_expires_at, u.cooldown_until, COALESCE(NULLIF(p2.concurrency,0),1), COALESCE(NULLIF(p2.token_capacity,0),50), COALESCE(NULLIF(p2.token_refill_per_hour,0),3), COALESCE(p2.name,''), u.created_at FROM users u LEFT JOIN plans p2 ON (CASE WHEN u.subscription_expires_at IS NOT NULL AND u.subscription_expires_at < NOW() THEN NULL ELSE u.plan_id END) = p2.id WHERE u.email=?`,
+		email).Scan(&u.ID, &u.Email, &u.PasswordHash, &u.Name, &u.Points, &u.Status, &u.Role, &u.BanReason, &u.PlanID, &u.SubscriptionExpiresAt, &u.CooldownUntil, &u.PlanConcurrency, &u.TokenCapacity, &u.TokenRefillPerHour, &u.PlanName, &u.CreatedAt)
 	if err == sql.ErrNoRows { return nil, nil }
 	if err != nil { return nil, err }
 	return &u, nil
@@ -960,7 +964,7 @@ func (s *MySQLStore) ListUsers(search string, page, pageSize int) ([]model.User,
 
 	allArgs := append([]any{}, args...)
 	allArgs = append(allArgs, pageSize, (page-1)*pageSize)
-	rows, err := s.db.Query(`SELECT u.id, u.email, u.password_hash, COALESCE(u.name,''), u.points, u.status, COALESCE(u.ban_reason,''), u.plan_id, u.subscription_expires_at, COALESCE(p.name,''), u.created_at
+	rows, err := s.db.Query(`SELECT u.id, u.email, u.password_hash, COALESCE(u.name,''), u.points, u.status, COALESCE(u.role,0), COALESCE(u.ban_reason,''), u.plan_id, u.subscription_expires_at, COALESCE(p.name,''), u.created_at
 		FROM users u LEFT JOIN plans p ON (CASE WHEN u.subscription_expires_at IS NOT NULL AND u.subscription_expires_at < NOW() THEN NULL ELSE u.plan_id END) = p.id
 		`+where+" ORDER BY u.id DESC LIMIT ? OFFSET ?", allArgs...)
 	if err != nil { return nil, 0, err }
@@ -969,7 +973,7 @@ func (s *MySQLStore) ListUsers(search string, page, pageSize int) ([]model.User,
 	var users []model.User
 	for rows.Next() {
 		var u model.User
-		if err := rows.Scan(&u.ID, &u.Email, &u.PasswordHash, &u.Name, &u.Points, &u.Status, &u.BanReason, &u.PlanID, &u.SubscriptionExpiresAt, &u.PlanName, &u.CreatedAt); err != nil { continue }
+		if err := rows.Scan(&u.ID, &u.Email, &u.PasswordHash, &u.Name, &u.Points, &u.Status, &u.Role, &u.BanReason, &u.PlanID, &u.SubscriptionExpiresAt, &u.PlanName, &u.CreatedAt); err != nil { continue }
 		users = append(users, u)
 	}
 	if err := rows.Err(); err != nil {
@@ -991,6 +995,46 @@ func (s *MySQLStore) CreateUserWithDetails(email, passwordHash, name string, poi
 	res, err := s.db.Exec(query, args...)
 	if err != nil { return 0, err }
 	return res.LastInsertId()
+}
+
+// AdminSetUserSubscription 管理员为已有用户设置/续期/清除套餐订阅。
+// mode:
+//   "renew" — 在现有到期日上叠加 days 天（未过期则从原到期日累加，过期/无则从现在算起）；
+//             与购买/升级/兑换码同款续期语义。days>0 必填。
+//   "set"   — 绝对设置：从现在起 days 天到期（days<=0 视为永久 NULL）。
+//   "clear" — 清除订阅：plan_id=0 且到期日 NULL（退回无套餐）。
+// planID<=0 且 mode!="clear" 时报错（续期/设置必须指定套餐）。
+func (s *MySQLStore) AdminSetUserSubscription(userID int64, planID int, days int, mode string) error {
+	switch mode {
+	case "clear":
+		_, err := s.db.Exec("UPDATE users SET plan_id=0, subscription_expires_at=NULL WHERE id=?", userID)
+		return err
+	case "renew":
+		if planID <= 0 {
+			return fmt.Errorf("续期需指定套餐")
+		}
+		if days <= 0 {
+			// days=0 表示永久套餐：直接置 NULL（永不过期）
+			_, err := s.db.Exec("UPDATE users SET plan_id=?, subscription_expires_at=NULL WHERE id=?", planID, userID)
+			return err
+		}
+		// 续期：未过期从原到期日累加，过期/NULL 从现在算起（与购买/兑换码一致）
+		_, err := s.db.Exec(`UPDATE users SET plan_id=?, subscription_expires_at=DATE_ADD(CASE WHEN subscription_expires_at IS NULL OR subscription_expires_at < NOW() THEN NOW() ELSE subscription_expires_at END, INTERVAL ? DAY) WHERE id=?`,
+			planID, days, userID)
+		return err
+	case "set":
+		if planID <= 0 {
+			return fmt.Errorf("设置套餐需指定套餐")
+		}
+		if days <= 0 {
+			_, err := s.db.Exec("UPDATE users SET plan_id=?, subscription_expires_at=NULL WHERE id=?", planID, userID)
+			return err
+		}
+		_, err := s.db.Exec("UPDATE users SET plan_id=?, subscription_expires_at=DATE_ADD(NOW(), INTERVAL ? DAY) WHERE id=?", planID, days, userID)
+		return err
+	default:
+		return fmt.Errorf("无效的操作模式")
+	}
 }
 
 func (s *MySQLStore) UpdateUser(id int64, name string) error {
@@ -1095,8 +1139,8 @@ func (s *MySQLStore) GetLastCheckinStreak(userID int64) (int, error) {
 
 func (s *MySQLStore) GetUserByID(id int64) (*model.User, error) {
 	var u model.User
-	err := s.db.QueryRow(`SELECT u.id, u.email, u.password_hash, COALESCE(u.name,''), u.points, u.status, COALESCE(u.ban_reason,''), u.plan_id, u.subscription_expires_at, u.cooldown_until, COALESCE(NULLIF(p2.concurrency,0),1), COALESCE(NULLIF(p2.token_capacity,0),50), COALESCE(NULLIF(p2.token_refill_per_hour,0),3), COALESCE(p2.rate_limit_per_min,0), COALESCE(p2.name,''), u.created_at FROM users u LEFT JOIN plans p2 ON (CASE WHEN u.subscription_expires_at IS NOT NULL AND u.subscription_expires_at < NOW() THEN NULL ELSE u.plan_id END) = p2.id WHERE u.id=?`,
-		id).Scan(&u.ID, &u.Email, &u.PasswordHash, &u.Name, &u.Points, &u.Status, &u.BanReason, &u.PlanID, &u.SubscriptionExpiresAt, &u.CooldownUntil, &u.PlanConcurrency, &u.TokenCapacity, &u.TokenRefillPerHour, &u.RateLimitPerMin, &u.PlanName, &u.CreatedAt)
+	err := s.db.QueryRow(`SELECT u.id, u.email, u.password_hash, COALESCE(u.name,''), u.points, u.status, COALESCE(u.role,0), COALESCE(u.ban_reason,''), u.plan_id, u.subscription_expires_at, u.cooldown_until, COALESCE(NULLIF(p2.concurrency,0),1), COALESCE(NULLIF(p2.token_capacity,0),50), COALESCE(NULLIF(p2.token_refill_per_hour,0),3), COALESCE(p2.rate_limit_per_min,0), COALESCE(p2.name,''), u.created_at FROM users u LEFT JOIN plans p2 ON (CASE WHEN u.subscription_expires_at IS NOT NULL AND u.subscription_expires_at < NOW() THEN NULL ELSE u.plan_id END) = p2.id WHERE u.id=?`,
+		id).Scan(&u.ID, &u.Email, &u.PasswordHash, &u.Name, &u.Points, &u.Status, &u.Role, &u.BanReason, &u.PlanID, &u.SubscriptionExpiresAt, &u.CooldownUntil, &u.PlanConcurrency, &u.TokenCapacity, &u.TokenRefillPerHour, &u.RateLimitPerMin, &u.PlanName, &u.CreatedAt)
 	if err == sql.ErrNoRows { return nil, nil }
 	if err != nil { return nil, err }
 	return &u, nil
@@ -1111,6 +1155,22 @@ func (s *MySQLStore) IsUserActive(id int64) bool {
 		return false
 	}
 	return status
+}
+
+// GetUserAuthInfo 轻量查询用户的鉴权信息（中间件每请求调用）：
+// 返回 email、status（是否未封禁）、role（0 普通/1 admin）。用户不存在则 ok=false。
+func (s *MySQLStore) GetUserAuthInfo(id int64) (email string, status bool, role int, ok bool) {
+	err := s.db.QueryRow("SELECT email, status, COALESCE(role,0) FROM users WHERE id=?", id).Scan(&email, &status, &role)
+	if err != nil {
+		return "", false, 0, false
+	}
+	return email, status, role, true
+}
+
+// SetUserRole 设置用户角色（0=普通 1=admin）。superadmin 由 .env 判定，不经此方法。
+func (s *MySQLStore) SetUserRole(id int64, role int) error {
+	_, err := s.db.Exec("UPDATE users SET role=? WHERE id=?", role, id)
+	return err
 }
 
 // --- User API Keys ---

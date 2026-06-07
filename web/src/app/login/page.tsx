@@ -17,7 +17,6 @@ export default function LoginPage() {
   const [showPw, setShowPw] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
-  const [mode, setMode] = useState<"user" | "admin">("user");
   const [turnstileToken, setTurnstileToken] = useState("");
   const [settings, setSettings] = useState<any>({});
   const { login: authLogin } = useAuth();
@@ -49,16 +48,16 @@ export default function LoginPage() {
     setLoading(true);
     setError("");
     try {
-      if (mode === "admin") {
-        const res = await api<any>("/api/admin/login", { method: "POST", body: JSON.stringify({ username: email, password }) });
-        setToken(res.data.token);
+      const body: Record<string, string> = { email, password };
+      if (turnstileToken) body.cf_turnstile_token = turnstileToken;
+      const res = await api<any>("/api/auth/login", { method: "POST", body: JSON.stringify(body) });
+      setToken(res.data.token);
+      authLogin(res.data.user, res.data.token);
+      // 管理员（含 superadmin）登录后进后台，普通用户回首页
+      const u = res.data.user || {};
+      if (u.is_super_admin || (u.role && u.role >= 1)) {
         router.push("/admin");
       } else {
-        const body: Record<string, string> = { email, password };
-        if (turnstileToken) body.cf_turnstile_token = turnstileToken;
-        const res = await api<any>("/api/auth/login", { method: "POST", body: JSON.stringify(body) });
-        setToken(res.data.token);
-        authLogin(res.data.user, res.data.token);
         router.push("/");
       }
     } catch (e: any) { setError(e.message); }
@@ -85,43 +84,26 @@ export default function LoginPage() {
             )}
           </Link>
           <h1 className="text-2xl font-bold tracking-tight text-zinc-900 dark:text-white">
-            {mode === "user" ? "欢迎回来" : "管理员登录"}
+            欢迎回来
           </h1>
           <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1.5">
-            {mode === "user" ? "登录你的账号继续创作" : "登录管理后台"}
+            登录你的账号继续创作
           </p>
-        </div>
-
-        {/* Mode switcher */}
-        <div className="flex mb-5 p-1 rounded-xl bg-zinc-100 dark:bg-zinc-800">
-          {(["user", "admin"] as const).map((m) => (
-            <button
-              key={m}
-              onClick={() => setMode(m)}
-              className={`flex-1 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
-                mode === m
-                  ? "bg-white dark:bg-zinc-700 text-zinc-900 dark:text-white shadow-sm"
-                  : "text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300"
-              }`}
-            >
-              {m === "user" ? "用户登录" : "管理员"}
-            </button>
-          ))}
         </div>
 
         {/* Form card */}
         <div className="bg-white dark:bg-zinc-900 border border-zinc-200/60 dark:border-zinc-800/60 rounded-2xl p-6 space-y-4 shadow-xl shadow-zinc-200/20 dark:shadow-zinc-900/30">
-          {/* Email / Username */}
+          {/* Email */}
           <div className="space-y-1.5">
             <label className="text-[11px] font-medium text-zinc-500 dark:text-zinc-400 flex items-center gap-1.5">
               <Mail className="w-3 h-3" />
-              {mode === "admin" ? "用户名" : "邮箱"}
+              邮箱
             </label>
             <Input
-              type={mode === "admin" ? "text" : "email"}
+              type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              placeholder={mode === "admin" ? "admin" : "you@example.com"}
+              placeholder="you@example.com"
               className="h-10 text-sm"
               autoFocus
               onKeyDown={(e) => e.key === "Enter" && handleLogin()}
@@ -132,9 +114,7 @@ export default function LoginPage() {
           <div className="space-y-1.5">
             <label className="text-[11px] font-medium text-zinc-500 dark:text-zinc-400 flex items-center justify-between">
               <span className="flex items-center gap-1.5"><Lock className="w-3 h-3" /> 密码</span>
-              {mode === "user" && (
-                <Link href="/forgot-password" className="text-[11px] font-normal text-cyan-600 dark:text-cyan-400 hover:underline">忘记密码？</Link>
-              )}
+              <Link href="/forgot-password" className="text-[11px] font-normal text-cyan-600 dark:text-cyan-400 hover:underline">忘记密码？</Link>
             </label>
             <div className="relative">
               <Input
@@ -163,7 +143,7 @@ export default function LoginPage() {
           )}
 
           {/* Turnstile */}
-          {mode === "user" && settings.cf_turnstile_enabled && settings.cf_turnstile_site_key && (
+          {settings.cf_turnstile_enabled && settings.cf_turnstile_site_key && (
             <TurnstileWidget siteKey={settings.cf_turnstile_site_key} onToken={setTurnstileToken} />
           )}
 
@@ -182,11 +162,9 @@ export default function LoginPage() {
           </Button>
 
           {/* Register link */}
-          {mode === "user" && (
-            <p className="text-center text-[13px] text-zinc-500 dark:text-zinc-400 pt-1">
-              没有账号？<Link href="/register" className="font-medium text-zinc-600 dark:text-zinc-300 hover:underline">立即注册</Link>
-            </p>
-          )}
+          <p className="text-center text-[13px] text-zinc-500 dark:text-zinc-400 pt-1">
+            没有账号？<Link href="/register" className="font-medium text-zinc-600 dark:text-zinc-300 hover:underline">立即注册</Link>
+          </p>
         </div>
       </div>
 

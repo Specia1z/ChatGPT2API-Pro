@@ -36,7 +36,9 @@ func writeJSON(w http.ResponseWriter, status int, v any) {
 	json.NewEncoder(w).Encode(v)
 }
 
-// POST /api/admin/login
+// Login 旧的独立管理员登录（基于 admins 表）。
+// Deprecated: 管理员登录已统一到 /api/auth/login（按 users.role / .env SUPERADMIN_EMAIL 鉴权）。
+// 该 handler 已从路由移除，仅保留供单测覆盖防枚举/限流逻辑，勿在新代码引用。
 func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 	var req model.LoginRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -570,9 +572,11 @@ func (h *Handler) resolveUserID(r *http.Request) int64 {
 	return 0
 }
 
-// resolveAdminToken 检查请求中是否包含有效的管理员 token（支持 cookie 和 query 方式）
+// resolveAdminToken 检查请求是否来自管理员（支持 cookie 和 query 方式，供 img 标签用）。
+// 管理身份已统一到 user token + role：中间件已鉴权则直接放行；
+// 否则把 cookie/query 的 token 当 user token 解析出 userID，再查角色。
 func (h *Handler) resolveAdminToken(r *http.Request) bool {
-	// 中间件已鉴权
+	// 中间件（AdminAuth）已鉴权
 	if _, ok := r.Context().Value(middleware.AdminIDKey).(int64); ok {
 		return true
 	}
@@ -585,8 +589,15 @@ func (h *Handler) resolveAdminToken(r *http.Request) bool {
 	if rawToken == "" {
 		return false
 	}
-	aid, err := h.Redis.GetToken(r.Context(), rawToken)
-	return err == nil && aid > 0
+	uid, err := h.Redis.GetToken(r.Context(), "user:"+rawToken)
+	if err != nil || uid == 0 {
+		return false
+	}
+	email, status, role, ok := h.MySQL.GetUserAuthInfo(uid)
+	if !ok || !status {
+		return false
+	}
+	return role >= 1 || middleware.IsSuperAdminEmail(email)
 }
 
 // GET /api/images/{id} — 图片代理（隐藏真实存储地址）

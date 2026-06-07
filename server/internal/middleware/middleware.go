@@ -15,6 +15,19 @@ type contextKey string
 
 const AdminIDKey contextKey = "admin_id"
 const UserIDKey contextKey = "user_id"
+const IsSuperAdminKey contextKey = "is_super_admin"
+
+// superAdminEmail 由 InitAuth 在启动时注入（来自 .env SUPERADMIN_EMAIL，已小写）。
+// 该邮箱用户登录后强制拥有最高权限，不依赖 DB role，是可靠的权限 bootstrap。
+var superAdminEmail string
+
+// InitAuth 注入 superadmin 邮箱（启动时调用一次）。
+func InitAuth(email string) { superAdminEmail = email }
+
+// IsSuperAdminEmail 判断邮箱是否为配置的 superadmin（供 handler 标注用户角色）。
+func IsSuperAdminEmail(email string) bool {
+	return superAdminEmail != "" && strings.EqualFold(strings.TrimSpace(email), superAdminEmail)
+}
 
 // RateLimitKey 携带当前用户套餐的 API 每分钟请求上限（0=用默认）。
 // 由 ApiKeyAuth 从已查出的用户套餐写入，供 UserRateLimit 取用，避免限流中间件二次查库。
@@ -57,7 +70,10 @@ func CORS(next http.Handler) http.Handler {
 	})
 }
 
-func AdminAuth(redis *store.RedisStore) func(http.Handler) http.Handler {
+// AdminAuth 管理后台鉴权：复用统一的 user token（token:user:<t>），
+// 每请求从 DB 复核用户角色——superadmin（.env 邮箱）或 role>=1（admin）才放行。
+// 不再依赖独立 admin token，授/撤权即时生效，封禁用户立即失去后台权限。
+func AdminAuth(redis *store.RedisStore, mysql *store.MySQLStore) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			auth := r.Header.Get("Authorization")
@@ -66,16 +82,42 @@ func AdminAuth(redis *store.RedisStore) func(http.Handler) http.Handler {
 				return
 			}
 			token := strings.TrimPrefix(auth, "Bearer ")
-			adminID, err := redis.GetToken(r.Context(), token)
-			if err != nil || adminID == 0 {
+			userID, err := redis.GetToken(r.Context(), "user:"+token)
+			if err != nil || userID == 0 {
 				writeJSON(w, http.StatusUnauthorized, map[string]any{"code": 401, "message": "登录已过期"})
 				return
 			}
-			redis.ExpireToken(r.Context(), token, 24*time.Hour)
-			ctx := context.WithValue(r.Context(), AdminIDKey, adminID)
+			email, status, role, ok := mysql.GetUserAuthInfo(userID)
+			if !ok || !status {
+				// 用户不存在或已被封禁：清除会话
+				redis.DelToken(r.Context(), "user:"+token)
+				writeJSON(w, http.StatusForbidden, map[string]any{"code": 403, "message": "账号不可用"})
+				return
+			}
+			isSuper := superAdminEmail != "" && strings.EqualFold(email, superAdminEmail)
+			if !isSuper && role < 1 {
+				writeJSON(w, http.StatusForbidden, map[string]any{"code": 403, "message": "无管理员权限"})
+				return
+			}
+			redis.ExpireToken(r.Context(), "user:"+token, 24*time.Hour)
+			ctx := context.WithValue(r.Context(), AdminIDKey, userID)
+			ctx = context.WithValue(ctx, UserIDKey, userID)
+			ctx = context.WithValue(ctx, IsSuperAdminKey, isSuper)
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}
+}
+
+// SuperAdminOnly 在 AdminAuth 之后使用，仅放行 superadmin（.env 邮箱用户）。
+// 用于授予/撤销 admin 角色等高危操作。
+func SuperAdminOnly(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if isSuper, _ := r.Context().Value(IsSuperAdminKey).(bool); !isSuper {
+			writeJSON(w, http.StatusForbidden, map[string]any{"code": 403, "message": "仅超级管理员可操作"})
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
 }
 
 func UserAuth(redis *store.RedisStore, mysql *store.MySQLStore) func(http.Handler) http.Handler {

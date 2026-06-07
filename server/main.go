@@ -6,6 +6,7 @@ import (
 
 	"chatgpt2api-pro/internal/api"
 	"chatgpt2api-pro/internal/config"
+	"chatgpt2api-pro/internal/middleware"
 	"chatgpt2api-pro/internal/service"
 	"chatgpt2api-pro/internal/store"
 )
@@ -31,6 +32,14 @@ func main() {
 
 	log.Println("[scheduler] 初始化调度器...")
 	service.InitScheduler(mysql)
+
+	// 注入 superadmin 邮箱（.env SUPERADMIN_EMAIL）：该用户登录后强制获得最高权限
+	middleware.InitAuth(cfg.SuperAdminEmail)
+	if cfg.SuperAdminEmail != "" {
+		log.Printf("[auth] superadmin = %s", cfg.SuperAdminEmail)
+	} else {
+		log.Println("[auth] 警告：未配置 SUPERADMIN_EMAIL，无人拥有超级管理员权限")
+	}
 
 	cleaner := service.NewStorageCleaner(mysql)
 	router := api.NewRouter(mysql, redis, cleaner)

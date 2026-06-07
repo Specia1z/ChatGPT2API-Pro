@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { motion } from "framer-motion";
 import { Outfit, DM_Mono } from "next/font/google";
-import { Users, Search, Pencil, Key, Coins, Ban, Check, RefreshCw, X, UserCheck, UserX, Plus, Minus, ArrowRight, UserPlus } from "lucide-react";
+import { Users, Search, Pencil, Key, Coins, Ban, Check, RefreshCw, X, UserCheck, UserX, Plus, Minus, ArrowRight, UserPlus, Crown, Shield } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
 import { AdminSidebar } from "@/components/admin-sidebar";
@@ -50,6 +50,14 @@ export default function UsersPage() {
   const [createOpen, setCreateOpen] = useState(false);
   const [createForm, setCreateForm] = useState({ email: "", password: "", name: "", points: 0, plan_id: 0, duration_days: 0 });
   const [plans, setPlans] = useState<any[]>([]);
+  const [subUser, setSubUser] = useState<any>(null);
+  const [subForm, setSubForm] = useState({ plan_id: 0, days: 0, mode: "renew" as "renew" | "set" | "clear" });
+  // 当前登录者是否 superadmin（决定是否显示授/撤管理员）。从本地登录态读取。
+  const [isSuper, setIsSuper] = useState(false);
+  useEffect(() => {
+    try { const u = JSON.parse(localStorage.getItem("user-data") || "{}"); setIsSuper(!!u.is_super_admin); } catch {}
+  }, []);
+  const [roleTarget, setRoleTarget] = useState<any>(null);
 
   const fetchUsers = () => {
     setLoading(true);
@@ -58,6 +66,11 @@ export default function UsersPage() {
     });
   };
   useEffect(() => { fetchUsers(); }, [search]);
+
+  // 加载套餐列表，供创建用户弹窗的套餐下拉使用（含禁用套餐，管理员可指定）
+  useEffect(() => {
+    api(`/api/admin/plans`).then(r => setPlans(r.data || [])).catch(() => {});
+  }, []);
 
   const updateName = async () => {
     try { await api("/api/admin/users/update", { method: "POST", body: JSON.stringify({ id: editUser.id, name: editName }) }); toast.success("已更新"); setEditUser(null); fetchUsers(); }
@@ -83,11 +96,33 @@ export default function UsersPage() {
     } catch (e: any) { toast.error(e.message); }
   };
 
+  const openSub = (u: any) => {
+    setSubForm({ plan_id: u.plan_id || 0, days: 0, mode: u.plan_id ? "renew" : "set" });
+    setSubUser(u);
+  };
+  const submitSub = async () => {
+    if (!subUser) return;
+    try {
+      await api("/api/admin/users/subscription", { method: "POST", body: JSON.stringify({ id: subUser.id, plan_id: subForm.plan_id, days: subForm.days, mode: subForm.mode }) });
+      toast.success("订阅已更新"); setSubUser(null); fetchUsers();
+    } catch (e: any) { toast.error(e.message); }
+  };
+
   const confirmToggleStatus = async () => {
     if (!toggleTarget) return;
     try {
       await api("/api/admin/users/toggle-status", { method: "POST", body: JSON.stringify({ id: toggleTarget.id, reason: banReason }) });
       toast.success("状态已切换"); setToggleTarget(null); setBanReason(""); fetchUsers();
+    } catch (e: any) { toast.error(e.message); }
+  };
+
+  // 授予/撤销管理员（仅 superadmin 可见可用）
+  const confirmSetRole = async () => {
+    if (!roleTarget) return;
+    const nextRole = roleTarget.role >= 1 ? 0 : 1;
+    try {
+      await api("/api/admin/users/set-role", { method: "POST", body: JSON.stringify({ id: roleTarget.id, role: nextRole }) });
+      toast.success(nextRole === 1 ? "已设为管理员" : "已取消管理员"); setRoleTarget(null); fetchUsers();
     } catch (e: any) { toast.error(e.message); }
   };
 
@@ -189,7 +224,14 @@ export default function UsersPage() {
                                 {initial}
                               </div>
                               <div className="min-w-0">
-                                <p className="text-sm font-medium truncate max-w-[160px]">{u.name || "未命名"}</p>
+                                <p className="text-sm font-medium truncate max-w-[160px] flex items-center gap-1.5">
+                                  {u.name || "未命名"}
+                                  {u.is_super_admin ? (
+                                    <Badge variant="secondary" className="bg-amber-500/10 text-amber-600 dark:text-amber-400 gap-0.5 px-1.5"><Crown className="size-2.5" />超管</Badge>
+                                  ) : u.role >= 1 ? (
+                                    <Badge variant="secondary" className="bg-blue-500/10 text-blue-600 dark:text-blue-400 px-1.5">管理员</Badge>
+                                  ) : null}
+                                </p>
                                 <p className={`${mono.className} text-[11px] text-muted-foreground truncate`}>{u.email}</p>
                               </div>
                             </div>
@@ -210,6 +252,10 @@ export default function UsersPage() {
                               <Button variant="ghost" size="icon-sm" onClick={() => { setEditUser(u); setEditName(u.name || ""); }} title="编辑昵称"><Pencil className="size-3.5" /></Button>
                               <Button variant="ghost" size="icon-sm" className="hover:text-amber-500" onClick={() => setResetTarget(u)} title="重置密码"><Key className="size-3.5" /></Button>
                               <Button variant="ghost" size="icon-sm" className="hover:text-emerald-500" onClick={() => { setPointsUser(u); setPointsDelta(0); }} title="调整积分"><Coins className="size-3.5" /></Button>
+                              <Button variant="ghost" size="icon-sm" className="hover:text-violet-500" onClick={() => openSub(u)} title="套餐/续期"><Crown className="size-3.5" /></Button>
+                              {isSuper && !u.is_super_admin && (
+                                <Button variant="ghost" size="icon-sm" className={u.role >= 1 ? "text-blue-500 hover:text-muted-foreground" : "hover:text-blue-500"} onClick={() => setRoleTarget(u)} title={u.role >= 1 ? "取消管理员" : "设为管理员"}><Shield className="size-3.5" /></Button>
+                              )}
                               <Button variant="ghost" size="icon-sm" className={u.status ? "hover:text-destructive" : "text-red-400 hover:text-emerald-500"} onClick={() => setToggleTarget(u)} title={u.status ? "禁用" : "启用"}>
                                 {u.status ? <Ban className="size-3.5" /> : <Check className="size-3.5" />}
                               </Button>
@@ -339,10 +385,91 @@ export default function UsersPage() {
         </DialogContent>
       </Dialog>
 
+      {/* ═══ 套餐/续期 ═══ */}
+      <Dialog open={!!subUser} onOpenChange={() => setSubUser(null)}>
+        <DialogContent className={`${heading.variable} ${mono.variable} max-w-sm`}>
+          <DialogHeader>
+            <DialogTitle className={`${heading.className} text-base font-semibold`}>套餐 / 续期</DialogTitle>
+            <DialogDescription className="sr-only">为用户开通、续期或清除套餐订阅</DialogDescription>
+          </DialogHeader>
+          {subUser && (() => {
+            const sel = plans.find(p => p.id === subForm.plan_id);
+            const planDays = sel?.duration_days || 0;
+            const curExpiry = subUser.subscription_expires_at ? subUser.subscription_expires_at.slice(0, 10) : "无（永久/未订阅）";
+            return (
+              <div className="space-y-4 mt-1">
+                <div className="flex items-center gap-3 p-3 rounded-xl bg-muted/50">
+                  <div className={`size-10 rounded-xl bg-gradient-to-br ${avatarGradient(subUser.email || "")} flex items-center justify-center text-white text-sm font-bold shadow-sm`}>
+                    {(subUser.name || subUser.email || "?")[0]?.toUpperCase()}
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium truncate">{subUser.name || subUser.email}</p>
+                    <p className={`${mono.className} text-[11px] text-muted-foreground truncate`}>当前：{subUser.plan_name || "无套餐"} · 到期 {curExpiry}</p>
+                  </div>
+                </div>
+
+                {/* 操作模式 */}
+                <div className="grid grid-cols-3 gap-1.5">
+                  {([
+                    { v: "renew", l: "续期" },
+                    { v: "set", l: "重设" },
+                    { v: "clear", l: "清除" },
+                  ] as const).map(o => (
+                    <button key={o.v} type="button" onClick={() => setSubForm(p => ({ ...p, mode: o.v }))}
+                      className={`text-xs py-1.5 rounded-lg border transition-colors ${subForm.mode === o.v ? "bg-primary/10 border-primary/30 text-primary font-medium" : "border-border text-muted-foreground hover:bg-muted"}`}>
+                      {o.l}
+                    </button>
+                  ))}
+                </div>
+
+                {subForm.mode !== "clear" ? (
+                  <>
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-medium text-muted-foreground">套餐</label>
+                      <select className="w-full h-9 rounded-lg border bg-background text-sm px-3" value={subForm.plan_id} onChange={e => setSubForm(p => ({ ...p, plan_id: +e.target.value }))}>
+                        <option value={0}>请选择套餐</option>
+                        {plans.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                      </select>
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-medium text-muted-foreground">{subForm.mode === "renew" ? "续期天数" : "有效天数"}</label>
+                      <Input type="number" min={0} value={subForm.days} onChange={e => setSubForm(p => ({ ...p, days: +e.target.value }))} className="text-sm" placeholder="0 = 跟随套餐有效期" />
+                      <p className="text-[10px] text-muted-foreground">
+                        {subForm.mode === "renew"
+                          ? `留空/0 时按套餐有效期${planDays > 0 ? ` ${planDays} 天` : "（永久）"}。续期会在现有到期日上叠加（未过期累加，已过期从今天算起）。`
+                          : `留空/0 时按套餐有效期${planDays > 0 ? ` ${planDays} 天` : "（永久）"}。重设会从今天起重新计算到期日，覆盖原有时间。`}
+                      </p>
+                    </div>
+                  </>
+                ) : (
+                  <p className="text-xs text-muted-foreground rounded-xl bg-muted/40 p-3 leading-relaxed">将清除该用户的套餐与订阅到期时间，退回无套餐状态。此操作立即生效。</p>
+                )}
+
+                <div className="flex gap-2 pt-1">
+                  <Button variant="outline" className="flex-1" onClick={() => setSubUser(null)}>取消</Button>
+                  <Button className="flex-1" onClick={submitSub} disabled={subForm.mode !== "clear" && subForm.plan_id <= 0}>
+                    {subForm.mode === "clear" ? "确认清除" : "确认"}
+                  </Button>
+                </div>
+              </div>
+            );
+          })()}
+        </DialogContent>
+      </Dialog>
+
       {/* ═══ 重置密码确认 ═══ */}
       <ConfirmDialog open={!!resetTarget} onOpenChange={() => setResetTarget(null)}
         title="重置密码" description={`确定要将「${resetTarget?.name || resetTarget?.email}」的密码重置为 123456？`}
         confirmLabel="重置" variant="destructive" onConfirm={confirmResetPassword} />
+
+      {/* ═══ 授予/撤销管理员确认 ═══ */}
+      <ConfirmDialog open={!!roleTarget} onOpenChange={() => setRoleTarget(null)}
+        title={roleTarget?.role >= 1 ? "取消管理员" : "设为管理员"}
+        description={roleTarget?.role >= 1
+          ? `确定取消「${roleTarget?.name || roleTarget?.email}」的管理员权限？取消后将立即失去后台访问。`
+          : `确定将「${roleTarget?.name || roleTarget?.email}」设为管理员？该用户将能访问管理后台（除超级管理员专属操作外）。`}
+        confirmLabel={roleTarget?.role >= 1 ? "取消管理员" : "设为管理员"}
+        variant={roleTarget?.role >= 1 ? "destructive" : "default"} onConfirm={confirmSetRole} />
 
       {/* ═══ 状态切换确认 ═══ */}
       <Dialog open={!!toggleTarget} onOpenChange={() => { setToggleTarget(null); setBanReason(""); }}>
@@ -406,12 +533,19 @@ export default function UsersPage() {
                 </select>
               </div>
             </div>
-            {createForm.plan_id > 0 && (
-              <div className="space-y-1.5">
-                <label className="text-xs font-medium text-muted-foreground">订阅天数</label>
-                <Input type="number" value={createForm.duration_days} onChange={e => setCreateForm(p => ({...p, duration_days: +e.target.value}))} className="text-sm" />
-              </div>
-            )}
+            {createForm.plan_id > 0 && (() => {
+              const sel = plans.find(p => p.id === createForm.plan_id);
+              const planDays = sel?.duration_days || 0;
+              return (
+                <div className="space-y-1.5">
+                  <label className="text-xs font-medium text-muted-foreground">订阅天数</label>
+                  <Input type="number" min={0} value={createForm.duration_days} onChange={e => setCreateForm(p => ({...p, duration_days: +e.target.value}))} className="text-sm" placeholder="0 = 跟随套餐有效期" />
+                  <p className="text-[10px] text-muted-foreground">
+                    留空或填 0 时{planDays > 0 ? `按套餐有效期 ${planDays} 天计算` : "跟随套餐设置（当前套餐为永久，即永不过期）"}。填入正数则覆盖为指定天数。
+                  </p>
+                </div>
+              );
+            })()}
             <div className="flex gap-2 pt-2">
               <Button variant="outline" className="flex-1" onClick={() => setCreateOpen(false)}>取消</Button>
               <Button className="flex-1" onClick={doCreate} disabled={!createForm.email || !createForm.password}>创建</Button>

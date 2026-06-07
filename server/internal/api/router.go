@@ -11,7 +11,7 @@ import (
 
 func NewRouter(mysql *store.MySQLStore, redis *store.RedisStore, cleaner *service.StorageCleaner) http.Handler {
 	h := &Handler{MySQL: mysql, Redis: redis, Cleaner: cleaner}
-	adminAuth := middleware.AdminAuth(redis)
+	adminAuth := middleware.AdminAuth(redis, mysql)
 	userAuth := middleware.UserAuth(redis, mysql)
 	apiKeyAuth := middleware.ApiKeyAuth(mysql)
 
@@ -71,8 +71,8 @@ mux.Handle("POST /api/user/points/exchange", middleware.RateLimit(userAuth(http.
 	// OpenAI 兼容接口（同步返回，标准 /v1 路径，API Key 认证 + IP/uid 双限流）
 	mux.Handle("POST /v1/images/generations", middleware.RateLimit(apiKeyAuth(apiUserRL(http.HandlerFunc(h.CreateImageOpenAI)))))
 
-	// 管理员公开（IP限流 + 账号级锁定防刷）
-	mux.Handle("POST /api/admin/login", middleware.RateLimit(http.HandlerFunc(h.Login)))
+	// 注：管理员登录已统一到 /api/auth/login（按 users.role / .env SUPERADMIN_EMAIL 鉴权），
+	// 旧的独立 /api/admin/login 已废弃移除。
 
 	// Admin 鉴权
 	mux.Handle("GET /api/accounts", adminAuth(http.HandlerFunc(h.ListAccounts)))
@@ -109,6 +109,9 @@ mux.Handle("POST /api/user/points/exchange", middleware.RateLimit(userAuth(http.
 	mux.Handle("POST /api/admin/users/update", adminAuth(http.HandlerFunc(h.UpdateUser)))
 	mux.Handle("POST /api/admin/users/reset-password", adminAuth(http.HandlerFunc(h.ResetUserPassword)))
 	mux.Handle("POST /api/admin/users/points", adminAuth(http.HandlerFunc(h.AdjustUserPoints)))
+	mux.Handle("POST /api/admin/users/subscription", adminAuth(http.HandlerFunc(h.AdminSetUserSubscription)))
+	// 授予/撤销管理员：仅 superadmin
+	mux.Handle("POST /api/admin/users/set-role", adminAuth(middleware.SuperAdminOnly(http.HandlerFunc(h.AdminSetUserRole))))
 	mux.Handle("POST /api/admin/users/toggle-status", adminAuth(http.HandlerFunc(h.ToggleUserStatus)))
 
 	// 系统设置（GET 公开，POST 需管理员）

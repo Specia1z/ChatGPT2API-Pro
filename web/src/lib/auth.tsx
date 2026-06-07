@@ -8,6 +8,8 @@ interface User {
   email: string;
   name: string;
   points: number;
+  role?: number;            // 0=普通 1=管理员
+  is_super_admin?: boolean; // 由 .env 邮箱判定
   plan_name?: string;
   plan_id?: number;
   subscription_expires_at?: string;
