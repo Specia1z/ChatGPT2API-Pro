@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { Outfit, DM_Mono } from "next/font/google";
-import { Globe, Shield, Save, Gauge, Gift, CreditCard, Database, Users, Activity, Rocket, Coins, Layers } from "lucide-react";
+import { Globe, Shield, Save, Gauge, Gift, Database, Users, Activity, Rocket, Coins, Layers } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
 import { AdminSidebar } from "@/components/admin-sidebar";
@@ -25,7 +25,6 @@ const SECTIONS = [
   { id: "imgcost", label: "生图消耗", icon: Coins, color: "text-emerald-500", bg: "bg-emerald-500/10" },
   { id: "freequota", label: "无套餐额度", icon: Layers, color: "text-sky-500", bg: "bg-sky-500/10" },
   { id: "perf", label: "性能调优", icon: Rocket, color: "text-orange-500", bg: "bg-orange-500/10" },
-  { id: "payment", label: "支付配置", icon: CreditCard, color: "text-cyan-500", bg: "bg-cyan-500/10" },
   { id: "storage", label: "存储清理", icon: Database, color: "text-violet-500", bg: "bg-violet-500/10" },
 ];
 
@@ -397,22 +396,7 @@ export default function SettingsPage() {
                 </div>
               </Card>
 
-              {/* ═══ 支付配置 ═══ */}
-              <Card id="payment" icon={CreditCard} color="text-cyan-500" bg="bg-cyan-500/10" title="支付宝付款" desc="在定价页显示支付宝购买入口"
-                action={<Switch checked={cfg?.alipay_enabled} onCheckedChange={v => update("alipay_enabled", v)} />}>
-                {cfg?.alipay_enabled ? (
-                  <div className="space-y-4">
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      <div className="space-y-1.5"><Label>支付宝 APP ID</Label><Input value={cfg?.alipay_app_id || ""} onChange={e => update("alipay_app_id", e.target.value)} placeholder="202100..." className={inputCls} /></div>
-                      <div className="space-y-1.5"><Label>异步通知 URL</Label><Input value={cfg?.alipay_notify_url || ""} onChange={e => update("alipay_notify_url", e.target.value)} placeholder="留空则使用轮询查询" className={inputCls} /></div>
-                    </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      <div className="space-y-1.5"><Label>应用私钥（RSA2）</Label><textarea value={cfg?.alipay_app_private_key || ""} onChange={e => update("alipay_app_private_key", e.target.value)} rows={4} placeholder="-----BEGIN RSA PRIVATE KEY-----" className={taCls} /></div>
-                      <div className="space-y-1.5"><Label>支付宝公钥</Label><textarea value={cfg?.alipay_alipay_public_key || ""} onChange={e => update("alipay_alipay_public_key", e.target.value)} rows={4} placeholder="-----BEGIN PUBLIC KEY-----" className={taCls} /></div>
-                    </div>
-                  </div>
-                ) : <p className="text-sm text-muted-foreground">未启用支付宝支付，开启后用户可在定价页通过支付宝购买套餐。</p>}
-              </Card>
+              {/* 支付配置已移至独立页面 /admin/payment */}
 
               {/* ═══ 存储清理 ═══ */}
               <Card id="storage" icon={Database} color="text-violet-500" bg="bg-violet-500/10" title="存储清理" desc="定期清理过期的图片（本地与 S3 均适用）">

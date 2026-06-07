@@ -9,7 +9,7 @@ import {
   LayoutDashboard, Zap, Shield, Settings, ImageIcon,
   Package, Users, LogOut, Ticket, BarChart3, ChevronRight,
   ShoppingCart, Tag, Database, Sun, Moon, Palette, Mail,
-  Menu, X, Megaphone, ShieldCheck,
+  Menu, X, Megaphone, ShieldCheck, Wallet,
 } from "lucide-react";
 import { setToken, BASE } from "@/lib/api";
 
@@ -36,6 +36,7 @@ const navGroups = [
     items: [
       { href: "/admin/plans", icon: Package, label: "套餐管理" },
       { href: "/admin/orders", icon: ShoppingCart, label: "订单管理" },
+      { href: "/admin/payment", icon: Wallet, label: "支付网关" },
       { href: "/admin/redeem", icon: Ticket, label: "兑换码" },
       { href: "/admin/coupons", icon: Tag, label: "优惠码" },
       { href: "/admin/users", icon: Users, label: "用户管理" },
