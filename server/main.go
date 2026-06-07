@@ -47,7 +47,15 @@ func main() {
 	log.Printf("[http] 监听 :%s", cfg.Port)
 	log.Printf("[http] http://localhost:%s", cfg.Port)
 
-	if err := http.ListenAndServe(":"+cfg.Port, router); err != nil {
+	// 显式 http.Server：设 ReadHeaderTimeout/IdleTimeout 防慢连接堆积吃内存。
+	// 不设 WriteTimeout——否则会掐断 SSE 长连接（账号监控/注册机实时日志）。
+	srv := &http.Server{
+		Addr:              ":" + cfg.Port,
+		Handler:           router,
+		ReadHeaderTimeout: cfg.ReadHeaderTimeout,
+		IdleTimeout:       cfg.IdleTimeout,
+	}
+	if err := srv.ListenAndServe(); err != nil {
 		log.Fatalf("[http] 启动失败: %v", err)
 	}
 }

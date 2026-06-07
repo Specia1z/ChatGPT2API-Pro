@@ -162,7 +162,7 @@ export default function PlansPage() {
                           { icon: Zap, value: p.concurrency || 1, label: "并发", color: "text-primary", bg: "bg-primary/10" },
                           { icon: Coins, value: p.token_capacity || 50, label: "令牌", color: "text-emerald-500", bg: "bg-emerald-500/10" },
                           { icon: Timer, value: p.token_refill_per_hour || 3, label: "/小时", color: "text-blue-500", bg: "bg-blue-500/10" },
-                          { icon: Gauge, value: p.rate_limit_per_min || 600, label: "API/分", color: "text-violet-500", bg: "bg-violet-500/10" },
+                          { icon: Gauge, value: p.rate_limit_per_min || 30, label: "API/分", color: "text-violet-500", bg: "bg-violet-500/10" },
                         ].map(m => (
                           <div key={m.label} className="rounded-xl bg-muted/40 p-2 sm:p-2.5 text-center">
                             <div className={`size-6 sm:size-7 rounded-lg ${m.bg} flex items-center justify-center mx-auto mb-1 sm:mb-1.5`}>

@@ -164,7 +164,7 @@ function SubscribePageInner() {
               <div className="flex items-center gap-3 text-xs text-zinc-500">
                 <span className="flex items-center gap-1"><Zap className="w-3.5 h-3.5 text-cyan-500/70" /> {plan.concurrency} 并发</span>
                 <span className="flex items-center gap-1"><Coins className="w-3.5 h-3.5 text-cyan-500/70" /> {plan.token_capacity} 张</span>
-                <span className="flex items-center gap-1"><Gauge className="w-3.5 h-3.5 text-cyan-500/70" /> {plan.rate_limit_per_min || 600}/分</span>
+                <span className="flex items-center gap-1"><Gauge className="w-3.5 h-3.5 text-cyan-500/70" /> {plan.rate_limit_per_min || 30}/分</span>
                 <span className="flex items-center gap-1"><Clock className="w-3.5 h-3.5 text-cyan-500/70" /> {billing === "yearly" ? (plan.duration_days_yearly || plan.duration_days * 12) : plan.duration_days}天</span>
               </div>
             </button>
@@ -213,7 +213,7 @@ function SubscribePageInner() {
                 <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1.5 text-[11px] text-zinc-500">
                   <span className="flex items-center gap-1"><Zap className="w-3 h-3 text-cyan-500/70" /> {selected?.concurrency} 并发</span>
                   <span className="flex items-center gap-1"><Coins className="w-3 h-3 text-cyan-500/70" /> {selected?.token_capacity} 张额度</span>
-                  <span className="flex items-center gap-1"><Gauge className="w-3 h-3 text-cyan-500/70" /> {selected?.rate_limit_per_min || 600} 次/分</span>
+                  <span className="flex items-center gap-1"><Gauge className="w-3 h-3 text-cyan-500/70" /> {selected?.rate_limit_per_min || 30} 次/分</span>
                   <span className="flex items-center gap-1"><Clock className="w-3 h-3 text-cyan-500/70" /> {billing === "yearly" ? "年付" : "月付"} · {months}个月</span>
                 </div>
               </div>

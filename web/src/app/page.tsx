@@ -26,7 +26,7 @@ function buildFeatures(p: any, billing?: string) {
   const cap = p.token_capacity || 50;
   const refill = p.token_refill_per_hour || 3;
   const conc = p.concurrency || 1;
-  const apiRate = p.rate_limit_per_min || 600;
+  const apiRate = p.rate_limit_per_min || 30;
   if (cap > 0) auto.push({ icon: "Coins", text: `图片额度 ${cap} 张` });
   if (refill > 0) auto.push({ icon: "Timer", text: `每小时恢复 ${refill} 张` });
   if (conc > 0) auto.push({ icon: "Layers", text: `同时生成 ${conc} 张` });

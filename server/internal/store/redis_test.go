@@ -2,6 +2,7 @@ package store
 
 import (
 	"context"
+	"strconv"
 	"testing"
 	"time"
 )
@@ -140,3 +141,42 @@ func TestAddBurstTokenCap(t *testing.T) {
 	s.client.Del(context.Background(), key)
 	t.Log("✅ 突发令牌上限测试完成")
 }
+
+// TestAllowRate 覆盖固定窗口限流：窗口内放行至 limit、超限拒绝、窗口过期后额度重置。
+// 这是 API Key 按套餐限量的底层计数器。
+func TestAllowRate(t *testing.T) {
+	s, err := NewRedisStore("localhost:6379", "")
+	if err != nil {
+		t.Skipf("Redis not available: %v", err)
+	}
+	defer s.Close()
+
+	key := "uid:" + strconv.FormatInt(time.Now().UnixNano(), 10)
+	defer s.client.Del(context.Background(), "rl:"+key)
+
+	const limit = 4
+
+	// ── Test 1: 窗口内前 limit 个放行 ──
+	window := 2 * time.Second
+	allowed := 0
+	for i := 0; i < limit+3; i++ {
+		if s.AllowRate(key, limit, window) {
+			allowed++
+		}
+	}
+	t.Logf("T1 limit=%d 打 %d 个 → 放行=%d", limit, limit+3, allowed)
+	if allowed != limit {
+		t.Errorf("窗口内应恰好放行 %d 个, got %d", limit, allowed)
+	}
+
+	// ── Test 2: 窗口过期后额度重置 ──
+	t.Log("T2 等待窗口过期...")
+	time.Sleep(window + 500*time.Millisecond)
+	if !s.AllowRate(key, limit, window) {
+		t.Error("窗口过期后应重新放行")
+	}
+	t.Log("T2 窗口过期后第 1 个已放行 ✓")
+
+	t.Log("✅ 固定窗口限流测试完成")
+}
+

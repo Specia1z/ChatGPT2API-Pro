@@ -6,10 +6,24 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"chatgpt2api-pro/internal/store"
 )
+
+// defaultUserRate 后台可调的「API Key 默认每分钟请求上限」（套餐未单独配置时回退此值）。
+// 启动时由 SetDefaultUserRate 从 settings 写入，保存设置时热更新。0 表示未配置，
+// 此时 UserRateLimit 用传入的内置兜底基线。原子读写，无锁、对每请求路径友好。
+var defaultUserRate int64
+
+// SetDefaultUserRate 热更新后台配置的默认限速（每分钟请求数）。n<=0 视为「未配置」。
+func SetDefaultUserRate(n int) {
+	if n < 0 {
+		n = 0
+	}
+	atomic.StoreInt64(&defaultUserRate, int64(n))
+}
 
 type rateLimiter struct {
 	mu      sync.Mutex
@@ -67,8 +81,10 @@ func RateLimit(next http.Handler) http.Handler {
 // 必须在 ApiKeyAuth/UserAuth 之后，从 context 取 uid；取不到则回退按 IP。
 // 解决 IP 限流被同一 Key 多 IP 绕过的问题。
 //
-// limit 为兜底默认值（每 window 的请求数）；若 context 里带有套餐配置的
-// RateLimitKey(>0)，则按套餐值放宽/收紧——让高需求用户买更高套餐获得更高限速。
+// limit 为内置兜底基线（每 window 的请求数）。生效限速按优先级解析：
+//  1. 套餐 RateLimitKey(>0) — 让高需求用户买更高套餐获得更高限速；
+//  2. 后台可调默认 defaultUserRate(>0) — 未单独配置的套餐统一回退此值；
+//  3. 传入的内置兜底 limit — 前两者都未配置时。
 func UserRateLimit(redis *store.RedisStore, limit int, window time.Duration) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -78,8 +94,11 @@ func UserRateLimit(redis *store.RedisStore, limit int, window time.Duration) fun
 			} else {
 				key = "ip:" + ClientIP(r)
 			}
-			// 套餐自定义限速优先（0 或缺失则用默认 limit）
+			// 解析生效限速：套餐 > 后台默认 > 内置兜底
 			effLimit := limit
+			if d := int(atomic.LoadInt64(&defaultUserRate)); d > 0 {
+				effLimit = d
+			}
 			if pl, ok := r.Context().Value(RateLimitKey).(int); ok && pl > 0 {
 				effLimit = pl
 			}

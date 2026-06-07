@@ -57,6 +57,8 @@ services:
       REDIS_PASS: ${REDIS_PASS:-}
       JWT_SECRET: ${JWT_SECRET:?需在 .env.prod 设置}
       ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-}
+      HTTP_READ_HEADER_TIMEOUT_SEC: ${HTTP_READ_HEADER_TIMEOUT_SEC:-15}
+      HTTP_IDLE_TIMEOUT_SEC: ${HTTP_IDLE_TIMEOUT_SEC:-120}
     volumes:
       # 本地图片存储：与后台 storage 配置的 local_path=/app/uploads 对应，持久化
       - uploads:/app/uploads

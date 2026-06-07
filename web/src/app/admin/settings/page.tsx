@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { Outfit, DM_Mono } from "next/font/google";
-import { Globe, Shield, Save, Gauge, Gift, CreditCard, Database, Users } from "lucide-react";
+import { Globe, Shield, Save, Gauge, Gift, CreditCard, Database, Users, Activity, Rocket } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
 import { AdminSidebar } from "@/components/admin-sidebar";
@@ -21,6 +21,8 @@ const SECTIONS = [
   { id: "invite", label: "邀请裂变", icon: Users, color: "text-cyan-500", bg: "bg-cyan-500/10" },
   { id: "security", label: "安全验证", icon: Shield, color: "text-primary", bg: "bg-primary/10" },
   { id: "scheduler", label: "生图调度", icon: Gauge, color: "text-emerald-500", bg: "bg-emerald-500/10" },
+  { id: "apirate", label: "API 限速", icon: Activity, color: "text-rose-500", bg: "bg-rose-500/10" },
+  { id: "perf", label: "性能调优", icon: Rocket, color: "text-orange-500", bg: "bg-orange-500/10" },
   { id: "payment", label: "支付配置", icon: CreditCard, color: "text-cyan-500", bg: "bg-cyan-500/10" },
   { id: "storage", label: "存储清理", icon: Database, color: "text-violet-500", bg: "bg-violet-500/10" },
 ];
@@ -318,6 +320,47 @@ export default function SettingsPage() {
                     ))}
                   </div>
                 )}
+              </Card>
+
+              {/* ═══ API 访问限速 ═══ */}
+              <Card id="apirate" icon={Activity} color="text-rose-500" bg="bg-rose-500/10" title="API 访问限速" desc="API Key 调用 /v1 接口的默认每分钟请求上限">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-start">
+                  <div className="space-y-1.5">
+                    <Label>默认限速（次/分钟）</Label>
+                    <Input type="number" min={0} value={cfg?.default_rate_limit_per_min ?? 0} onChange={e => update("default_rate_limit_per_min", +e.target.value)} className={inputCls} placeholder="0" />
+                  </div>
+                  <div className="rounded-xl bg-muted/40 p-3.5 text-xs text-muted-foreground leading-relaxed">
+                    未单独配置 API 速率的套餐统一回退此值。0 = 使用内置兜底 30 次/分钟。优先级：套餐速率 &gt; 此默认值 &gt; 内置兜底。保存后即时生效，无需重启。
+                  </div>
+                </div>
+              </Card>
+
+              {/* ═══ 性能调优 ═══ */}
+              <Card id="perf" icon={Rocket} color="text-orange-500" bg="bg-orange-500/10" title="性能调优" desc="高并发优化开关，全部 0 = 保持默认行为，保存即时生效">
+                <div className="space-y-5">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="space-y-1.5">
+                      <Label>配置缓存 TTL（秒）</Label>
+                      <Input type="number" min={0} max={3600} value={cfg?.config_cache_ttl_seconds ?? 0} onChange={e => update("config_cache_ttl_seconds", +e.target.value)} className={inputCls} placeholder="0" />
+                      <p className="text-[10px] text-muted-foreground">系统设置 / 存储配置的内存缓存秒数。0=每次查库。建议 5~10。改配置时自动失效，不会读到旧值。</p>
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label>公开接口缓存 TTL（秒）</Label>
+                      <Input type="number" min={0} max={600} value={cfg?.public_cache_ttl_seconds ?? 0} onChange={e => update("public_cache_ttl_seconds", +e.target.value)} className={inputCls} placeholder="0" />
+                      <p className="text-[10px] text-muted-foreground">套餐 / 画廊 / 公告 / 统计等公开接口的缓存秒数。0=不缓存。建议 10~30，抗匿名刷量。</p>
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label>API Key 使用时间写节流（秒）</Label>
+                      <Input type="number" min={0} max={3600} value={cfg?.apikey_lastused_throttle_seconds ?? 0} onChange={e => update("apikey_lastused_throttle_seconds", +e.target.value)} className={inputCls} placeholder="0" />
+                      <p className="text-[10px] text-muted-foreground">API Key「最后使用时间」最小写库间隔。0=每次都写。建议 60，削减高频调用的数据库随机写。</p>
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label>数据库最大连接数</Label>
+                      <Input type="number" min={0} max={200} value={cfg?.db_max_open_conns ?? 0} onChange={e => update("db_max_open_conns", +e.target.value)} className={inputCls} placeholder="0" />
+                      <p className="text-[10px] text-muted-foreground">0=内置默认 25，上限 200。⚠ 调大会增加内存占用，4G 机器谨慎，扩容后再上调。</p>
+                    </div>
+                  </div>
+                </div>
               </Card>
 
               {/* ═══ 支付配置 ═══ */}

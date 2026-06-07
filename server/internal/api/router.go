@@ -15,11 +15,17 @@ func NewRouter(mysql *store.MySQLStore, redis *store.RedisStore, cleaner *servic
 	userAuth := middleware.UserAuth(redis, mysql)
 	apiKeyAuth := middleware.ApiKeyAuth(mysql)
 
+	// 启动时载入后台可调的「API Key 默认限速」（套餐未配时回退此值）
+	if cfg, err := mysql.GetSettings(); err == nil && cfg != nil {
+		middleware.SetDefaultUserRate(cfg.DefaultRateLimitPerMin)
+		setPublicCacheTTL(cfg.PublicCacheTTLSeconds)
+	}
+
 	mux := http.NewServeMux()
 
-	// 公开
-	mux.HandleFunc("GET /api/plans", h.ListPlans)
-	mux.HandleFunc("GET /api/public/stats", h.PublicStats)
+	// 公开（带短 TTL 缓存，TTL=0 时直通；后台 public_cache_ttl_seconds 可调）
+	mux.HandleFunc("GET /api/plans", publicCached("plans", h.ListPlans))
+	mux.HandleFunc("GET /api/public/stats", publicCached("pubstats", h.PublicStats))
 
 	// 用户公开（限流）
 	mux.Handle("POST /api/auth/register", middleware.RateLimit(http.HandlerFunc(h.UserRegister)))
@@ -50,14 +56,14 @@ mux.Handle("POST /api/user/points/exchange", middleware.RateLimit(userAuth(http.
 	mux.HandleFunc("GET /api/images/{id}", h.ServeGenerationImage)
 
 	// 公开画廊
-	mux.HandleFunc("GET /api/gallery", h.ListGallery)
+	mux.HandleFunc("GET /api/gallery", publicCached("gallery", h.ListGallery))
 
 	// 公开公告（顶部 Banner）
-	mux.HandleFunc("GET /api/announcements", h.ListActiveAnnouncements)
+	mux.HandleFunc("GET /api/announcements", publicCached("announce", h.ListActiveAnnouncements))
 
 	// API v1 (API Key 认证)：IP 粗限流 + 按 uid 精确限流（防多 IP 绕过）。
-	// 默认 600/min（≈原 10/s 等价），套餐可经 rate_limit_per_min 覆盖此值。
-	apiUserRL := func(h http.Handler) http.Handler { return middleware.UserRateLimit(redis, 600, time.Minute)(h) }
+	// 内置兜底 30/min；后台「默认限速」与套餐 rate_limit_per_min 可逐级覆盖（见 UserRateLimit）。
+	apiUserRL := func(h http.Handler) http.Handler { return middleware.UserRateLimit(redis, 30, time.Minute)(h) }
 	mux.Handle("POST /api/v1/images/generations", middleware.RateLimit(apiKeyAuth(apiUserRL(http.HandlerFunc(h.CreateGeneration)))))
 	mux.Handle("GET /api/v1/images/generations", apiKeyAuth(apiUserRL(http.HandlerFunc(h.GetUserGenerations))))
 	mux.Handle("GET /api/v1/user/tokens", apiKeyAuth(apiUserRL(http.HandlerFunc(h.GetUserTokens))))

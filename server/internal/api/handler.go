@@ -368,6 +368,13 @@ func (h *Handler) SaveSettings(w http.ResponseWriter, r *http.Request) {
 	}
 	h.MySQL.SaveSettings(&cfg)
 
+	// 热更新：API Key 默认限速（套餐未配时回退此值），免重启即时生效
+	middleware.SetDefaultUserRate(cfg.DefaultRateLimitPerMin)
+	// 热更新：last_used 写节流间隔、DB 连接池上限、公开接口缓存 TTL（配置缓存 TTL 已在 store.SaveSettings 内应用）
+	h.MySQL.SetAPIKeyLastUsedThrottle(cfg.APIKeyLastUsedThrottleSeconds)
+	h.MySQL.ApplyDBPoolConfig(cfg.DBMaxOpenConns)
+	setPublicCacheTTL(cfg.PublicCacheTTLSeconds)
+
 	// 热更新：StorageCleanupDays 变化时启停本地清理定时器
 	if cfg.StorageCleanupDays > 0 {
 		h.Cleaner.Start()

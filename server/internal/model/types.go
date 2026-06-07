@@ -237,6 +237,11 @@ type Settings struct {
 	PointsExchangeRate  int    `json:"points_exchange_rate"`
 	PointsExchangeBonus int    `json:"points_exchange_bonus"`
 	BurstTokenCap       int    `json:"burst_token_cap"` // 突发令牌囤积上限（0=不限），防积分兑换无限囤额度
+	DefaultRateLimitPerMin int `json:"default_rate_limit_per_min"` // API Key 默认每分钟请求上限（套餐未配 rate_limit_per_min 时回退此值；0=用内置兜底 30）
+	ConfigCacheTTLSeconds  int `json:"config_cache_ttl_seconds"`   // 配置(settings/storage)进程内缓存秒数（0=不缓存，写时自动失效）
+	APIKeyLastUsedThrottleSeconds int `json:"apikey_lastused_throttle_seconds"` // API Key last_used 写入最小间隔秒数（0=每次都写）
+	PublicCacheTTLSeconds  int `json:"public_cache_ttl_seconds"`   // 公开 GET 接口(plans/gallery/公告/stats)缓存秒数（0=不缓存）
+	DBMaxOpenConns         int `json:"db_max_open_conns"`          // MySQL 最大连接数（0=用内置默认 25；上限 200 防爆内存）
 	StylePresets string `json:"style_presets"` // JSON 数组：风格预设
 	EmailConfig string `json:"email_config"` // JSON：SMTP+域名规则
 	InviteConfig string `json:"invite_config"` // JSON：邀请裂变配置
