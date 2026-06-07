@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"chatgpt2api-pro/internal/middleware"
+	"chatgpt2api-pro/internal/model"
 	"chatgpt2api-pro/internal/service"
 )
 
@@ -185,6 +186,36 @@ func cleanReply(s string) string {
 	return strings.TrimSpace(b.String())
 }
 
+// acquireChatSlot 为一次对话占用令牌桶 + 调度并发位（chat/responses 共用）。
+// 成功返回 refund（出错时退令牌用）；失败返回错误。调用方需 defer GetScheduler().Release(uid)。
+func (h *Handler) acquireChatSlot(uid int64, settings *model.Settings) (func(), error) {
+	user, _ := h.MySQL.GetUserByID(uid)
+	capacity, refillRate, maxConcurrent := 50, 3, 1
+	if user != nil {
+		capacity = valOr(user.TokenCapacity, 50)
+		refillRate = valOr(user.TokenRefillPerHour, 3)
+		maxConcurrent = valOr(user.PlanConcurrency, 1)
+	}
+	cost := 1
+	if settings != nil {
+		cost = valOr(settings.TokensPerImage, 1)
+	}
+	sched := service.GetScheduler()
+	if err := sched.CheckCapacity(uid, 1, maxConcurrent); err != nil {
+		return nil, err
+	}
+	normal, burst, okTok, waitSec, _ := h.Redis.ConsumeToken(uid, capacity, refillRate, cost)
+	if !okTok {
+		return nil, fmt.Errorf("令牌不足 (剩余%.0f, 需%d个, 等待%ds)", normal+burst, cost, waitSec)
+	}
+	refund := func() { h.Redis.RefundToken(uid, capacity, refillRate, cost) }
+	if err := sched.Acquire(uid, maxConcurrent); err != nil {
+		refund()
+		return nil, err
+	}
+	return refund, nil
+}
+
 // ChatCompletions —— POST /v1/chat/completions（OpenAI 兼容）。
 func (h *Handler) ChatCompletions(w http.ResponseWriter, r *http.Request) {
 	uid, ok := r.Context().Value(middleware.UserIDKey).(int64)
@@ -237,45 +268,25 @@ func (h *Handler) ChatCompletions(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 令牌桶 + 调度器（一次对话扣 tokens_per_image 个令牌）
-	user, _ := h.MySQL.GetUserByID(uid)
-	capacity, refillRate, maxConcurrent := 50, 3, 1
-	if user != nil {
-		capacity = valOr(user.TokenCapacity, 50)
-		refillRate = valOr(user.TokenRefillPerHour, 3)
-		maxConcurrent = valOr(user.PlanConcurrency, 1)
-	}
-	cost := valOr(settings.TokensPerImage, 1)
-	sched := service.GetScheduler()
-	if err := sched.CheckCapacity(uid, 1, maxConcurrent); err != nil {
-		writeOpenAIError(w, 429, err.Error(), "rate_limit_error")
+	refund, acqErr := h.acquireChatSlot(uid, settings)
+	if acqErr != nil {
+		writeOpenAIError(w, 429, acqErr.Error(), "rate_limit_error")
 		return
 	}
-	normal, burst, okTok, waitSec, _ := h.Redis.ConsumeToken(uid, capacity, refillRate, cost)
-	if !okTok {
-		writeOpenAIError(w, 429, fmt.Sprintf("令牌不足 (剩余%.0f, 需%d个, 等待%ds)", normal+burst, cost, waitSec), "rate_limit_error")
-		return
-	}
-	if err := sched.Acquire(uid, maxConcurrent); err != nil {
-		h.Redis.RefundToken(uid, capacity, refillRate, cost)
-		writeOpenAIError(w, 429, err.Error(), "rate_limit_error")
-		return
-	}
-	defer sched.Release(uid)
+	defer service.GetScheduler().Release(uid)
 
 	svc := service.NewChatGenService(h.MySQL, h.Redis)
 	created := time.Now().Unix()
 	cmplID := "chatcmpl-" + newReqID()
 
 	if req.Stream {
-		h.chatStream(w, r, svc, modelSlug, msgs, cmplID, created, func() {
-			h.Redis.RefundToken(uid, capacity, refillRate, cost)
-		})
+		h.chatStream(w, r, svc, modelSlug, msgs, cmplID, created, refund)
 		return
 	}
 	// 非流式：一次性返回
 	full, genErr := svc.Chat(r.Context(), modelSlug, msgs, nil)
 	if genErr != nil {
-		h.Redis.RefundToken(uid, capacity, refillRate, cost)
+		refund()
 		writeOpenAIError(w, 502, genErr.Error(), "upstream_error")
 		return
 	}

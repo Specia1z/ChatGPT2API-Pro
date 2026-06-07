@@ -74,6 +74,7 @@ mux.Handle("POST /api/user/points/exchange", middleware.RateLimit(userAuth(http.
 	mux.Handle("POST /api/v1/vector", middleware.RateLimit(apiKeyAuth(apiUserRL(http.HandlerFunc(h.CreateVectorAPI)))))
 	// OpenAI 兼容对话/模型（API Key 认证）：聊天 + 多轮上下文 + 多模态 + codex + 工具调用(提示词模拟)
 	mux.Handle("POST /v1/chat/completions", middleware.RateLimit(apiKeyAuth(apiUserRL(http.HandlerFunc(h.ChatCompletions)))))
+	mux.Handle("POST /v1/responses", middleware.RateLimit(apiKeyAuth(apiUserRL(http.HandlerFunc(h.Responses)))))
 	mux.Handle("GET /v1/models", apiKeyAuth(http.HandlerFunc(h.ListModelsOpenAI)))
 	mux.Handle("GET /api/v1/user/tokens", apiKeyAuth(apiUserRL(http.HandlerFunc(h.GetUserTokens))))
 
