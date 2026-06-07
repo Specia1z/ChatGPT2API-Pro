@@ -49,8 +49,8 @@ func (s *MySQLStore) AdminUnshare(genID int64) error {
 // ListPendingShares 待审分享队列（管理员）。
 func (s *MySQLStore) ListPendingShares(page, pageSize int) ([]model.Generation, int, error) {
 	var total int
-	s.db.QueryRow("SELECT COUNT(*) FROM generations WHERE share_status='pending'").Scan(&total)
-	rows, err := s.db.Query("SELECT g.id, g.user_id, g.prompt, g.model, COALESCE(g.size,\"\"), COALESCE(g.image_b64,\"\"), COALESCE(g.image_url,\"\"), g.status, COALESCE(u.email,\"\"), COALESCE(u.name,\"\"), g.shared, g.share_status, g.created_at FROM generations g LEFT JOIN users u ON g.user_id=u.id WHERE g.share_status='pending' AND g.status='completed' ORDER BY g.id ASC LIMIT ? OFFSET ?", pageSize, (page-1)*pageSize)
+	s.db.QueryRow("SELECT COUNT(*) FROM generations WHERE share_status='pending' AND gen_type='image'").Scan(&total)
+	rows, err := s.db.Query("SELECT g.id, g.user_id, g.prompt, g.model, COALESCE(g.size,\"\"), COALESCE(g.image_b64,\"\"), COALESCE(g.image_url,\"\"), g.status, COALESCE(u.email,\"\"), COALESCE(u.name,\"\"), g.shared, g.share_status, g.created_at FROM generations g LEFT JOIN users u ON g.user_id=u.id WHERE g.share_status='pending' AND g.status='completed' AND g.gen_type='image' ORDER BY g.id ASC LIMIT ? OFFSET ?", pageSize, (page-1)*pageSize)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -71,8 +71,8 @@ func (s *MySQLStore) ListPendingShares(page, pageSize int) ([]model.Generation, 
 
 func (s *MySQLStore) ListSharedGalleries(page, pageSize int) ([]model.Generation, int, error) {
 	var total int
-	s.db.QueryRow("SELECT COUNT(*) FROM generations WHERE shared=1 AND status=\"completed\" AND ((image_b64 IS NOT NULL AND LENGTH(image_b64) > 100) OR (image_url IS NOT NULL AND image_url != \"\"))").Scan(&total)
-	rows, err := s.db.Query("SELECT g.id, g.user_id, g.prompt, g.model, COALESCE(g.size,\"\"), COALESCE(g.image_b64,\"\"), COALESCE(g.image_url,\"\"), g.status, COALESCE(u.email,\"\"), COALESCE(u.name,\"\"), g.shared, g.created_at FROM generations g LEFT JOIN users u ON g.user_id=u.id WHERE g.shared=1 AND g.status=\"completed\" AND ((g.image_b64 IS NOT NULL AND LENGTH(g.image_b64) > 100) OR (g.image_url IS NOT NULL AND g.image_url != \"\")) ORDER BY g.id DESC LIMIT ? OFFSET ?", pageSize, (page-1)*pageSize)
+	s.db.QueryRow("SELECT COUNT(*) FROM generations WHERE shared=1 AND status=\"completed\" AND gen_type='image' AND ((image_b64 IS NOT NULL AND LENGTH(image_b64) > 100) OR (image_url IS NOT NULL AND image_url != \"\"))").Scan(&total)
+	rows, err := s.db.Query("SELECT g.id, g.user_id, g.prompt, g.model, COALESCE(g.size,\"\"), COALESCE(g.image_b64,\"\"), COALESCE(g.image_url,\"\"), g.status, COALESCE(u.email,\"\"), COALESCE(u.name,\"\"), g.shared, g.created_at FROM generations g LEFT JOIN users u ON g.user_id=u.id WHERE g.shared=1 AND g.status=\"completed\" AND g.gen_type='image' AND ((g.image_b64 IS NOT NULL AND LENGTH(g.image_b64) > 100) OR (g.image_url IS NOT NULL AND g.image_url != \"\")) ORDER BY g.id DESC LIMIT ? OFFSET ?", pageSize, (page-1)*pageSize)
 	if err != nil {
 		return nil, 0, err
 	}

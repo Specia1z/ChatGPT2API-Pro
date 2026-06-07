@@ -15,10 +15,10 @@ func (s *MySQLStore) GetAdminStats() (*model.AdminStats, error) {
 	s.db.QueryRow("SELECT COUNT(*) FROM users WHERE DATE(created_at)=CURDATE()").Scan(&st.TodayUsers)
 	s.db.QueryRow("SELECT COUNT(*) FROM users WHERE status=1").Scan(&st.ActiveUsers)
 
-	s.db.QueryRow("SELECT COUNT(*) FROM generations").Scan(&st.TotalGenerations)
-	s.db.QueryRow("SELECT COUNT(*) FROM generations WHERE DATE(created_at)=CURDATE()").Scan(&st.TodayGenerations)
-	s.db.QueryRow("SELECT COUNT(*) FROM generations WHERE status='completed' AND DATE(created_at)=CURDATE()").Scan(&st.TodaySuccess)
-	s.db.QueryRow("SELECT COUNT(*) FROM generations WHERE status='failed' AND DATE(created_at)=CURDATE()").Scan(&st.TodayFailed)
+	s.db.QueryRow("SELECT COUNT(*) FROM generations WHERE gen_type='image'").Scan(&st.TotalGenerations)
+	s.db.QueryRow("SELECT COUNT(*) FROM generations WHERE gen_type='image' AND DATE(created_at)=CURDATE()").Scan(&st.TodayGenerations)
+	s.db.QueryRow("SELECT COUNT(*) FROM generations WHERE gen_type='image' AND status='completed' AND DATE(created_at)=CURDATE()").Scan(&st.TodaySuccess)
+	s.db.QueryRow("SELECT COUNT(*) FROM generations WHERE gen_type='image' AND status='failed' AND DATE(created_at)=CURDATE()").Scan(&st.TodayFailed)
 
 	s.db.QueryRow("SELECT COUNT(*) FROM orders").Scan(&st.TotalOrders)
 	s.db.QueryRow("SELECT COUNT(*) FROM orders WHERE status='paid'").Scan(&st.PaidOrders)
@@ -63,15 +63,15 @@ func (s *MySQLStore) GetStatsTrends(days int) (*model.TrendsData, error) {
 	}
 
 	var err error
-	td.Generations, err = query("SELECT DATE(created_at) as d, COUNT(*) FROM generations WHERE created_at >= ? GROUP BY d ORDER BY d")
+	td.Generations, err = query("SELECT DATE(created_at) as d, COUNT(*) FROM generations WHERE gen_type='image' AND created_at >= ? GROUP BY d ORDER BY d")
 	if err != nil {
 		return nil, err
 	}
-	td.Success, err = query("SELECT DATE(created_at) as d, COUNT(*) FROM generations WHERE status='completed' AND created_at >= ? GROUP BY d ORDER BY d")
+	td.Success, err = query("SELECT DATE(created_at) as d, COUNT(*) FROM generations WHERE gen_type='image' AND status='completed' AND created_at >= ? GROUP BY d ORDER BY d")
 	if err != nil {
 		return nil, err
 	}
-	td.Failed, err = query("SELECT DATE(created_at) as d, COUNT(*) FROM generations WHERE status='failed' AND created_at >= ? GROUP BY d ORDER BY d")
+	td.Failed, err = query("SELECT DATE(created_at) as d, COUNT(*) FROM generations WHERE gen_type='image' AND status='failed' AND created_at >= ? GROUP BY d ORDER BY d")
 	if err != nil {
 		return nil, err
 	}
@@ -118,7 +118,7 @@ func (s *MySQLStore) GetStatsTrends(days int) (*model.TrendsData, error) {
 // GetGenerationsAgeDays 返回最早一条生图记录距今的天数（至少 1）
 func (s *MySQLStore) GetGenerationsAgeDays() int {
 	var days *int
-	s.db.QueryRow("SELECT DATEDIFF(CURDATE(), DATE(MIN(created_at))) FROM generations").Scan(&days)
+	s.db.QueryRow("SELECT DATEDIFF(CURDATE(), DATE(MIN(created_at))) FROM generations WHERE gen_type='image'").Scan(&days)
 	if days == nil || *days < 1 {
 		return 1
 	}
@@ -126,7 +126,7 @@ func (s *MySQLStore) GetGenerationsAgeDays() int {
 }
 
 func (s *MySQLStore) GetModelBreakdown() ([]model.ModelBreakdown, error) {
-	rows, err := s.db.Query("SELECT COALESCE(model,'unknown') as m, COUNT(*) FROM generations GROUP BY m ORDER BY COUNT(*) DESC")
+	rows, err := s.db.Query("SELECT COALESCE(model,'unknown') as m, COUNT(*) FROM generations WHERE gen_type='image' GROUP BY m ORDER BY COUNT(*) DESC")
 	if err != nil {
 		return nil, err
 	}
@@ -149,18 +149,18 @@ func (s *MySQLStore) GetModelBreakdown() ([]model.ModelBreakdown, error) {
 // GetUserStats 返回指定用户的统计概览
 func (s *MySQLStore) GetUserStats(userID int64) (*model.UserStats, error) {
 	var st model.UserStats
-	s.db.QueryRow("SELECT COUNT(*) FROM generations WHERE user_id=?", userID).Scan(&st.TotalGenerations)
-	s.db.QueryRow("SELECT COUNT(*) FROM generations WHERE user_id=? AND DATE(created_at)=CURDATE()", userID).Scan(&st.TodayGenerations)
-	s.db.QueryRow("SELECT COUNT(*) FROM generations WHERE user_id=? AND created_at >= DATE_SUB(CURDATE(), INTERVAL WEEKDAY(CURDATE()) DAY)", userID).Scan(&st.WeekGenerations)
-	s.db.QueryRow("SELECT COUNT(*) FROM generations WHERE user_id=? AND status='completed'", userID).Scan(&st.TotalSuccess)
-	s.db.QueryRow("SELECT COUNT(*) FROM generations WHERE user_id=? AND status='failed'", userID).Scan(&st.TotalFailed)
+	s.db.QueryRow("SELECT COUNT(*) FROM generations WHERE user_id=? AND gen_type='image'", userID).Scan(&st.TotalGenerations)
+	s.db.QueryRow("SELECT COUNT(*) FROM generations WHERE user_id=? AND gen_type='image' AND DATE(created_at)=CURDATE()", userID).Scan(&st.TodayGenerations)
+	s.db.QueryRow("SELECT COUNT(*) FROM generations WHERE user_id=? AND gen_type='image' AND created_at >= DATE_SUB(CURDATE(), INTERVAL WEEKDAY(CURDATE()) DAY)", userID).Scan(&st.WeekGenerations)
+	s.db.QueryRow("SELECT COUNT(*) FROM generations WHERE user_id=? AND gen_type='image' AND status='completed'", userID).Scan(&st.TotalSuccess)
+	s.db.QueryRow("SELECT COUNT(*) FROM generations WHERE user_id=? AND gen_type='image' AND status='failed'", userID).Scan(&st.TotalFailed)
 	return &st, nil
 }
 
 // GetUserTrends 返回指定用户近 n 天的每日生成趋势
 func (s *MySQLStore) GetUserTrends(userID, days int) ([]model.TrendPoint, error) {
 	startDate := time.Now().AddDate(0, 0, -days+1).Format("2006-01-02")
-	rows, err := s.db.Query("SELECT DATE(created_at) as d, COUNT(*) FROM generations WHERE user_id=? AND created_at >= ? GROUP BY d ORDER BY d", userID, startDate)
+	rows, err := s.db.Query("SELECT DATE(created_at) as d, COUNT(*) FROM generations WHERE user_id=? AND gen_type='image' AND created_at >= ? GROUP BY d ORDER BY d", userID, startDate)
 	if err != nil {
 		return nil, err
 	}
@@ -195,8 +195,8 @@ func (s *MySQLStore) GetUserTrends(userID, days int) ([]model.TrendPoint, error)
 // GetUserSuccessRate 返回指定用户今日成功率
 func (s *MySQLStore) GetUserSuccessRate(userID int64) float64 {
 	var total, success int
-	s.db.QueryRow("SELECT COUNT(*) FROM generations WHERE user_id=? AND DATE(created_at)=CURDATE()", userID).Scan(&total)
-	s.db.QueryRow("SELECT COUNT(*) FROM generations WHERE user_id=? AND status='completed' AND DATE(created_at)=CURDATE()", userID).Scan(&success)
+	s.db.QueryRow("SELECT COUNT(*) FROM generations WHERE user_id=? AND gen_type='image' AND DATE(created_at)=CURDATE()", userID).Scan(&total)
+	s.db.QueryRow("SELECT COUNT(*) FROM generations WHERE user_id=? AND gen_type='image' AND status='completed' AND DATE(created_at)=CURDATE()", userID).Scan(&success)
 	if total == 0 {
 		return 100
 	}

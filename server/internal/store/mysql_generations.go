@@ -39,8 +39,8 @@ func (s *MySQLStore) SetUserCooldown(userID int64, minutes int) error {
 }
 
 func (s *MySQLStore) CountUserGenerations(userID int64) (today, week int) {
-	s.db.QueryRow("SELECT COUNT(*) FROM generations WHERE user_id=? AND created_at >= CURDATE()", userID).Scan(&today)
-	s.db.QueryRow("SELECT COUNT(*) FROM generations WHERE user_id=? AND created_at >= DATE_SUB(CURDATE(), INTERVAL WEEKDAY(CURDATE()) DAY)", userID).Scan(&week)
+	s.db.QueryRow("SELECT COUNT(*) FROM generations WHERE user_id=? AND gen_type='image' AND created_at >= CURDATE()", userID).Scan(&today)
+	s.db.QueryRow("SELECT COUNT(*) FROM generations WHERE user_id=? AND gen_type='image' AND created_at >= DATE_SUB(CURDATE(), INTERVAL WEEKDAY(CURDATE()) DAY)", userID).Scan(&week)
 	return
 }
 
@@ -125,8 +125,8 @@ func (s *MySQLStore) UpdateGeneration(id int64, imageB64, status, errMsg, imageU
 
 func (s *MySQLStore) GetUserGenerations(userID int64, page, pageSize int) ([]model.Generation, int, error) {
 	var total int
-	s.db.QueryRow("SELECT COUNT(*) FROM generations WHERE user_id=?", userID).Scan(&total)
-	rows, err := s.db.Query("SELECT id, user_id, prompt, model, COALESCE(size,''), COALESCE(image_b64,''), COALESCE(image_url,''), status, COALESCE(error_msg,''), created_at, shared, COALESCE(share_status,'none'), COALESCE(share_reject_reason,'') FROM generations WHERE user_id=? ORDER BY id DESC LIMIT ? OFFSET ?", userID, pageSize, (page-1)*pageSize)
+	s.db.QueryRow("SELECT COUNT(*) FROM generations WHERE user_id=? AND gen_type='image'", userID).Scan(&total)
+	rows, err := s.db.Query("SELECT id, user_id, prompt, model, COALESCE(size,''), COALESCE(image_b64,''), COALESCE(image_url,''), status, COALESCE(error_msg,''), created_at, shared, COALESCE(share_status,'none'), COALESCE(share_reject_reason,'') FROM generations WHERE user_id=? AND gen_type='image' ORDER BY id DESC LIMIT ? OFFSET ?", userID, pageSize, (page-1)*pageSize)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -145,8 +145,8 @@ func (s *MySQLStore) GetUserGenerations(userID int64, page, pageSize int) ([]mod
 
 func (s *MySQLStore) GetAllGenerations(page, pageSize int) ([]model.Generation, int, error) {
 	var total int
-	s.db.QueryRow("SELECT COUNT(*) FROM generations").Scan(&total)
-	rows, err := s.db.Query("SELECT g.id, g.user_id, g.prompt, g.model, COALESCE(g.size,''), COALESCE(g.image_b64,''), COALESCE(g.image_url,''), g.status, COALESCE(g.error_msg,''), g.created_at, COALESCE(u.email,''), COALESCE(u.name,''), g.shared, COALESCE(g.share_status,'none') FROM generations g LEFT JOIN users u ON g.user_id=u.id ORDER BY g.id DESC LIMIT ? OFFSET ?", pageSize, (page-1)*pageSize)
+	s.db.QueryRow("SELECT COUNT(*) FROM generations WHERE gen_type='image'").Scan(&total)
+	rows, err := s.db.Query("SELECT g.id, g.user_id, g.prompt, g.model, COALESCE(g.size,''), COALESCE(g.image_b64,''), COALESCE(g.image_url,''), g.status, COALESCE(g.error_msg,''), g.created_at, COALESCE(u.email,''), COALESCE(u.name,''), g.shared, COALESCE(g.share_status,'none') FROM generations g LEFT JOIN users u ON g.user_id=u.id WHERE g.gen_type='image' ORDER BY g.id DESC LIMIT ? OFFSET ?", pageSize, (page-1)*pageSize)
 	if err != nil {
 		return nil, 0, err
 	}
