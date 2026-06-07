@@ -1,9 +1,10 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
+import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import { Outfit, DM_Mono } from "next/font/google";
-import { Users, Search, Pencil, Key, Coins, Ban, Check, RefreshCw, X, UserCheck, UserX, Plus, Minus, ArrowRight, UserPlus, Crown, Shield } from "lucide-react";
+import { Users, Search, Pencil, Key, Coins, Ban, Check, RefreshCw, X, UserCheck, UserX, Plus, Minus, ArrowRight, UserPlus, Crown, Shield, Eye } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
 import { AdminSidebar } from "@/components/admin-sidebar";
@@ -35,6 +36,7 @@ function avatarGradient(s: string) {
 
 /* ── 主页面 ─────────────────────────────────── */
 export default function UsersPage() {
+  const router = useRouter();
   const [users, setUsers] = useState<any[]>([]);
   const [total, setTotal] = useState(0);
   const [search, setSearch] = useState("");
@@ -249,6 +251,7 @@ export default function UsersPage() {
                           <td className={`${mono.className} hidden sm:table-cell py-3 text-[11px] text-muted-foreground tabular-nums`}>{u.created_at?.slice(0, 10) || "—"}</td>
                           <td className="py-3 pr-5">
                             <div className="flex items-center justify-end gap-0.5 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
+                              <Button variant="ghost" size="icon-sm" className="hover:text-primary" onClick={() => router.push(`/admin/users/${u.id}`)} title="查看详情"><Eye className="size-3.5" /></Button>
                               <Button variant="ghost" size="icon-sm" onClick={() => { setEditUser(u); setEditName(u.name || ""); }} title="编辑昵称"><Pencil className="size-3.5" /></Button>
                               <Button variant="ghost" size="icon-sm" className="hover:text-amber-500" onClick={() => setResetTarget(u)} title="重置密码"><Key className="size-3.5" /></Button>
                               <Button variant="ghost" size="icon-sm" className="hover:text-emerald-500" onClick={() => { setPointsUser(u); setPointsDelta(0); }} title="调整积分"><Coins className="size-3.5" /></Button>

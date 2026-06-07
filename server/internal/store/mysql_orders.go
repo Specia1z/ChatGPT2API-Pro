@@ -103,6 +103,13 @@ func (s *MySQLStore) GetLastPaidOrder(userID int64) (*model.Order, error) {
 	return &o, nil
 }
 
+// GetUserSpend 返回用户已支付订单的累计消费金额与笔数（用户画像用）。
+func (s *MySQLStore) GetUserSpend(userID int64) (totalAmount float64, paidCount int) {
+	s.db.QueryRow("SELECT COALESCE(SUM(amount),0), COUNT(*) FROM orders WHERE user_id=? AND status='paid'", userID).
+		Scan(&totalAmount, &paidCount)
+	return
+}
+
 func (s *MySQLStore) CreateUpgradeOrder(userID int64, plan *model.Plan, orderNo, billing string, price float64) (*model.Order, error) {
 	duration := plan.DurationDays
 	if billing == "yearly" {
