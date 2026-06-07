@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { Outfit, DM_Mono } from "next/font/google";
-import { Globe, Shield, Save, Gauge, Gift, Database, Users, Activity, Rocket, Coins, Layers, Shapes, RefreshCw } from "lucide-react";
+import { Globe, Shield, Save, Gauge, Gift, Database, Users, Activity, Rocket, Coins, Layers, Shapes, RefreshCw, ShoppingBag, Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
 import { AdminSidebar } from "@/components/admin-sidebar";
@@ -24,6 +24,7 @@ const SECTIONS = [
   { id: "apirate", label: "API 限速", icon: Activity, color: "text-rose-500", bg: "bg-rose-500/10" },
   { id: "imgcost", label: "生图消耗", icon: Coins, color: "text-emerald-500", bg: "bg-emerald-500/10" },
   { id: "svg", label: "AI 矢量", icon: Shapes, color: "text-fuchsia-500", bg: "bg-fuchsia-500/10" },
+  { id: "shop", label: "积分商城", icon: ShoppingBag, color: "text-pink-500", bg: "bg-pink-500/10" },
   { id: "freequota", label: "无套餐额度", icon: Layers, color: "text-sky-500", bg: "bg-sky-500/10" },
   { id: "perf", label: "性能调优", icon: Rocket, color: "text-orange-500", bg: "bg-orange-500/10" },
   { id: "storage", label: "存储清理", icon: Database, color: "text-violet-500", bg: "bg-violet-500/10" },
@@ -119,6 +120,13 @@ export default function SettingsPage() {
     setCfg((p: any) => ({ ...p, invite_config: JSON.stringify(next) }));
   };
   const scrollTo = (id: string) => { setActiveSection(id); document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" }); };
+
+  // 积分商城商品（shop_config 为 JSON 数组）
+  const shopItems: any[] = (() => { try { const a = JSON.parse(cfg?.shop_config || "[]"); return Array.isArray(a) ? a : []; } catch { return []; } })();
+  const setShopItems = (items: any[]) => setCfg((p: any) => ({ ...p, shop_config: JSON.stringify(items) }));
+  const addShopItem = () => setShopItems([...shopItems, { id: "item" + Date.now(), name: "新商品", plan_id: plans[0]?.id || 0, days: 30, points: 100, enabled: true }]);
+  const updateShopItem = (i: number, k: string, v: any) => { const next = shopItems.map((it, idx) => idx === i ? { ...it, [k]: v } : it); setShopItems(next); };
+  const removeShopItem = (i: number) => setShopItems(shopItems.filter((_, idx) => idx !== i));
 
   const base = cfg?.checkin_base || 10;
   const bonus = cfg?.checkin_streak_bonus || 5;
@@ -390,6 +398,34 @@ export default function SettingsPage() {
                     每次生成扣除与生图相同的令牌数（tokens_per_image）。模型可用性取决于账号套餐授权。
                   </div>
                 </div>
+              </Card>
+
+              {/* ═══ 积分商城 ═══ */}
+              <Card id="shop" icon={ShoppingBag} color="text-pink-500" bg="bg-pink-500/10" title="积分商城" desc="配置积分兑换商品（积分换套餐时长），给积分增加消耗出口、拉付费转化"
+                action={<Button variant="outline" size="sm" className="gap-1.5 text-xs" onClick={addShopItem}><Plus className="size-3.5" /> 添加商品</Button>}>
+                {shopItems.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">暂无商品。点「添加商品」创建。⚠ 定价须结合签到/邀请积分发放速率核算，避免被白嫖会员。</p>
+                ) : (
+                  <div className="space-y-3">
+                    {shopItems.map((it, i) => (
+                      <div key={it.id || i} className="grid grid-cols-2 sm:grid-cols-12 gap-2 items-center rounded-xl border p-3">
+                        <div className="sm:col-span-3 space-y-1"><Label>商品名</Label><Input value={it.name || ""} onChange={e => updateShopItem(i, "name", e.target.value)} className="text-sm" /></div>
+                        <div className="sm:col-span-3 space-y-1"><Label>套餐</Label>
+                          <select value={it.plan_id || 0} onChange={e => updateShopItem(i, "plan_id", +e.target.value)} className="w-full h-9 rounded-lg border bg-background px-2 text-sm">
+                            <option value={0}>选择套餐</option>
+                            {plans.map((p: any) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                          </select>
+                        </div>
+                        <div className="sm:col-span-2 space-y-1"><Label>天数(0永久)</Label><Input type="number" min={0} value={it.days ?? 0} onChange={e => updateShopItem(i, "days", +e.target.value)} className="text-sm" /></div>
+                        <div className="sm:col-span-2 space-y-1"><Label>所需积分</Label><Input type="number" min={1} value={it.points ?? 0} onChange={e => updateShopItem(i, "points", +e.target.value)} className="text-sm" /></div>
+                        <div className="sm:col-span-2 flex items-center justify-between gap-2 pt-4">
+                          <label className="flex items-center gap-1.5 cursor-pointer"><Switch checked={!!it.enabled} onCheckedChange={v => updateShopItem(i, "enabled", v)} /><span className="text-xs">上架</span></label>
+                          <Button variant="ghost" size="icon-sm" className="hover:text-destructive" onClick={() => removeShopItem(i)}><Trash2 className="size-3.5" /></Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </Card>
 
               {/* ═══ 无套餐默认额度 ═══ */}
