@@ -2,12 +2,14 @@ package service
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"os"
 	"path/filepath"
 	"sync"
 	"time"
 
+	"chatgpt2api-pro/internal/metrics"
 	"chatgpt2api-pro/internal/storage"
 	"chatgpt2api-pro/internal/store"
 )
@@ -105,6 +107,12 @@ func (sc *StorageCleaner) RunOnce() {
 	threshold := time.Now().AddDate(0, 0, -cfg.StorageCleanupDays)
 	const batch = 500
 	totalDeleted := 0
+
+	// 执行追踪（系统监控用）：进入实际清理流程后才计为一轮
+	start := metrics.TimerStart("storage_cleaner")
+	defer func() {
+		metrics.TimerDone("storage_cleaner", start, true, fmt.Sprintf("清理%d条", totalDeleted))
+	}()
 
 	for {
 		gens, err := sc.mysql.ListExpiredExternalGenerations(threshold, batch)

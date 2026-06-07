@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strconv"
 
 	"chatgpt2api-pro/internal/middleware"
 	"chatgpt2api-pro/internal/model"
@@ -88,7 +89,7 @@ func (h *Handler) ExchangePoints(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 扣积分（原子条件更新 points>=cost 才扣，防并发 TOCTOU 超扣）
-	remaining, ok, err := h.MySQL.DeductUserPoints(userID, pointsCost)
+	remaining, ok, err := h.MySQL.DeductUserPoints(userID, pointsCost, "exchange_token", "积分兑换突发令牌")
 	if err != nil {
 		writeJSON(w, 500, model.APIResponse{Code: 500, Message: "扣除积分失败"})
 		return
@@ -102,7 +103,7 @@ func (h *Handler) ExchangePoints(w http.ResponseWriter, r *http.Request) {
 	burst, added, err := h.Redis.AddBurstToken(userID, capacity, refill, totalTokens, burstCap)
 	if err != nil {
 		// Redis 失败回滚积分
-		h.MySQL.AddUserPoints(userID, pointsCost)
+		h.MySQL.AddUserPoints(userID, pointsCost, "exchange_token", "兑换令牌失败退回")
 		writeJSON(w, 500, model.APIResponse{Code: 500, Message: "兑换令牌失败，积分已退回"})
 		return
 	}
@@ -115,7 +116,7 @@ func (h *Handler) ExchangePoints(w http.ResponseWriter, r *http.Request) {
 			refundPoints = pointsCost
 		}
 		if refundPoints > 0 {
-			remaining, _ = h.MySQL.AddUserPoints(userID, refundPoints)
+			remaining, _ = h.MySQL.AddUserPoints(userID, refundPoints, "exchange_token", "突发令牌触顶退回")
 			pointsCost -= refundPoints
 		}
 	}
@@ -131,5 +132,32 @@ func (h *Handler) ExchangePoints(w http.ResponseWriter, r *http.Request) {
 		"points_remain":  remaining,
 		"tokens_added":   int(added),
 		"bonus":          bonus,
+	}})
+}
+
+// GET /api/user/points/logs — 用户积分流水（分页，倒序）
+func (h *Handler) GetPointsLogs(w http.ResponseWriter, r *http.Request) {
+	userID := r.Context().Value(middleware.UserIDKey).(int64)
+
+	q := r.URL.Query()
+	page, _ := strconv.Atoi(q.Get("page"))
+	pageSize, _ := strconv.Atoi(q.Get("page_size"))
+	if page < 1 {
+		page = 1
+	}
+	if pageSize < 1 || pageSize > 50 {
+		pageSize = 20
+	}
+
+	logs, total, err := h.MySQL.GetUserPointsLogs(userID, page, pageSize)
+	if err != nil {
+		writeJSON(w, 500, model.APIResponse{Code: 500, Message: err.Error()})
+		return
+	}
+	if logs == nil {
+		logs = []model.PointsLog{}
+	}
+	writeJSON(w, 200, model.APIResponse{Code: 200, Data: map[string]any{
+		"items": logs, "total": total, "page": page, "page_size": pageSize,
 	}})
 }

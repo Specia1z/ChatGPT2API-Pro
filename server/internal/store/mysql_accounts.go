@@ -66,7 +66,7 @@ func (s *MySQLStore) ListAccounts(status string, search string, offset, limit in
 }
 
 func (s *MySQLStore) AddAccounts(tokens []string, sourceType string) (int, error) {
-	stmt, err := s.db.Prepare(`INSERT IGNORE INTO accounts (access_token, source_type, status, plan_type) 
+	stmt, err := s.db.Prepare(`INSERT IGNORE INTO accounts (access_token, source_type, status, plan_type)
 		VALUES (?, ?, '正常', 'free')`)
 	if err != nil {
 		return 0, err
@@ -85,12 +85,16 @@ func (s *MySQLStore) AddAccounts(tokens []string, sourceType string) (int, error
 		}
 		if n, _ := res.RowsAffected(); n > 0 {
 			added++
+			newID, _ := res.LastInsertId()
+			s.logAccountEvent(newID, "", "register", sourceType)
 		}
 	}
 	return added, nil
 }
 
-func (s *MySQLStore) DeleteAccounts(ids []int64) (int64, error) {
+// DeleteAccounts 删除账号；reason 标记删除原因（手动删/401封禁/异常清理/禁用清理），
+// 删除前先查 email 以便事件留痕（账号删后无法再追溯）。
+func (s *MySQLStore) DeleteAccounts(ids []int64, reason string) (int64, error) {
 	if len(ids) == 0 {
 		return 0, nil
 	}
@@ -100,12 +104,36 @@ func (s *MySQLStore) DeleteAccounts(ids []int64) (int64, error) {
 		placeholders[i] = "?"
 		args[i] = id
 	}
+	// 删除前抓取 email，用于事件留痕
+	emails := map[int64]string{}
+	erows, qerr := s.db.Query(fmt.Sprintf("SELECT id, COALESCE(email,'') FROM accounts WHERE id IN (%s)", strings.Join(placeholders, ",")), args...)
+	if qerr == nil {
+		for erows.Next() {
+			var id int64
+			var em string
+			if erows.Scan(&id, &em) == nil {
+				emails[id] = em
+			}
+		}
+		erows.Close()
+	}
 	query := fmt.Sprintf("DELETE FROM accounts WHERE id IN (%s)", strings.Join(placeholders, ","))
 	res, err := s.db.Exec(query, args...)
 	if err != nil {
 		return 0, err
 	}
-	return res.RowsAffected()
+	n, _ := res.RowsAffected()
+	if n > 0 {
+		// 封禁(401)是删除的一种特例，单独记为 ban 事件以便区分统计；其余记 delete。
+		event := "delete"
+		if reason == "封禁(401)" {
+			event = "ban"
+		}
+		for _, id := range ids {
+			s.logAccountEvent(id, emails[id], event, reason)
+		}
+	}
+	return n, nil
 }
 
 func (s *MySQLStore) UpdateAccountByToken(acc *model.Account) error {

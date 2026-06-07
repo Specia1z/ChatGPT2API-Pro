@@ -20,8 +20,13 @@ func (s *MySQLStore) GetAdminStats() (*model.AdminStats, error) {
 	s.db.QueryRow("SELECT COUNT(*) FROM generations WHERE gen_type='image' AND status='completed' AND DATE(created_at)=CURDATE()").Scan(&st.TodaySuccess)
 	s.db.QueryRow("SELECT COUNT(*) FROM generations WHERE gen_type='image' AND status='failed' AND DATE(created_at)=CURDATE()").Scan(&st.TodayFailed)
 
+	// 矢量(SVG)生成量：与图片分开统计
+	s.db.QueryRow("SELECT COUNT(*) FROM generations WHERE gen_type='svg'").Scan(&st.TotalSvg)
+	s.db.QueryRow("SELECT COUNT(*) FROM generations WHERE gen_type='svg' AND DATE(created_at)=CURDATE()").Scan(&st.TodaySvg)
+
 	s.db.QueryRow("SELECT COUNT(*) FROM orders").Scan(&st.TotalOrders)
 	s.db.QueryRow("SELECT COUNT(*) FROM orders WHERE status='paid'").Scan(&st.PaidOrders)
+	s.db.QueryRow("SELECT COUNT(DISTINCT user_id) FROM orders WHERE status='paid'").Scan(&st.PaidUsers)
 	s.db.QueryRow("SELECT COALESCE(SUM(amount),0) FROM orders WHERE status='paid' AND DATE(created_at)=CURDATE()").Scan(&st.TodayRevenue)
 	s.db.QueryRow("SELECT COALESCE(SUM(amount),0) FROM orders WHERE status='paid'").Scan(&st.TotalRevenue)
 
@@ -83,6 +88,18 @@ func (s *MySQLStore) GetStatsTrends(days int) (*model.TrendsData, error) {
 	if err != nil {
 		return nil, err
 	}
+	td.Svg, err = query("SELECT DATE(created_at) as d, COUNT(*) FROM generations WHERE gen_type='svg' AND created_at >= ? GROUP BY d ORDER BY d")
+	if err != nil {
+		return nil, err
+	}
+	td.PointsIssued, err = query("SELECT DATE(created_at) as d, COALESCE(SUM(change_amount),0) FROM points_logs WHERE change_amount > 0 AND created_at >= ? GROUP BY d ORDER BY d")
+	if err != nil {
+		return nil, err
+	}
+	td.PointsConsumed, err = query("SELECT DATE(created_at) as d, COALESCE(-SUM(change_amount),0) FROM points_logs WHERE change_amount < 0 AND created_at >= ? GROUP BY d ORDER BY d")
+	if err != nil {
+		return nil, err
+	}
 
 	// Fill missing days with zero, normalize all dates to MM-DD
 	fillDays := func(pts []model.TrendPoint, n int) []model.TrendPoint {
@@ -111,6 +128,9 @@ func (s *MySQLStore) GetStatsTrends(days int) (*model.TrendsData, error) {
 	td.Failed = fillDays(td.Failed, days)
 	td.Revenue = fillDays(td.Revenue, days)
 	td.Users = fillDays(td.Users, days)
+	td.Svg = fillDays(td.Svg, days)
+	td.PointsIssued = fillDays(td.PointsIssued, days)
+	td.PointsConsumed = fillDays(td.PointsConsumed, days)
 
 	return td, nil
 }
@@ -144,6 +164,38 @@ func (s *MySQLStore) GetModelBreakdown() ([]model.ModelBreakdown, error) {
 		out = []model.ModelBreakdown{}
 	}
 	return out, nil
+}
+
+// GetPointsStats 积分经济看板：今日/累计 发放 vs 消耗，并按 type 拆解。
+func (s *MySQLStore) GetPointsStats() (*model.PointsStats, error) {
+	var ps model.PointsStats
+	s.db.QueryRow("SELECT COALESCE(SUM(change_amount),0) FROM points_logs WHERE change_amount > 0 AND DATE(created_at)=CURDATE()").Scan(&ps.TodayIssued)
+	s.db.QueryRow("SELECT COALESCE(-SUM(change_amount),0) FROM points_logs WHERE change_amount < 0 AND DATE(created_at)=CURDATE()").Scan(&ps.TodayConsumed)
+	s.db.QueryRow("SELECT COALESCE(SUM(change_amount),0) FROM points_logs WHERE change_amount > 0").Scan(&ps.TotalIssued)
+	s.db.QueryRow("SELECT COALESCE(-SUM(change_amount),0) FROM points_logs WHERE change_amount < 0").Scan(&ps.TotalConsumed)
+
+	rows, err := s.db.Query(`SELECT type,
+		COALESCE(SUM(CASE WHEN change_amount > 0 THEN change_amount ELSE 0 END),0) AS issued,
+		COALESCE(-SUM(CASE WHEN change_amount < 0 THEN change_amount ELSE 0 END),0) AS consumed
+		FROM points_logs GROUP BY type ORDER BY (issued + consumed) DESC`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var t model.PointsTypeStat
+		if err := rows.Scan(&t.Type, &t.Issued, &t.Consumed); err != nil {
+			continue
+		}
+		ps.ByType = append(ps.ByType, t)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	if ps.ByType == nil {
+		ps.ByType = []model.PointsTypeStat{}
+	}
+	return &ps, nil
 }
 
 // GetUserStats 返回指定用户的统计概览
@@ -201,4 +253,94 @@ func (s *MySQLStore) GetUserSuccessRate(userID int64) float64 {
 		return 100
 	}
 	return float64(success) / float64(total) * 100
+}
+
+// GetFailureReasons 近 days 天失败生成按 error_msg 关键词归类。
+// error_msg 是自由文本（超时/号池/并发/HTTP码/内部错误…），直接 GROUP BY 会碎，故用 CASE 归桶。
+func (s *MySQLStore) GetFailureReasons(days int) ([]model.FailureReason, error) {
+	startDate := time.Now().AddDate(0, 0, -days+1).Format("2006-01-02")
+	rows, err := s.db.Query(`SELECT
+		CASE
+			WHEN error_msg LIKE '%超时%' THEN '生成超时'
+			WHEN error_msg LIKE '%号池%' OR error_msg LIKE '%无可用账号%' THEN '号池耗尽'
+			WHEN error_msg LIKE '%并发%' OR error_msg LIKE '%系统繁忙%' THEN '并发受限'
+			WHEN error_msg LIKE '%401%' OR error_msg LIKE '%banned%' THEN '账号失效(401)'
+			WHEN error_msg LIKE '%429%' OR error_msg LIKE '%限流%' OR error_msg LIKE '%rate%' THEN '限流(429)'
+			WHEN error_msg LIKE '%内部错误%' THEN '内部错误'
+			WHEN error_msg LIKE '%HTTP%' OR error_msg LIKE '%http%' THEN '上游 HTTP 错误'
+			WHEN error_msg IS NULL OR error_msg='' THEN '未知'
+			ELSE '其它'
+		END AS reason, COUNT(*) AS cnt
+		FROM generations
+		WHERE status='failed' AND created_at >= ?
+		GROUP BY reason ORDER BY cnt DESC`, startDate)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []model.FailureReason
+	for rows.Next() {
+		var f model.FailureReason
+		if err := rows.Scan(&f.Reason, &f.Count); err != nil {
+			continue
+		}
+		out = append(out, f)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	if out == nil {
+		out = []model.FailureReason{}
+	}
+	return out, nil
+}
+
+// GetAccountProductivity 账号产能排行：按累计成功数倒序取前 limit 个。
+func (s *MySQLStore) GetAccountProductivity(limit int) ([]model.AccountProductivity, error) {
+	rows, err := s.db.Query(`SELECT id, COALESCE(email,''), status, plan_type,
+		success_count, fail_count, COALESCE(DATE_FORMAT(last_used_at,'%Y-%m-%d %H:%i'),'')
+		FROM accounts ORDER BY success_count DESC, id ASC LIMIT ?`, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []model.AccountProductivity
+	for rows.Next() {
+		var a model.AccountProductivity
+		if err := rows.Scan(&a.ID, &a.Email, &a.Status, &a.PlanType, &a.SuccessCount, &a.FailCount, &a.LastUsedAt); err != nil {
+			continue
+		}
+		out = append(out, a)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	if out == nil {
+		out = []model.AccountProductivity{}
+	}
+	return out, nil
+}
+
+// GetRetentionStats 留存：基于 generations 出图行为推断（users 无 last_active 字段）。
+// 次日留存：注册满 1 天的用户中，在注册后第 1 天（注册日 +1）有出图的比例。
+// 7 日留存：注册满 7 天的用户中，在注册后第 7 天有出图的比例。
+func (s *MySQLStore) GetRetentionStats() (*model.RetentionStats, error) {
+	var rs model.RetentionStats
+	s.db.QueryRow("SELECT COUNT(DISTINCT user_id) FROM generations WHERE created_at >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)").Scan(&rs.ActiveUsers7d)
+
+	// D1：注册满 1 天的用户为分母；其中注册次日（DATE(reg)+1）有出图为分子。
+	s.db.QueryRow("SELECT COUNT(*) FROM users WHERE created_at < DATE_SUB(CURDATE(), INTERVAL 1 DAY)").Scan(&rs.D1Cohort)
+	s.db.QueryRow(`SELECT COUNT(DISTINCT u.id) FROM users u
+		JOIN generations g ON g.user_id=u.id
+		WHERE u.created_at < DATE_SUB(CURDATE(), INTERVAL 1 DAY)
+		AND DATE(g.created_at) = DATE(u.created_at) + INTERVAL 1 DAY`).Scan(&rs.D1Retained)
+
+	// D7：注册满 7 天的用户为分母；其中注册后第 7 天有出图为分子。
+	s.db.QueryRow("SELECT COUNT(*) FROM users WHERE created_at < DATE_SUB(CURDATE(), INTERVAL 7 DAY)").Scan(&rs.D7Cohort)
+	s.db.QueryRow(`SELECT COUNT(DISTINCT u.id) FROM users u
+		JOIN generations g ON g.user_id=u.id
+		WHERE u.created_at < DATE_SUB(CURDATE(), INTERVAL 7 DAY)
+		AND DATE(g.created_at) = DATE(u.created_at) + INTERVAL 7 DAY`).Scan(&rs.D7Retained)
+
+	return &rs, nil
 }

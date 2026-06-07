@@ -12,13 +12,14 @@ import (
 
 // GenerationScheduler 全局生图调度器
 type GenerationScheduler struct {
-	mu           sync.Mutex
-	globalActive int32
-	userCounters map[int64]*int32
-	maxGlobal    int32
-	maxPerUser   int32
-	mysql        *store.MySQLStore
-	cleanupOnce  sync.Once
+	mu            sync.Mutex
+	globalActive  int32
+	userCounters  map[int64]*int32
+	maxGlobal     int32
+	maxPerUser    int32
+	maxPerAccount int32
+	mysql         *store.MySQLStore
+	cleanupOnce   sync.Once
 }
 
 var scheduler *GenerationScheduler
@@ -26,12 +27,13 @@ var schedOnce sync.Once
 
 func InitScheduler(mysql *store.MySQLStore) *GenerationScheduler {
 	schedOnce.Do(func() {
-		maxG, maxU := mysql.GetSchedulerConfig()
-		log.Printf("🧭 调度器已加载 · 全局并发=%d 单用户并发=%d", maxG, maxU)
+		maxG, maxU, maxA := mysql.GetSchedulerConfig()
+		log.Printf("🧭 调度器已加载 · 全局并发=%d 单用户并发=%d 单账号并发=%d", maxG, maxU, maxA)
 		scheduler = &GenerationScheduler{
-			userCounters: make(map[int64]*int32),
-			maxGlobal:    int32(maxG),
-			maxPerUser:   int32(maxU),
+			userCounters:  make(map[int64]*int32),
+			maxGlobal:     int32(maxG),
+			maxPerUser:    int32(maxU),
+			maxPerAccount: int32(maxA),
 		}
 		scheduler.mysql = mysql
 		scheduler.startCleanup()
@@ -154,12 +156,22 @@ func (s *GenerationScheduler) Release(userID int64) {
 }
 
 // SetMax 动态调整上限
-func (s *GenerationScheduler) SetMax(maxGlobal, maxPerUser int) {
+func (s *GenerationScheduler) SetMax(maxGlobal, maxPerUser, maxPerAccount int) {
 	atomic.StoreInt32(&s.maxGlobal, int32(maxGlobal))
 	atomic.StoreInt32(&s.maxPerUser, int32(maxPerUser))
+	atomic.StoreInt32(&s.maxPerAccount, int32(maxPerAccount))
 	if s.mysql != nil {
-		s.mysql.SaveSchedulerConfig(maxGlobal, maxPerUser)
+		s.mysql.SaveSchedulerConfig(maxGlobal, maxPerUser, maxPerAccount)
 	}
+}
+
+// MaxPerAccount 返回单账号并发上限（热更新值，供生图/矢量服务读取）。
+func (s *GenerationScheduler) MaxPerAccount() int {
+	v := atomic.LoadInt32(&s.maxPerAccount)
+	if v <= 0 {
+		return 3 // 兜底，防止配置为 0 时无账号可用
+	}
+	return int(v)
 }
 
 // Stats 返回调度统计
@@ -177,10 +189,11 @@ func (s *GenerationScheduler) Stats() map[string]any {
 		}
 	}
 	return map[string]any{
-		"global_active": atomic.LoadInt32(&s.globalActive),
-		"global_max":    atomic.LoadInt32(&s.maxGlobal),
-		"per_user_max":  atomic.LoadInt32(&s.maxPerUser),
-		"active_users":  activeUsers,
-		"total_active":  totalActive,
+		"global_active":   atomic.LoadInt32(&s.globalActive),
+		"global_max":      atomic.LoadInt32(&s.maxGlobal),
+		"per_user_max":    atomic.LoadInt32(&s.maxPerUser),
+		"per_account_max": atomic.LoadInt32(&s.maxPerAccount),
+		"active_users":    activeUsers,
+		"total_active":    totalActive,
 	}
 }

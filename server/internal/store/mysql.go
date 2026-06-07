@@ -129,9 +129,14 @@ func (s *MySQLStore) autoMigrate() {
 		id INT PRIMARY KEY DEFAULT 1,
 		max_global INT NOT NULL DEFAULT 20,
 		max_per_user INT NOT NULL DEFAULT 5,
+		max_per_account INT NOT NULL DEFAULT 3,
 		updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 	) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`)
 	s.db.Exec(`INSERT IGNORE INTO scheduler_config (id) VALUES (1)`)
+	// 单账号并发上限：旧库补列（防单账号被并发踩踏触发上游限流）
+	if !s.columnExists(s.currentDBName(), "scheduler_config", "max_per_account") {
+		s.db.Exec("ALTER TABLE scheduler_config ADD COLUMN max_per_account INT NOT NULL DEFAULT 3")
+	}
 
 	s.db.Exec(`CREATE TABLE IF NOT EXISTS plans (
 		id INT PRIMARY KEY AUTO_INCREMENT,
@@ -308,6 +313,18 @@ func (s *MySQLStore) autoMigrate() {
 		INDEX idx_user_coupon (user_id, coupon_id)
 	) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`)
 
+	// 积分流水：记录每笔积分变动（change 正=收入/负=支出，balance=变动后余额）。
+	s.db.Exec(`CREATE TABLE IF NOT EXISTS points_logs (
+		id BIGINT AUTO_INCREMENT PRIMARY KEY,
+		user_id BIGINT NOT NULL,
+		change_amount INT NOT NULL,
+		balance INT NOT NULL,
+		type VARCHAR(24) NOT NULL,
+		remark VARCHAR(128) NOT NULL DEFAULT '',
+		created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+		INDEX idx_user_id (user_id, id)
+	) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`)
+
 	s.db.Exec(`CREATE TABLE IF NOT EXISTS users (
 		id BIGINT AUTO_INCREMENT PRIMARY KEY,
 		email VARCHAR(255) NOT NULL UNIQUE,
@@ -460,6 +477,19 @@ func (s *MySQLStore) autoMigrate() {
 			s.db.Exec("ALTER TABLE accounts ADD UNIQUE INDEX idx_access_token_hash (access_token_hash)")
 		}
 	}
+
+	// 账号事件流水：记录注册/封禁/删除等历史事件。账号被删后行会从 accounts 消失，
+	// 故累计「封禁数/删除数/注册数」无法事后从 accounts 统计，必须发生时落一条事件。
+	s.db.Exec(`CREATE TABLE IF NOT EXISTS account_events (
+		id BIGINT AUTO_INCREMENT PRIMARY KEY,
+		account_id BIGINT NOT NULL DEFAULT 0,
+		email VARCHAR(255) NOT NULL DEFAULT '',
+		event VARCHAR(24) NOT NULL,
+		reason VARCHAR(128) NOT NULL DEFAULT '',
+		created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+		INDEX idx_event_time (event, created_at),
+		INDEX idx_created_at (created_at)
+	) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`)
 
 	s.db.Exec(`CREATE TABLE IF NOT EXISTS admins (
 		id BIGINT AUTO_INCREMENT PRIMARY KEY,

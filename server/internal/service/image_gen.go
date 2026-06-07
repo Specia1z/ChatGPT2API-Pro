@@ -32,8 +32,12 @@ func (s *ImageGenService) Generate(ctx context.Context, prompt, size string, ref
 	regCfg, _ := s.mysql.GetRegisterConfig()
 	proxy := regCfg.Proxy
 
-	// 每个账号允许的最大并发占用数（防止单账号被并发请求踩踏触发限流）
-	const maxPerAccount = 3
+	// 每个账号允许的最大并发占用数（防止单账号被并发请求踩踏触发限流）。
+	// 后台可配（scheduler_config.max_per_account），热更新。
+	maxPerAccount := 3
+	if sched := GetScheduler(); sched != nil {
+		maxPerAccount = sched.MaxPerAccount()
+	}
 
 	candidates, err := GetAccountPool(s.mysql).PickCandidates()
 	if err != nil {

@@ -190,6 +190,7 @@ func (s *MySQLStore) CompleteRedeem(codeID, userID int64, code string) (string, 
 		if err != nil {
 			return "", "", err
 		}
+		logPoints(tx, userID, points, "redeem_code", "兑换码兑换积分")
 	}
 
 	// 4. 写入兑换日志

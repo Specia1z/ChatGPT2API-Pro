@@ -9,7 +9,7 @@ import {
   LayoutDashboard, Zap, Shield, Settings, ImageIcon,
   Package, Users, LogOut, Ticket, BarChart3, ChevronRight,
   ShoppingCart, Tag, Database, Sun, Moon, Palette, Mail,
-  Menu, X, Megaphone, ShieldCheck, Wallet,
+  Menu, X, Megaphone, ShieldCheck, Wallet, Activity,
 } from "lucide-react";
 import { setToken, BASE } from "@/lib/api";
 
@@ -21,6 +21,7 @@ const navGroups = [
     label: "概览",
     items: [
       { href: "/admin/stats", icon: BarChart3, label: "数据统计" },
+      { href: "/admin/sysmonitor", icon: Activity, label: "系统监控" },
     ],
   },
   {

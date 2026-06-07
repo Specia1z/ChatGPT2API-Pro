@@ -1,9 +1,11 @@
 package service
 
 import (
+	"fmt"
 	"log"
 	"time"
 
+	"chatgpt2api-pro/internal/metrics"
 	"chatgpt2api-pro/internal/store"
 )
 
@@ -43,13 +45,16 @@ func (e *OrderExpirer) loop() {
 func (e *OrderExpirer) runOnce() {
 	cfg, err := e.mysql.GetSettings()
 	if err != nil || cfg == nil || cfg.OrderTimeoutMinutes <= 0 {
-		return
+		return // 未启用，不计为一轮执行
 	}
+	start := metrics.TimerStart("order_expirer")
 	n, err := e.mysql.ExpireStaleOrders(cfg.OrderTimeoutMinutes)
 	if err != nil {
+		metrics.TimerDone("order_expirer", start, false, err.Error())
 		log.Printf("❌ 订单超时检查失败：%v", err)
 		return
 	}
+	metrics.TimerDone("order_expirer", start, true, fmt.Sprintf("过期%d单", n))
 	if n > 0 {
 		log.Printf("⏳ 已将 %d 个超时未支付订单置为「已过期」（阈值 %d 分钟）", n, cfg.OrderTimeoutMinutes)
 	}

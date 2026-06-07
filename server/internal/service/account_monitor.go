@@ -8,6 +8,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"chatgpt2api-pro/internal/metrics"
 	"chatgpt2api-pro/internal/model"
 	"chatgpt2api-pro/internal/store"
 )
@@ -94,6 +95,13 @@ func (m *AccountMonitor) runCheck() {
 	}
 	defer atomic.StoreInt32(&m.checking, 0)
 
+	// 执行状态追踪（系统监控用）：记录本轮开始/耗时/结果
+	var refreshed, removed int
+	tStart := metrics.TimerStart("account_monitor")
+	defer func() {
+		metrics.TimerDone("account_monitor", tStart, true, fmt.Sprintf("刷新%d 删除%d", refreshed, removed))
+	}()
+
 	broker := GetRegisterBroker()
 	broker.Log("🔍 开始健康检查...", "", "", 0)
 
@@ -129,7 +137,6 @@ func (m *AccountMonitor) runCheck() {
 		}(i, &accounts[i])
 	}
 
-	var removed, refreshed int
 	for i := 0; i < total; i++ {
 		r := <-ch
 		acc := r.acc
@@ -137,7 +144,7 @@ func (m *AccountMonitor) runCheck() {
 		if r.err != nil {
 			// 401 封禁 → 直接删除
 			if strings.Contains(r.err.Error(), "banned") || strings.Contains(r.err.Error(), "401") {
-				m.mysql.DeleteAccounts([]int64{acc.ID})
+				m.mysql.DeleteAccounts([]int64{acc.ID}, "封禁(401)")
 				removed++
 				broker.Log("🚫 账号被封禁已删除: "+acc.Email, "red", acc.Email, 0)
 				continue
@@ -159,13 +166,13 @@ func (m *AccountMonitor) runCheck() {
 		}
 
 		if acc.Status == "异常" && monCfg.AutoRemoveAbnormal {
-			m.mysql.DeleteAccounts([]int64{acc.ID})
+			m.mysql.DeleteAccounts([]int64{acc.ID}, "异常清理")
 			removed++
 			broker.Log("🗑 删除异常账号: "+acc.Email, "red", acc.Email, 0)
 			continue
 		}
 		if acc.Status == "禁用" && monCfg.AutoRemoveDisabled {
-			m.mysql.DeleteAccounts([]int64{acc.ID})
+			m.mysql.DeleteAccounts([]int64{acc.ID}, "禁用清理")
 			removed++
 			broker.Log("🗑 删除禁用账号: "+acc.Email, "red", acc.Email, 0)
 			continue

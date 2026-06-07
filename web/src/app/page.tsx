@@ -532,11 +532,11 @@ export default function HomePage() {
             </div>
 
             {/* Title — 第一行站点标题，第二行副标题（光谱渐变） */}
-            <h1 className="font-[family-name:var(--font-display)] text-[2.9rem] sm:text-6xl md:text-7xl font-medium tracking-tight leading-[0.98] mb-5 opacity-0 animate-[heroReveal_0.7s_ease-out_0.2s_forwards]">
-              <span className="block text-zinc-900 dark:text-white">
+            <h1 className="font-[family-name:var(--font-display)] text-[2.9rem] sm:text-6xl md:text-7xl font-medium tracking-tight leading-[1.12] mb-5 opacity-0 animate-[heroReveal_0.7s_ease-out_0.2s_forwards]">
+              <span className="block text-zinc-900 dark:text-white pb-1">
                 {settings.site_title || "ChatGPT2API Pro"}
               </span>
-              <span className="block italic bg-[linear-gradient(110deg,#0891b2,#6366f1_40%,#c026d3_70%,#d97706)] dark:bg-[linear-gradient(110deg,#22d3ee,#818cf8_40%,#e879f9_70%,#fbbf24)] bg-[length:200%_auto] bg-clip-text text-transparent" style={{ animation: "spectralShift 8s ease-in-out infinite" }}>
+              <span className="block italic mt-1.5 sm:mt-2.5 pb-2 bg-[linear-gradient(110deg,#0891b2,#6366f1_40%,#c026d3_70%,#d97706)] dark:bg-[linear-gradient(110deg,#22d3ee,#818cf8_40%,#e879f9_70%,#fbbf24)] bg-[length:200%_auto] bg-clip-text text-transparent" style={{ animation: "spectralShift 8s ease-in-out infinite" }}>
                 {settings.site_subtitle || "AI 图片生成服务"}
               </span>
             </h1>

@@ -6,6 +6,8 @@ import { Outfit, DM_Mono } from "next/font/google";
 import {
   RefreshCw, CheckCircle, XCircle, AlertTriangle, Ban,
   TrendingUp, Users, ImageIcon, CreditCard, Activity, PieChart,
+  Sparkles, PenTool, Coins, Zap, UserCheck, ListX, UserPlus, Trash2,
+  Layers, Server, Clock, Gift, BarChart3,
 } from "lucide-react";
 import {
   AreaChart, Area, BarChart, Bar, PieChart as RPieChart, Pie, Cell,
@@ -32,16 +34,60 @@ const fadeUp = { hidden: { opacity: 0, y: 12 }, visible: { opacity: 1, y: 0, tra
 /* ── 类型 ─────────────────────────────────── */
 interface TrendPoint { date: string; value: number; }
 interface ModelBreakdown { model: string; count: number; }
+interface PointsTypeStat { type: string; issued: number; consumed: number; }
+interface PointsStats {
+  today_issued: number; today_consumed: number;
+  total_issued: number; total_consumed: number;
+  by_type: PointsTypeStat[];
+}
+interface FailureReason { reason: string; count: number; }
+interface AccountProductivity {
+  id: number; email: string; status: string; plan_type: string;
+  success_count: number; fail_count: number; last_used_at: string;
+}
+interface RetentionStats {
+  active_users_7d: number;
+  d1_cohort: number; d1_retained: number;
+  d7_cohort: number; d7_retained: number;
+}
+interface AccountEventStats {
+  today_registered: number; total_registered: number;
+  today_banned: number; total_banned: number;
+  today_deleted: number; total_deleted: number;
+}
+interface AccountEventTrends {
+  registered: TrendPoint[]; banned: TrendPoint[]; deleted: TrendPoint[];
+}
+interface HourlyHeat { hour: number; count: number; }
+interface PlanDistribution { plan_name: string; active: number; expired: number; }
+interface RevenueByPlan { plan_name: string; orders: number; amount: number; }
+interface RevenueComposition { by_plan: RevenueByPlan[]; coupon_orders: number; total_paid: number; }
+interface InviteLeader { email: string; invites: number; recharged: number; reward_sum: number; }
 interface StatsData {
   stats: {
     total_users: number; today_users: number; active_users: number;
     total_generations: number; today_generations: number; today_success: number; today_failed: number;
-    total_orders: number; paid_orders: number; today_revenue: number; total_revenue: number;
+    total_svg: number; today_svg: number;
+    total_orders: number; paid_orders: number; paid_users: number; today_revenue: number; total_revenue: number;
     total_accounts: number; normal_accounts: number; limited_accounts: number;
     abnormal_accounts: number; disabled_accounts: number;
   };
-  trends: { generations: TrendPoint[]; success: TrendPoint[]; failed: TrendPoint[]; revenue: TrendPoint[]; users: TrendPoint[]; };
+  trends: {
+    generations: TrendPoint[]; success: TrendPoint[]; failed: TrendPoint[]; svg: TrendPoint[];
+    revenue: TrendPoint[]; users: TrendPoint[];
+    points_issued: TrendPoint[]; points_consumed: TrendPoint[];
+  };
   model_breakdown: ModelBreakdown[];
+  points: PointsStats;
+  failure_reasons: FailureReason[];
+  account_prod: AccountProductivity[];
+  retention: RetentionStats;
+  account_events: AccountEventStats;
+  account_event_trends: AccountEventTrends;
+  hourly_heat: HourlyHeat[];
+  plan_distribution: PlanDistribution[];
+  revenue_composition: RevenueComposition;
+  invite_leaderboard: InviteLeader[];
 }
 
 /* ── 图表配置 ─────────────────────────────── */
@@ -56,7 +102,23 @@ const dailyChartConfig = {
   success: { label: "成功", theme: { light: "#10b981", dark: "#34d399" } },
   failed: { label: "失败", theme: { light: "#ef4444", dark: "#f87171" } },
 } satisfies ChartConfig;
+const pointsChartConfig = {
+  issued: { label: "发放", theme: { light: "#10b981", dark: "#34d399" } },
+  consumed: { label: "消耗", theme: { light: "#f59e0b", dark: "#fbbf24" } },
+} satisfies ChartConfig;
+const acctEventChartConfig = {
+  registered: { label: "注册", theme: { light: "#10b981", dark: "#34d399" } },
+  banned: { label: "封禁", theme: { light: "#ef4444", dark: "#f87171" } },
+  deleted: { label: "删除", theme: { light: "#71717a", dark: "#a1a1aa" } },
+} satisfies ChartConfig;
 const MODEL_PALETTE = ["#6366f1", "#10b981", "#f59e0b", "#ef4444", "#3b82f6", "#ec4899", "#8b5cf6"];
+
+/* ── 积分类型标签 ─────────────────────────── */
+const POINTS_TYPE_LABELS: Record<string, string> = {
+  checkin: "每日签到", invite: "邀请奖励", redeem_code: "兑换码",
+  admin: "管理员调整", exchange_token: "兑换令牌", shop: "积分商城",
+};
+const pointsTypeLabel = (t: string) => POINTS_TYPE_LABELS[t] || t || "其它";
 
 /* ── 计数动画 ─────────────────────────────── */
 function useCountUp(target: number, duration = 800, start = true) {
@@ -144,7 +206,8 @@ export default function StatsPage() {
   const [data, setData] = useState<StatsData | null>(null);
   const [loading, setLoading] = useState(true);
   const [mounted, setMounted] = useState(false);
-  const [chartTab, setChartTab] = useState<"generations" | "revenue" | "users">("generations");
+  const [chartTab, setChartTab] = useState<"generations" | "revenue" | "users" | "points">("generations");
+  const [mainTab, setMainTab] = useState<"overview" | "generation" | "revenue" | "users" | "accounts">("overview");
 
   const load = async () => { setLoading(true); try { const r = await api("/api/admin/stats"); setData(r.data); } catch {} setLoading(false); };
   useEffect(() => { load(); }, []);
@@ -153,7 +216,31 @@ export default function StatsPage() {
   const s = data?.stats;
   const t = data?.trends;
   const mb = data?.model_breakdown || [];
+  const pts = data?.points;
   const successRate = s && s.today_generations > 0 ? Math.round((s.today_success / s.today_generations) * 100) : 0;
+  // 付费转化率 = 付费用户 / 总用户
+  const conversionRate = s && s.total_users > 0 ? ((s.paid_users / s.total_users) * 100).toFixed(1) : "0";
+  // 客单价 ARPU = 总收入 / 已付订单
+  const arpu = s && s.paid_orders > 0 ? (s.total_revenue / s.paid_orders) : 0;
+  // 今日积分净流入（发放 - 消耗），正=通胀风险
+  const pointsNet = pts ? pts.today_issued - pts.today_consumed : 0;
+  const failures = data?.failure_reasons || [];
+  const accountProd = data?.account_prod || [];
+  const ret = data?.retention;
+  const d1Rate = ret && ret.d1_cohort > 0 ? Math.round((ret.d1_retained / ret.d1_cohort) * 100) : 0;
+  const d7Rate = ret && ret.d7_cohort > 0 ? Math.round((ret.d7_retained / ret.d7_cohort) * 100) : 0;
+  const failTotal = failures.reduce((a, b) => a + b.count, 0);
+  const ae = data?.account_events;
+  const aeTrends = data?.account_event_trends;
+  const aeTrend = useMemo(() => aeTrends?.registered.map((r, i) => ({
+    date: r.date, registered: r.value, banned: aeTrends.banned[i]?.value || 0, deleted: aeTrends.deleted[i]?.value || 0,
+  })) || [], [aeTrends]);
+  const hourlyHeat = data?.hourly_heat || [];
+  const hourMax = Math.max(...hourlyHeat.map(h => h.count), 1);
+  const planDist = data?.plan_distribution || [];
+  const revComp = data?.revenue_composition;
+  const inviteBoard = data?.invite_leaderboard || [];
+  const revTotal = revComp ? revComp.by_plan.reduce((a, b) => a + b.amount, 0) : 0;
 
   const accountItems = s ? [
     { label: "正常", value: s.normal_accounts, color: "#10b981", icon: CheckCircle },
@@ -164,6 +251,10 @@ export default function StatsPage() {
 
   const genTrend = useMemo(() => t?.generations.map((g, i) => ({
     date: g.date, success: t.success[i]?.value || 0, failed: t.failed[i]?.value || 0, total: g.value,
+  })) || [], [t]);
+
+  const pointsTrend = useMemo(() => t?.points_issued.map((p, i) => ({
+    date: p.date, issued: p.value, consumed: t.points_consumed[i]?.value || 0,
   })) || [], [t]);
 
   if (loading && !data) return (
@@ -194,7 +285,7 @@ export default function StatsPage() {
         <div className="border-b bg-card px-4 sm:px-8 py-4 flex items-center justify-between shrink-0">
           <div>
             <h1 className={`${heading.className} text-sm sm:text-base font-semibold tracking-tight`}>数据统计</h1>
-            <p className="text-[10px] sm:text-xs text-muted-foreground mt-0.5">最近 7 天运营概览</p>
+            <p className="text-[10px] sm:text-xs text-muted-foreground mt-0.5">运营数据概览 · 趋势区间近 7 天</p>
           </div>
           <Button variant="ghost" size="sm" onClick={load} className="gap-1.5 text-xs text-muted-foreground">
             <RefreshCw className={`size-3.5 ${loading ? "animate-spin" : ""}`} /> 刷新
@@ -205,8 +296,29 @@ export default function StatsPage() {
           variants={stagger} initial="hidden" animate="visible">
           <div className="space-y-6 max-w-[1400px]">
 
+            {/* ═══ 主 Tab 导航 ═══ */}
+            <div className="flex items-center gap-1 overflow-x-auto scrollbar-hide -mx-1 px-1">
+              {([
+                { key: "overview", label: "总览", icon: BarChart3 },
+                { key: "generation", label: "生成", icon: ImageIcon },
+                { key: "revenue", label: "营收", icon: CreditCard },
+                { key: "users", label: "用户", icon: Users },
+                { key: "accounts", label: "账号", icon: Server },
+              ] as const).map(tab => (
+                <button key={tab.key} onClick={() => setMainTab(tab.key)}
+                  className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-medium whitespace-nowrap transition-all ${
+                    mainTab === tab.key ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:text-foreground hover:bg-muted/60"
+                  }`}>
+                  <tab.icon className="size-3.5" /> {tab.label}
+                </button>
+              ))}
+            </div>
+
+            {/* ═══════════ 总览 ═══════════ */}
+            {mainTab === "overview" && (<>
+
             {/* ═══ KPI 卡片 ═══ */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
               <KpiCard icon={<CreditCard className="size-5" />} iconBg="bg-amber-500/10" iconColor="text-amber-500"
                 label="总收入" value={s?.total_revenue || 0} fmt={n => `¥${n.toLocaleString()}`}
                 sparkline={t?.revenue} sparkColor="#f59e0b"
@@ -215,10 +327,18 @@ export default function StatsPage() {
                 label="总用户" value={s?.total_users || 0}
                 sparkline={t?.users} sparkColor="#6366f1"
                 sub={`今日 +${s?.today_users || 0} · 活跃 ${s?.active_users || 0}`} />
+              <KpiCard icon={<Sparkles className="size-5" />} iconBg="bg-rose-500/10" iconColor="text-rose-500"
+                label="付费转化" value={s?.paid_users || 0}
+                sparkline={t?.revenue} sparkColor="#f43f5e"
+                sub={`转化率 ${conversionRate}% · ARPU ¥${arpu.toFixed(1)}`} />
               <KpiCard icon={<ImageIcon className="size-5" />} iconBg="bg-emerald-500/10" iconColor="text-emerald-500"
-                label="总生成" value={s?.total_generations || 0}
+                label="图片生成" value={s?.total_generations || 0}
                 sparkline={t?.generations} sparkColor="#10b981"
                 sub={`今日 ${s?.today_generations || 0} 次 · 成功率 ${successRate}%`} />
+              <KpiCard icon={<PenTool className="size-5" />} iconBg="bg-violet-500/10" iconColor="text-violet-500"
+                label="矢量生成" value={s?.total_svg || 0}
+                sparkline={t?.svg} sparkColor="#8b5cf6"
+                sub={`今日 ${s?.today_svg || 0} 次`} />
               <KpiCard icon={<TrendingUp className="size-5" />} iconBg="bg-blue-500/10" iconColor="text-blue-500"
                 label="总订单" value={s?.total_orders || 0}
                 sparkline={t?.revenue} sparkColor="#3b82f6"
@@ -229,15 +349,15 @@ export default function StatsPage() {
             <motion.div variants={fadeUp} className="rounded-2xl border bg-card p-4 sm:p-6">
               <div className="flex items-center justify-between mb-4 sm:mb-5">
                 <h2 className={`${heading.className} text-sm font-semibold`}>
-                  {chartTab === "generations" ? "生成量趋势" : chartTab === "revenue" ? "收入趋势" : "新用户趋势"}
+                  {chartTab === "generations" ? "生成量趋势" : chartTab === "revenue" ? "收入趋势" : chartTab === "users" ? "新用户趋势" : "积分收支趋势"}
                 </h2>
                 <div className="flex items-center gap-0.5 bg-muted rounded-lg p-0.5">
-                  {(["generations", "revenue", "users"] as const).map(tab => (
+                  {(["generations", "revenue", "users", "points"] as const).map(tab => (
                     <button key={tab} onClick={() => setChartTab(tab)}
                       className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
                         chartTab === tab ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
                       }`}>
-                      {tab === "generations" ? "生成量" : tab === "revenue" ? "收入" : "新用户"}
+                      {tab === "generations" ? "生成量" : tab === "revenue" ? "收入" : tab === "users" ? "新用户" : "积分"}
                     </button>
                   ))}
                 </div>
@@ -271,7 +391,7 @@ export default function StatsPage() {
                       <Area type="monotone" dataKey="value" stroke="var(--color-value)" fill="url(#revGrad)" strokeWidth={2} name="value" />
                     </AreaChart>
                   </ChartContainer>
-                ) : (
+                ) : chartTab === "users" ? (
                   <ChartContainer config={usersChartConfig} className="h-full w-full" initialDimension={{ width: 700, height: 260 }}>
                     <AreaChart data={t?.users || []}>
                       <defs>
@@ -287,11 +407,38 @@ export default function StatsPage() {
                       <Area type="monotone" dataKey="value" stroke="var(--color-value)" fill="url(#userGrad)" strokeWidth={2} name="value" />
                     </AreaChart>
                   </ChartContainer>
+                ) : (
+                  <ChartContainer config={pointsChartConfig} className="h-full w-full" initialDimension={{ width: 700, height: 260 }}>
+                    <AreaChart data={pointsTrend}>
+                      <defs>
+                        <linearGradient id="issuedGrad" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor="var(--color-issued)" stopOpacity={0.25} />
+                          <stop offset="100%" stopColor="var(--color-issued)" stopOpacity={0} />
+                        </linearGradient>
+                        <linearGradient id="consumedGrad" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor="var(--color-consumed)" stopOpacity={0.25} />
+                          <stop offset="100%" stopColor="var(--color-consumed)" stopOpacity={0} />
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} className="stroke-border" />
+                      <XAxis dataKey="date" tickLine={false} axisLine={false} tickMargin={6} tick={{ fontSize: 11 }} />
+                      <YAxis tickLine={false} axisLine={false} tickMargin={4} tick={{ fontSize: 11 }} allowDecimals={false} />
+                      <ChartTooltip content={<ChartTooltipContent />} />
+                      <ChartLegend content={<ChartLegendContent />} />
+                      <Area type="monotone" dataKey="issued" stroke="var(--color-issued)" fill="url(#issuedGrad)" strokeWidth={2} name="issued" />
+                      <Area type="monotone" dataKey="consumed" stroke="var(--color-consumed)" fill="url(#consumedGrad)" strokeWidth={2} name="consumed" />
+                    </AreaChart>
+                  </ChartContainer>
                 ))}
               </div>
             </motion.div>
 
-            {/* ═══ 模型分布 + 号池状态 ═══ */}
+            </>)}
+
+            {/* ═══════════ 生成 ═══════════ */}
+            {mainTab === "generation" && (<>
+
+            {/* ═══ 模型分布 ═══ */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4">
               <motion.div variants={fadeUp} className="rounded-2xl border bg-card p-4 sm:p-6">
                 <div className="flex items-center gap-2 mb-4 sm:mb-5">
@@ -337,36 +484,29 @@ export default function StatsPage() {
 
               <motion.div variants={fadeUp} className="rounded-2xl border bg-card p-4 sm:p-6">
                 <div className="flex items-center gap-2 mb-4 sm:mb-5">
-                  <div className="size-8 rounded-lg bg-blue-500/10 flex items-center justify-center">
-                    <Activity className="size-4 text-blue-500" />
+                  <div className="size-8 rounded-lg bg-indigo-500/10 flex items-center justify-center">
+                    <Clock className="size-4 text-indigo-500" />
                   </div>
-                  <h2 className={`${heading.className} text-sm font-semibold`}>号池状态</h2>
-                  <Badge variant="outline" className="ml-auto">{s?.total_accounts || 0} 个</Badge>
+                  <h2 className={`${heading.className} text-sm font-semibold`}>出图时段分布</h2>
+                  <span className="ml-auto text-[10px] text-muted-foreground">全部历史 · 按小时</span>
                 </div>
-                {s && s.total_accounts > 0 && (
-                  <div className="mb-5">
-                    <div className="flex h-2.5 rounded-full bg-muted overflow-hidden">
-                      {accountItems.map((seg, i) => {
-                        const pct = (seg.value / s.total_accounts) * 100;
-                        if (pct <= 0) return null;
-                        return <div key={i} className="h-full transition-all duration-700 first:rounded-l-full last:rounded-r-full" style={{ width: `${pct}%`, backgroundColor: seg.color }} />;
+                {hourlyHeat.some(h => h.count > 0) ? (
+                  <>
+                    <div className="grid grid-cols-12 gap-1">
+                      {hourlyHeat.map(h => {
+                        const intensity = h.count / hourMax;
+                        return (
+                          <div key={h.hour} className="flex flex-col items-center gap-1" title={`${h.hour}:00 · ${h.count} 张`}>
+                            <div className="w-full aspect-square rounded-md transition-colors"
+                              style={{ backgroundColor: h.count > 0 ? `rgba(99,102,241,${0.15 + intensity * 0.85})` : "var(--muted)" }} />
+                            {h.hour % 3 === 0 && <span className="text-[8px] text-muted-foreground/60 tabular-nums">{h.hour}</span>}
+                          </div>
+                        );
                       })}
                     </div>
-                  </div>
-                )}
-                <div className="grid grid-cols-2 gap-2 sm:gap-2.5">
-                  {accountItems.map(item => (
-                    <div key={item.label} className="flex items-center gap-2 sm:gap-3 p-2.5 sm:p-3 rounded-xl bg-muted/40 hover:bg-muted/70 transition-colors">
-                      <div className="size-9 rounded-lg flex items-center justify-center" style={{ backgroundColor: item.color + "14" }}>
-                        <item.icon className="size-4" style={{ color: item.color }} />
-                      </div>
-                      <div>
-                        <div className={`${mono.className} text-base font-medium tabular-nums`}>{item.value}</div>
-                        <div className="text-[10px] text-muted-foreground">{item.label}</div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
+                    <p className="text-[10px] text-muted-foreground/70 mt-3">颜色越深出图越多。可据高峰时段安排号池补充与维护窗口。</p>
+                  </>
+                ) : <div className="flex items-center justify-center h-48 text-xs text-muted-foreground">尚无生成数据</div>}
               </motion.div>
             </div>
 
@@ -394,6 +534,380 @@ export default function StatsPage() {
                 )}
               </div>
             </motion.div>
+
+            {/* ═══ 失败原因 ═══ */}
+            <motion.div variants={fadeUp} className="rounded-2xl border bg-card p-4 sm:p-6">
+              <div className="flex items-center gap-2 mb-4 sm:mb-5">
+                <div className="size-8 rounded-lg bg-red-500/10 flex items-center justify-center">
+                  <ListX className="size-4 text-red-500" />
+                </div>
+                <h2 className={`${heading.className} text-sm font-semibold`}>失败原因</h2>
+                <Badge variant="outline" className="ml-auto">近 7 天 {failTotal}</Badge>
+              </div>
+              {failures.length > 0 ? (
+                <div className="space-y-2.5">
+                  {failures.map(f => {
+                    const pct = failTotal > 0 ? (f.count / failTotal) * 100 : 0;
+                    return (
+                      <div key={f.reason} className="flex items-center gap-3 text-xs">
+                        <span className="w-24 shrink-0 font-medium text-foreground truncate">{f.reason}</span>
+                        <div className="flex-1 h-2 rounded-full bg-muted overflow-hidden">
+                          <div className="h-full rounded-full bg-red-500/70 transition-all duration-700" style={{ width: `${pct}%` }} />
+                        </div>
+                        <span className={`${mono.className} tabular-nums w-16 text-right text-muted-foreground`}>
+                          {f.count} · {pct.toFixed(0)}%
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : <p className="text-xs text-muted-foreground text-center py-8">近 7 天无失败记录 🎉</p>}
+            </motion.div>
+
+            </>)}
+
+            {/* ═══════════ 营收 ═══════════ */}
+            {mainTab === "revenue" && (<>
+
+            {/* ═══ 收入构成 + 套餐分布 ═══ */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4">
+              {/* 收入构成 */}
+              <motion.div variants={fadeUp} className="rounded-2xl border bg-card p-4 sm:p-6">
+                <div className="flex items-center gap-2 mb-4 sm:mb-5">
+                  <div className="size-8 rounded-lg bg-amber-500/10 flex items-center justify-center">
+                    <CreditCard className="size-4 text-amber-500" />
+                  </div>
+                  <h2 className={`${heading.className} text-sm font-semibold`}>收入构成</h2>
+                  {revComp && revComp.total_paid > 0 && (
+                    <Badge variant="outline" className="ml-auto">用券 {Math.round((revComp.coupon_orders / revComp.total_paid) * 100)}%</Badge>
+                  )}
+                </div>
+                {revComp && revComp.by_plan.length > 0 ? (
+                  <div className="space-y-2.5">
+                    {revComp.by_plan.map((r, i) => {
+                      const pct = revTotal > 0 ? (r.amount / revTotal) * 100 : 0;
+                      return (
+                        <div key={r.plan_name} className="flex items-center gap-3 text-xs">
+                          <span className="size-2 rounded-sm shrink-0" style={{ background: MODEL_PALETTE[i % MODEL_PALETTE.length] }} />
+                          <span className="w-24 shrink-0 font-medium text-foreground truncate">{r.plan_name}</span>
+                          <div className="flex-1 h-2 rounded-full bg-muted overflow-hidden">
+                            <div className="h-full rounded-full transition-all duration-700" style={{ width: `${pct}%`, background: MODEL_PALETTE[i % MODEL_PALETTE.length] }} />
+                          </div>
+                          <span className={`${mono.className} tabular-nums w-24 text-right text-muted-foreground`}>¥{r.amount.toLocaleString()} · {r.orders}单</span>
+                        </div>
+                      );
+                    })}
+                    <p className="text-[10px] text-muted-foreground/70 pt-1">已付订单按套餐拆解。用券率 = 使用优惠券的已付订单占比。</p>
+                  </div>
+                ) : <p className="text-xs text-muted-foreground text-center py-8">尚无已付订单</p>}
+              </motion.div>
+
+              {/* 套餐订阅分布 */}
+              <motion.div variants={fadeUp} className="rounded-2xl border bg-card p-4 sm:p-6">
+                <div className="flex items-center gap-2 mb-4 sm:mb-5">
+                  <div className="size-8 rounded-lg bg-blue-500/10 flex items-center justify-center">
+                    <Layers className="size-4 text-blue-500" />
+                  </div>
+                  <h2 className={`${heading.className} text-sm font-semibold`}>套餐订阅分布</h2>
+                </div>
+                {planDist.length > 0 ? (
+                  <div className="space-y-3">
+                    {planDist.map(p => {
+                      const tot = p.active + p.expired;
+                      const activePct = tot > 0 ? (p.active / tot) * 100 : 0;
+                      return (
+                        <div key={p.plan_name} className="space-y-1">
+                          <div className="flex items-center justify-between text-xs">
+                            <span className="font-medium text-foreground truncate">{p.plan_name}</span>
+                            <span className={`${mono.className} tabular-nums text-muted-foreground`}>
+                              <span className="text-emerald-600 dark:text-emerald-400">{p.active} 活跃</span> · {p.expired} 过期
+                            </span>
+                          </div>
+                          <div className="flex h-2 rounded-full bg-muted overflow-hidden">
+                            <div className="h-full bg-emerald-500/70 first:rounded-l-full" style={{ width: `${activePct}%` }} />
+                            <div className="h-full bg-muted-foreground/30" style={{ width: `${100 - activePct}%` }} />
+                          </div>
+                        </div>
+                      );
+                    })}
+                    <p className="text-[10px] text-muted-foreground/70 pt-1">绿色=当前未过期订阅，灰色=已过期。仅统计付费套餐用户。</p>
+                  </div>
+                ) : <p className="text-xs text-muted-foreground text-center py-8">尚无付费订阅</p>}
+              </motion.div>
+            </div>
+
+            </>)}
+
+            {/* ═══════════ 用户 ═══════════ */}
+            {mainTab === "users" && (<>
+
+            {/* ═══ 积分经济 ═══ */}
+            <motion.div variants={fadeUp} className="rounded-2xl border bg-card p-4 sm:p-6">
+              <div className="flex items-center gap-2 mb-4 sm:mb-5">
+                <div className="size-8 rounded-lg bg-amber-500/10 flex items-center justify-center">
+                  <Coins className="size-4 text-amber-500" />
+                </div>
+                <h2 className={`${heading.className} text-sm font-semibold`}>积分经济</h2>
+                <span className={`ml-auto text-[11px] font-medium px-2 py-0.5 rounded-full ${pointsNet > 0 ? "bg-amber-500/10 text-amber-600 dark:text-amber-400" : "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"}`}>
+                  今日净{pointsNet >= 0 ? "流入" : "流出"} {Math.abs(pointsNet).toLocaleString()}
+                </span>
+              </div>
+
+              {/* 概览数字 */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 sm:gap-3 mb-5">
+                {[
+                  { label: "今日发放", value: pts?.today_issued || 0, color: "text-emerald-600 dark:text-emerald-400" },
+                  { label: "今日消耗", value: pts?.today_consumed || 0, color: "text-amber-600 dark:text-amber-400" },
+                  { label: "累计发放", value: pts?.total_issued || 0, color: "text-muted-foreground" },
+                  { label: "累计消耗", value: pts?.total_consumed || 0, color: "text-muted-foreground" },
+                ].map(item => (
+                  <div key={item.label} className="rounded-xl bg-muted/40 p-3">
+                    <p className="text-[10px] text-muted-foreground mb-0.5">{item.label}</p>
+                    <p className={`${mono.className} text-lg font-medium tabular-nums ${item.color}`}>{item.value.toLocaleString()}</p>
+                  </div>
+                ))}
+              </div>
+
+              {/* 按类型拆解 */}
+              {pts && pts.by_type.length > 0 ? (
+                <div className="space-y-2.5">
+                  {pts.by_type.map(bt => {
+                    const max = Math.max(...pts.by_type.map(x => Math.max(x.issued, x.consumed)), 1);
+                    return (
+                      <div key={bt.type} className="flex items-center gap-3 text-xs">
+                        <span className="w-16 shrink-0 font-medium text-foreground truncate">{pointsTypeLabel(bt.type)}</span>
+                        <div className="flex-1 flex items-center gap-2">
+                          <div className="flex-1 h-2 rounded-full bg-muted overflow-hidden flex justify-end">
+                            {bt.issued > 0 && <div className="h-full rounded-l-full bg-emerald-500/70" style={{ width: `${(bt.issued / max) * 100}%` }} />}
+                          </div>
+                          <div className="flex-1 h-2 rounded-full bg-muted overflow-hidden">
+                            {bt.consumed > 0 && <div className="h-full rounded-r-full bg-amber-500/70" style={{ width: `${(bt.consumed / max) * 100}%` }} />}
+                          </div>
+                        </div>
+                        <span className={`${mono.className} tabular-nums w-24 text-right text-muted-foreground`}>
+                          <span className="text-emerald-600 dark:text-emerald-400">+{bt.issued.toLocaleString()}</span>
+                          {" / "}
+                          <span className="text-amber-600 dark:text-amber-400">-{bt.consumed.toLocaleString()}</span>
+                        </span>
+                      </div>
+                    );
+                  })}
+                  <p className="text-[10px] text-muted-foreground/70 pt-1">左侧绿条=发放，右侧橙条=消耗。净流入持续为正提示积分通胀风险。</p>
+                </div>
+              ) : <p className="text-xs text-muted-foreground text-center py-6">尚无积分流水</p>}
+            </motion.div>
+
+            {/* ═══ 留存 + 邀请榜 ═══ */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4">
+              {/* 邀请裂变榜 */}
+              <motion.div variants={fadeUp} className="rounded-2xl border bg-card p-4 sm:p-6">
+                <div className="flex items-center gap-2 mb-4 sm:mb-5">
+                  <div className="size-8 rounded-lg bg-pink-500/10 flex items-center justify-center">
+                    <Gift className="size-4 text-pink-500" />
+                  </div>
+                  <h2 className={`${heading.className} text-sm font-semibold`}>邀请裂变榜 Top 8</h2>
+                </div>
+                {inviteBoard.length > 0 ? (
+                  <div className="space-y-2">
+                    {inviteBoard.map((l, i) => (
+                      <div key={l.email} className="flex items-center gap-3 text-xs">
+                        <span className={`${mono.className} w-5 text-center tabular-nums ${i < 3 ? "text-amber-500 font-bold" : "text-muted-foreground/60"}`}>{i + 1}</span>
+                        <span className="flex-1 font-medium text-foreground truncate">{l.email}</span>
+                        <span className={`${mono.className} tabular-nums text-muted-foreground`}>
+                          <span className="text-foreground">{l.invites}</span> 邀 · <span className="text-emerald-600 dark:text-emerald-400">{l.recharged}</span> 充 · <span className="text-amber-600 dark:text-amber-400">{l.reward_sum}</span> 分
+                        </span>
+                      </div>
+                    ))}
+                    <p className="text-[10px] text-muted-foreground/70 pt-1">邀=邀请注册数，充=其中已首充人数，分=累计获得邀请积分。</p>
+                  </div>
+                ) : <p className="text-xs text-muted-foreground text-center py-8">尚无邀请记录</p>}
+              </motion.div>
+
+              {/* 留存 */}
+              <motion.div variants={fadeUp} className="rounded-2xl border bg-card p-4 sm:p-6">
+                <div className="flex items-center gap-2 mb-4 sm:mb-5">
+                  <div className="size-8 rounded-lg bg-cyan-500/10 flex items-center justify-center">
+                    <UserCheck className="size-4 text-cyan-500" />
+                  </div>
+                  <h2 className={`${heading.className} text-sm font-semibold`}>用户留存</h2>
+                  <Badge variant="outline" className="ml-auto">7日活跃 {ret?.active_users_7d || 0}</Badge>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  {[
+                    { label: "次日留存", rate: d1Rate, retained: ret?.d1_retained || 0, cohort: ret?.d1_cohort || 0, color: "#06b6d4" },
+                    { label: "7 日留存", rate: d7Rate, retained: ret?.d7_retained || 0, cohort: ret?.d7_cohort || 0, color: "#6366f1" },
+                  ].map(item => (
+                    <div key={item.label} className="rounded-xl bg-muted/40 p-4 flex flex-col items-center justify-center text-center">
+                      <div className="relative size-16 mb-2">
+                        <svg className="size-16 -rotate-90" viewBox="0 0 36 36">
+                          <circle cx="18" cy="18" r="15.9" fill="none" className="stroke-muted" strokeWidth="3" />
+                          <circle cx="18" cy="18" r="15.9" fill="none" stroke={item.color} strokeWidth="3"
+                            strokeDasharray={`${item.rate} 100`} strokeLinecap="round" className="transition-all duration-1000" />
+                        </svg>
+                        <div className={`${mono.className} absolute inset-0 flex items-center justify-center text-sm font-semibold tabular-nums`}>{item.rate}%</div>
+                      </div>
+                      <p className="text-xs font-medium text-foreground">{item.label}</p>
+                      <p className={`${mono.className} text-[10px] text-muted-foreground tabular-nums mt-0.5`}>{item.retained}/{item.cohort}</p>
+                    </div>
+                  ))}
+                </div>
+                <p className="text-[10px] text-muted-foreground/70 mt-3 leading-relaxed">基于出图行为推断：注册后第 1/7 天有出图即视为留存。分母为注册满对应天数的用户。</p>
+              </motion.div>
+            </div>
+
+            </>)}
+
+            {/* ═══════════ 账号 ═══════════ */}
+            {mainTab === "accounts" && (<>
+
+            {/* ═══ 号池状态 ═══ */}
+            <motion.div variants={fadeUp} className="rounded-2xl border bg-card p-4 sm:p-6">
+              <div className="flex items-center gap-2 mb-4 sm:mb-5">
+                <div className="size-8 rounded-lg bg-blue-500/10 flex items-center justify-center">
+                  <Activity className="size-4 text-blue-500" />
+                </div>
+                <h2 className={`${heading.className} text-sm font-semibold`}>号池状态</h2>
+                <Badge variant="outline" className="ml-auto">{s?.total_accounts || 0} 个</Badge>
+              </div>
+              {s && s.total_accounts > 0 && (
+                <div className="mb-5">
+                  <div className="flex h-2.5 rounded-full bg-muted overflow-hidden">
+                    {accountItems.map((seg, i) => {
+                      const pct = (seg.value / s.total_accounts) * 100;
+                      if (pct <= 0) return null;
+                      return <div key={i} className="h-full transition-all duration-700 first:rounded-l-full last:rounded-r-full" style={{ width: `${pct}%`, backgroundColor: seg.color }} />;
+                    })}
+                  </div>
+                </div>
+              )}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-2.5">
+                {accountItems.map(item => (
+                  <div key={item.label} className="flex items-center gap-2 sm:gap-3 p-2.5 sm:p-3 rounded-xl bg-muted/40 hover:bg-muted/70 transition-colors">
+                    <div className="size-9 rounded-lg flex items-center justify-center" style={{ backgroundColor: item.color + "14" }}>
+                      <item.icon className="size-4" style={{ color: item.color }} />
+                    </div>
+                    <div>
+                      <div className={`${mono.className} text-base font-medium tabular-nums`}>{item.value}</div>
+                      <div className="text-[10px] text-muted-foreground">{item.label}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </motion.div>
+
+            {/* ═══ 账号生命周期 ═══ */}
+            <motion.div variants={fadeUp} className="rounded-2xl border bg-card p-4 sm:p-6">
+              <div className="flex items-center gap-2 mb-4 sm:mb-5">
+                <div className="size-8 rounded-lg bg-teal-500/10 flex items-center justify-center">
+                  <UserPlus className="size-4 text-teal-500" />
+                </div>
+                <h2 className={`${heading.className} text-sm font-semibold`}>账号生命周期</h2>
+                <span className="ml-auto text-[10px] text-muted-foreground">自建表起累计</span>
+              </div>
+
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
+                {/* 指标格子 */}
+                <div className="grid grid-cols-3 gap-2.5 sm:gap-3 content-start">
+                  {[
+                    { label: "注册/补号", icon: UserPlus, color: "#10b981", today: ae?.today_registered || 0, total: ae?.total_registered || 0 },
+                    { label: "封禁(401)", icon: Ban, color: "#ef4444", today: ae?.today_banned || 0, total: ae?.total_banned || 0 },
+                    { label: "删除清理", icon: Trash2, color: "#71717a", today: ae?.today_deleted || 0, total: ae?.total_deleted || 0 },
+                  ].map(item => (
+                    <div key={item.label} className="rounded-xl bg-muted/40 p-3 flex flex-col">
+                      <div className="flex items-center gap-1.5 mb-2">
+                        <item.icon className="size-3.5" style={{ color: item.color }} />
+                        <span className="text-[10px] text-muted-foreground truncate">{item.label}</span>
+                      </div>
+                      <p className={`${mono.className} text-xl font-medium tabular-nums`} style={{ color: item.color }}>{item.total.toLocaleString()}</p>
+                      <p className="text-[10px] text-muted-foreground/70 mt-0.5">今日 +{item.today}</p>
+                    </div>
+                  ))}
+                  <div className="col-span-3 rounded-xl bg-muted/40 p-3 flex items-center justify-between">
+                    <div>
+                      <p className="text-[10px] text-muted-foreground">当前异常账号</p>
+                      <p className={`${mono.className} text-lg font-medium tabular-nums text-amber-600 dark:text-amber-400`}>{s?.abnormal_accounts || 0}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-[10px] text-muted-foreground">当前限流</p>
+                      <p className={`${mono.className} text-lg font-medium tabular-nums text-amber-500`}>{s?.limited_accounts || 0}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-[10px] text-muted-foreground">当前禁用</p>
+                      <p className={`${mono.className} text-lg font-medium tabular-nums text-muted-foreground`}>{s?.disabled_accounts || 0}</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 趋势图 */}
+                <div className="h-[200px]">
+                  {mounted && (
+                    <ChartContainer config={acctEventChartConfig} className="h-full w-full" initialDimension={{ width: 500, height: 200 }}>
+                      <BarChart data={aeTrend} barCategoryGap="20%">
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} className="stroke-border" />
+                        <XAxis dataKey="date" tickLine={false} axisLine={false} tickMargin={6} tick={{ fontSize: 11 }} />
+                        <YAxis tickLine={false} axisLine={false} tickMargin={4} tick={{ fontSize: 11 }} allowDecimals={false} />
+                        <ChartTooltip content={<ChartTooltipContent />} />
+                        <ChartLegend content={<ChartLegendContent />} />
+                        <Bar dataKey="registered" fill="var(--color-registered)" radius={[3, 3, 0, 0]} name="registered" />
+                        <Bar dataKey="banned" fill="var(--color-banned)" radius={[3, 3, 0, 0]} name="banned" />
+                        <Bar dataKey="deleted" fill="var(--color-deleted)" radius={[3, 3, 0, 0]} name="deleted" />
+                      </BarChart>
+                    </ChartContainer>
+                  )}
+                </div>
+              </div>
+              <p className="text-[10px] text-muted-foreground/70 mt-3 leading-relaxed">封禁=401 被官方封号后自动删除；删除清理=手动删 + 异常/禁用自动清理。账号删除后行即消失，故这些累计数依赖事件流水（自本次建表起记录）。</p>
+            </motion.div>
+
+            {/* ═══ 账号产能排行 ═══ */}
+            <motion.div variants={fadeUp} className="rounded-2xl border bg-card p-4 sm:p-6">
+              <div className="flex items-center gap-2 mb-4 sm:mb-5">
+                <div className="size-8 rounded-lg bg-orange-500/10 flex items-center justify-center">
+                  <Zap className="size-4 text-orange-500" />
+                </div>
+                <h2 className={`${heading.className} text-sm font-semibold`}>账号产能 Top 8</h2>
+              </div>
+              {accountProd.length > 0 ? (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b text-[10px] text-muted-foreground uppercase tracking-wider">
+                        <th className="text-left py-2 font-medium">账号</th>
+                        <th className="text-center py-2 font-medium">状态</th>
+                        <th className="text-right py-2 font-medium">成功</th>
+                        <th className="text-right py-2 font-medium">失败</th>
+                        <th className="text-right py-2 font-medium">成功率</th>
+                        <th className="text-right py-2 font-medium hidden sm:table-cell">最近使用</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-border">
+                      {accountProd.map(a => {
+                        const tot = a.success_count + a.fail_count;
+                        const rate = tot > 0 ? Math.round((a.success_count / tot) * 100) : 0;
+                        const stColor = a.status === "正常" ? "#10b981" : a.status === "限流" ? "#f59e0b" : a.status === "禁用" ? "#71717a" : "#ef4444";
+                        return (
+                          <tr key={a.id} className="hover:bg-muted/40 transition-colors">
+                            <td className="py-2.5 max-w-[160px]">
+                              <div className="font-medium truncate">{a.email || `#${a.id}`}</div>
+                              <div className="text-[10px] text-muted-foreground">{a.plan_type}</div>
+                            </td>
+                            <td className="py-2.5 text-center">
+                              <span className="inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-full" style={{ color: stColor, backgroundColor: stColor + "1a" }}>{a.status}</span>
+                            </td>
+                            <td className={`${mono.className} py-2.5 text-right tabular-nums text-emerald-600 dark:text-emerald-400`}>{a.success_count.toLocaleString()}</td>
+                            <td className={`${mono.className} py-2.5 text-right tabular-nums text-muted-foreground`}>{a.fail_count.toLocaleString()}</td>
+                            <td className={`${mono.className} py-2.5 text-right tabular-nums ${rate >= 90 ? "text-emerald-600 dark:text-emerald-400" : rate >= 70 ? "text-amber-600 dark:text-amber-400" : "text-red-600 dark:text-red-400"}`}>{rate}%</td>
+                            <td className={`${mono.className} py-2.5 text-right tabular-nums text-[11px] text-muted-foreground hidden sm:table-cell`}>{a.last_used_at || "—"}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              ) : <p className="text-xs text-muted-foreground text-center py-8">尚无账号数据</p>}
+            </motion.div>
+
+            </>)}
 
           </div>
         </motion.div>

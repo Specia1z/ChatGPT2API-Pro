@@ -86,11 +86,13 @@ func (s *MySQLStore) BindInviteAndReward(inviterID, inviteeID int64, rewardInvit
 		if _, err = tx.Exec("UPDATE users SET points = points + ? WHERE id=?", rewardInviter, inviterID); err != nil {
 			return false, err
 		}
+		logPoints(tx, inviterID, rewardInviter, "invite", "邀请注册奖励")
 	}
 	if rewardInvitee > 0 {
 		if _, err = tx.Exec("UPDATE users SET points = points + ? WHERE id=?", rewardInvitee, inviteeID); err != nil {
 			return false, err
 		}
+		logPoints(tx, inviteeID, rewardInvitee, "invite", "受邀注册奖励")
 	}
 	if err = tx.Commit(); err != nil {
 		return false, err
@@ -127,11 +129,13 @@ func (s *MySQLStore) RewardInviteRecharge(inviteeID int64, rewardInviter, reward
 		if _, err = tx.Exec("UPDATE users SET points = points + ? WHERE id=?", rewardInviter, inviterID); err != nil {
 			return false, err
 		}
+		logPoints(tx, inviterID, rewardInviter, "invite", "邀请首充奖励")
 	}
 	if rewardInvitee > 0 {
 		if _, err = tx.Exec("UPDATE users SET points = points + ? WHERE id=?", rewardInvitee, inviteeID); err != nil {
 			return false, err
 		}
+		logPoints(tx, inviteeID, rewardInvitee, "invite", "受邀首充奖励")
 	}
 	if err = tx.Commit(); err != nil {
 		return false, err

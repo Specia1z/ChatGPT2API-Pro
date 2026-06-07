@@ -54,9 +54,79 @@ func (h *Handler) GetAdminStats(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	points, err := h.MySQL.GetPointsStats()
+	if err != nil {
+		writeJSON(w, 500, model.APIResponse{Code: 500, Message: "获取积分统计失败"})
+		return
+	}
+
+	failures, err := h.MySQL.GetFailureReasons(7)
+	if err != nil {
+		writeJSON(w, 500, model.APIResponse{Code: 500, Message: "获取失败原因失败"})
+		return
+	}
+
+	accountProd, err := h.MySQL.GetAccountProductivity(8)
+	if err != nil {
+		writeJSON(w, 500, model.APIResponse{Code: 500, Message: "获取账号产能失败"})
+		return
+	}
+
+	retention, err := h.MySQL.GetRetentionStats()
+	if err != nil {
+		writeJSON(w, 500, model.APIResponse{Code: 500, Message: "获取留存统计失败"})
+		return
+	}
+
+	acctEvents, err := h.MySQL.GetAccountEventStats()
+	if err != nil {
+		writeJSON(w, 500, model.APIResponse{Code: 500, Message: "获取账号事件统计失败"})
+		return
+	}
+
+	acctEventTrends, err := h.MySQL.GetAccountEventTrends(7)
+	if err != nil {
+		writeJSON(w, 500, model.APIResponse{Code: 500, Message: "获取账号事件趋势失败"})
+		return
+	}
+
+	hourlyHeat, err := h.MySQL.GetHourlyHeat()
+	if err != nil {
+		writeJSON(w, 500, model.APIResponse{Code: 500, Message: "获取时段分布失败"})
+		return
+	}
+
+	planDist, err := h.MySQL.GetPlanDistribution()
+	if err != nil {
+		writeJSON(w, 500, model.APIResponse{Code: 500, Message: "获取套餐分布失败"})
+		return
+	}
+
+	revComp, err := h.MySQL.GetRevenueComposition()
+	if err != nil {
+		writeJSON(w, 500, model.APIResponse{Code: 500, Message: "获取营收构成失败"})
+		return
+	}
+
+	inviteBoard, err := h.MySQL.GetInviteLeaderboard(8)
+	if err != nil {
+		writeJSON(w, 500, model.APIResponse{Code: 500, Message: "获取邀请榜失败"})
+		return
+	}
+
 	writeJSON(w, 200, model.APIResponse{Code: 200, Data: map[string]any{
-		"stats":           stats,
-		"trends":          trends,
-		"model_breakdown": breakdown,
+		"stats":                stats,
+		"trends":               trends,
+		"model_breakdown":      breakdown,
+		"points":               points,
+		"failure_reasons":      failures,
+		"account_prod":         accountProd,
+		"retention":            retention,
+		"account_events":       acctEvents,
+		"account_event_trends": acctEventTrends,
+		"hourly_heat":          hourlyHeat,
+		"plan_distribution":    planDist,
+		"revenue_composition":  revComp,
+		"invite_leaderboard":   inviteBoard,
 	}})
 }

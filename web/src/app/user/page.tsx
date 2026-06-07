@@ -94,6 +94,8 @@ export default function UserPage() {
   const [exchangeOpen, setExchangeOpen] = useState(false);
   const [exchangeTokens, setExchangeTokens] = useState(10);
   const [exchanging, setExchanging] = useState(false);
+  const [pointsLogs, setPointsLogs] = useState<any[]>([]);
+  const [pointsLogsLoaded, setPointsLogsLoaded] = useState(false);
   const [oldPwd, setOldPwd] = useState("");
   const [newPwd, setNewPwd] = useState("");
   const [changingPwd, setChangingPwd] = useState(false);
@@ -122,6 +124,7 @@ export default function UserPage() {
   const fetchTokens = async () => { try { const r = await api("/api/user/tokens"); if (r.data?.tokens !== undefined) setTokens(r.data.tokens); } catch {} };
   const fetchCheckin = async () => { try { const r = await api("/api/user/checkin/status"); setCheckin(r.data); } catch {} };
   const fetchCoupons = async () => { try { const r = await api("/api/user/coupons"); setUserCoupons(r.data || []); } catch {} };
+  const fetchPointsLogs = async () => { try { const r = await api("/api/user/points/logs?page=1&page_size=50"); setPointsLogs(r.data?.items || []); } catch {} finally { setPointsLogsLoaded(true); } };
 
   const doExchange = async () => {
     if (exchangeTokens <= 0) return;
@@ -282,10 +285,11 @@ export default function UserPage() {
 
         {/* ═══ 功能区 Tabs ═══ */}
         <motion.div variants={fadeUp}>
-          <Tabs defaultValue="keys" className="gap-5">
+          <Tabs defaultValue="keys" className="gap-5" onValueChange={(v) => { if (v === "points" && !pointsLogsLoaded) fetchPointsLogs(); }}>
             <TabsList className="max-w-full overflow-x-auto scrollbar-hide flex-nowrap">
               <TabsTab value="keys">API 密钥</TabsTab>
               <TabsTab value="rewards">优惠与兑换</TabsTab>
+              <TabsTab value="points">积分明细</TabsTab>
               <TabsTab value="invite">邀请好友</TabsTab>
               <TabsTab value="checkin">每日签到</TabsTab>
               <TabsTab value="stats">用量统计</TabsTab>
@@ -401,6 +405,41 @@ export default function UserPage() {
                   </div>
                   <p className="text-xs text-muted-foreground leading-relaxed">兑换套餐时长或积分，成功后即时到账。</p>
                 </div>
+              </div>
+            </TabsPanel>
+
+            {/* ── 积分明细 ── */}
+            <TabsPanel value="points">
+              <div className="rounded-2xl border bg-card p-6 space-y-4">
+                <div className="flex items-center gap-2">
+                  <div className="size-8 rounded-lg bg-muted flex items-center justify-center">
+                    <Coins className="size-4 text-muted-foreground" />
+                  </div>
+                  <span className={`${heading.className} text-sm font-semibold`}>积分流水</span>
+                  <Badge variant="outline" className="ml-auto gap-1">
+                    <Coins className="size-3" /> {user?.points ?? 0}
+                  </Badge>
+                </div>
+                {!pointsLogsLoaded ? (
+                  <div className="flex justify-center py-8"><Loader2 className="size-5 animate-spin text-muted-foreground" /></div>
+                ) : pointsLogs.length > 0 ? (
+                  <div className="space-y-1.5 max-h-96 overflow-y-auto scrollbar-thin">
+                    {pointsLogs.map((l: any) => (
+                      <div key={l.id} className="flex items-center justify-between gap-3 px-3 py-2.5 rounded-lg border bg-background">
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium truncate">{l.remark || pointsTypeLabel(l.type)}</p>
+                          <p className="text-xs text-muted-foreground mt-0.5">{pointsTypeLabel(l.type)} · {formatLogTime(l.created_at)}</p>
+                        </div>
+                        <div className="text-right shrink-0">
+                          <p className={`${monoFont.className} text-sm font-semibold tabular-nums ${l.change >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-destructive"}`}>
+                            {l.change >= 0 ? "+" : ""}{l.change}
+                          </p>
+                          <p className={`${monoFont.className} text-xs text-muted-foreground tabular-nums`}>余额 {l.balance}</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : <p className="text-xs text-muted-foreground text-center py-8">暂无积分记录</p>}
               </div>
             </TabsPanel>
 
@@ -689,6 +728,24 @@ function couponDesc(c: any): string {
   if (c.discount_type === "percent") return `${c.discount_value} 折优惠`;
   if (c.discount_type === "fixed") return `立减 ¥${c.discount_value}`;
   return c.code;
+}
+
+const POINTS_TYPE_LABELS: Record<string, string> = {
+  checkin: "每日签到",
+  invite: "邀请奖励",
+  redeem_code: "兑换码",
+  admin: "管理员调整",
+  exchange_token: "兑换令牌",
+  shop: "积分商城",
+};
+function pointsTypeLabel(t: string): string {
+  return POINTS_TYPE_LABELS[t] || t || "积分变动";
+}
+function formatLogTime(s: string): string {
+  if (!s) return "";
+  // 后端返回的是已带正确墙钟数字的字符串（如 "2026-06-08T11:02:00Z" 或 "2026-06-08 11:02:00"）。
+  // 直接取数字部分展示，不能过 new Date()——那会按浏览器时区再偏移一次（与站内其它时间不一致）。
+  return s.replace("T", " ").slice(0, 16);
 }
 
 function StreakBar({ streak, done }: { streak: number; done: boolean }) {

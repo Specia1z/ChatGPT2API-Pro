@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { Outfit, DM_Mono } from "next/font/google";
 import { useRouter } from "next/navigation";
 import * as LucideIcons from "lucide-react";
 const {
@@ -19,6 +20,14 @@ import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "@/components/ui/tooltip";
 import { toast } from "sonner";
+
+// 与 /user、/admin/stats 对齐的字体（Outfit 标题 + DM_Mono 数字）
+const heading = Outfit({ subsets: ["latin"], weight: ["400", "500", "600", "700", "800"], variable: "--font-heading" });
+const monoFont = DM_Mono({ subsets: ["latin"], weight: ["400", "500"], variable: "--font-mono" });
+
+// 统一动画 variants（与 /user、/admin/stats 一致的缓动曲线）
+const stagger = { hidden: {}, visible: { transition: { staggerChildren: 0.05 } } };
+const fadeUp = { hidden: { opacity: 0, y: 14 }, visible: { opacity: 1, y: 0, transition: { duration: 0.45, ease: [0.25, 0.46, 0.45, 0.94] as const } } };
 
 /* ── Size presets ────────────────────── */
 
@@ -120,9 +129,6 @@ export default function CreatePage() {
   const [refImages, setRefImages] = useState<string[]>([]);
   const [refDim, setRefDim] = useState<{ w: number; h: number } | null>(null); // 首张参考图真实尺寸（Auto 用）
   const [fusionMode, setFusionMode] = useState(false);
-  const [sizeOpen, setSizeOpen] = useState(false);
-  const sizeBtnRef = useRef<HTMLButtonElement>(null);
-  const [sizeMenuPos, setSizeMenuPos] = useState<{ left: number; top: number } | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<number | null>(null);
   const [size, setSize] = useState("1:1");
   const [styles, setStyles] = useState<StylePreset[]>([]);
@@ -175,6 +181,7 @@ export default function CreatePage() {
   const [total, setTotal] = useState(0);
   const [loadingMore, setLoadingMore] = useState(false);
   const sentinelRef = useRef<HTMLDivElement>(null);
+  const galleryRoRef = useRef<ResizeObserver | null>(null); // 画廊宽度监听器（回调 ref 挂载时创建）
   const loadingMoreRef = useRef(false); // 防 observer 抖动重复触发
   // 响应式列数（瀑布流横向轮转分列用）
   const [cols, setCols] = useState(4);
@@ -185,15 +192,27 @@ export default function CreatePage() {
 
   useEffect(() => { setMounted(true); }, []);
 
-  // 响应式列数：<768=2, 768–1024=3, ≥1024=4（与原 columns-2/md:3/lg:4 断点一致）
-  useEffect(() => {
-    const calc = () => {
-      const w = window.innerWidth;
-      setCols(w >= 1024 ? 4 : w >= 768 ? 3 : 2);
-    };
-    calc();
-    window.addEventListener("resize", calc);
-    return () => window.removeEventListener("resize", calc);
+  // 响应式列数：按画廊容器实际宽度算（分栏后右栏宽度 = 视口 − 左栏，不能用 window 宽度）。
+  // 阈值：<720→2, <1100→3, ≥1100→4。用回调 ref：容器挂载时建 ResizeObserver、卸载时断开，
+  // 天然处理空态↔有图切换，避免 useEffect 依赖数组长度变化的报错。
+  const galleryRef = useCallback((node: HTMLDivElement | null) => {
+    // 先断开旧的（节点卸载或替换）
+    if (galleryRoRef.current) {
+      galleryRoRef.current.disconnect();
+      galleryRoRef.current = null;
+    }
+    if (!node) return;
+    const calc = (w: number) => setCols(w >= 1100 ? 4 : w >= 720 ? 3 : 2);
+    if (typeof ResizeObserver !== "undefined") {
+      const ro = new ResizeObserver((entries) => {
+        for (const e of entries) calc(e.contentRect.width);
+      });
+      ro.observe(node);
+      galleryRoRef.current = ro;
+      calc(node.clientWidth);
+    } else {
+      calc(node.clientWidth); // 兜底：无 ResizeObserver 时按当前宽度算一次
+    }
   }, []);
 
   // 无限滚动：sentinel 进入视口且还有更多时加载下一页。
@@ -212,34 +231,6 @@ export default function CreatePage() {
     io.observe(el);
     return () => io.disconnect();
   }, [page, total, generations.length]);
-
-  // 尺寸「更多」菜单：用 fixed 定位避开横向滚动容器的 overflow 裁剪，按触发按钮位置动态计算坐标
-  const toggleSizeMenu = () => {
-    if (sizeOpen) { setSizeOpen(false); return; }
-    const rect = sizeBtnRef.current?.getBoundingClientRect();
-    if (rect) {
-      const MENU_W = 220, MENU_H = 200, GAP = 4;
-      const left = Math.max(8, Math.min(rect.left, window.innerWidth - MENU_W - 8));
-      // 下方空间不足则向上翻转
-      const top = rect.bottom + MENU_H + GAP > window.innerHeight && rect.top - MENU_H - GAP > 0
-        ? rect.top - MENU_H - GAP
-        : rect.bottom + GAP;
-      setSizeMenuPos({ left, top });
-    }
-    setSizeOpen(true);
-  };
-
-  // fixed 菜单坐标在打开瞬间算定，页面滚动/缩放后会错位，故此时直接关闭
-  useEffect(() => {
-    if (!sizeOpen) return;
-    const close = () => setSizeOpen(false);
-    window.addEventListener("scroll", close, true);
-    window.addEventListener("resize", close);
-    return () => {
-      window.removeEventListener("scroll", close, true);
-      window.removeEventListener("resize", close);
-    };
-  }, [sizeOpen]);
 
 
   useEffect(() => {
@@ -588,33 +579,35 @@ export default function CreatePage() {
 
   return (
     <TooltipProvider>
-      <div className="min-h-screen bg-[#f7f6f3] dark:bg-[#12120f] pb-16 md:pb-0">
+      <div className={`${heading.variable} ${monoFont.variable} min-h-screen bg-background pb-16 md:pb-0`}>
         <Navbar />
 
-        {/* ═══════════════ TOP — Prompt Studio ═══════════════ */}
-        <div className="border-b border-[#e8e7e2] dark:border-[#1f1f1b] bg-white dark:bg-[#181814]">
-          <div className="max-w-5xl mx-auto px-4 sm:px-6 py-5 sm:py-6">
+        {/* 桌面端左右分栏；移动/平板(<lg)回落为上下单列 */}
+        <div className="lg:flex lg:items-start lg:gap-6 max-w-[1600px] mx-auto lg:px-6 lg:pt-6">
 
+        {/* ═══════════════ LEFT — Prompt Studio（桌面 sticky 固定栏） ═══════════════ */}
+        <div className="border-b lg:border-0 bg-card lg:w-[400px] lg:shrink-0 lg:sticky lg:top-[76px] lg:max-h-[calc(100vh-92px)] lg:overflow-y-auto scrollbar-thin lg:rounded-2xl lg:ring-1 lg:ring-foreground/10 lg:shadow-sm">
+          <div className="px-4 sm:px-6 py-5 sm:py-6">
             {/* Header row */}
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-3">
-                <div className="w-8 h-8 rounded-xl bg-[#1a1a18] dark:bg-white flex items-center justify-center">
-                  <Palette className="w-4 h-4 text-white dark:text-[#1a1a18]" />
+                <div className="w-9 h-9 rounded-2xl flex items-center justify-center shadow-sm" style={{ background: "linear-gradient(135deg,#22d3ee,#6366f1 55%,#e879f9)" }}>
+                  <Palette className="w-4 h-4 text-white" />
                 </div>
                 <div>
-                  <h1 className="text-sm font-semibold tracking-tight text-[#1a1a18] dark:text-white">创作</h1>
-                  <p className="text-[11px] text-[#a09f9a] dark:text-[#6b6a66] tracking-wide">
+                  <h1 className={`${heading.className} text-sm font-semibold tracking-tight text-foreground`}>创作</h1>
+                  <p className="text-[11px] text-muted-foreground tracking-wide">
                     {totalImages > 1 ? `${lineCount} 个提示词 · 共 ${totalImages} 张` : "AI 图片生成"}
                   </p>
                 </div>
               </div>
 
               {/* Token + Plan pill */}
-              <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-full bg-[#f0efe8] dark:bg-[#252521] text-[10px]">
-                <span className="px-1.5 py-px rounded-full bg-white/60 dark:bg-[#353530] text-[#6b6a66] dark:text-[#9e9d98] font-medium">
+              <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-full bg-muted text-[10px]">
+                <span className="px-1.5 py-px rounded-full bg-background/60 text-muted-foreground font-medium">
                   {(user as any)?.plan_name || "免费版"}
                 </span>
-                <span className="text-[#6b6a66] dark:text-[#9e9d98] font-mono tabular-nums">
+                <span className={`${monoFont.className} text-muted-foreground tabular-nums`}>
                   <Zap className="w-2.5 h-2.5 inline -mt-px mr-0.5" />
                   {bucketTokens !== null ? `${Math.round(bucketTokens)}` : "—"}
                 </span>
@@ -624,280 +617,244 @@ export default function CreatePage() {
             {/* Prompt textarea — hero element */}
             <div className="relative">
               <div
-                className={`absolute -inset-1 rounded-2xl blur-xl transition-all duration-500 ${loading ? "opacity-60" : "opacity-20"}`}
+                className={`absolute -inset-1 rounded-2xl blur-xl transition-all duration-500 ${loading ? "opacity-70" : "opacity-0 group-focus-within:opacity-40"}`}
                 style={{
-                  background: "linear-gradient(135deg, #1a1a18, #9e9d98, #c0bfb8, #1a1a18) 0% 50% / 200% 100%",
+                  background: "linear-gradient(135deg, #22d3ee, #6366f1 55%, #e879f9) 0% 50% / 200% 100%",
                   animation: loading ? "gradientFlow 3s ease-in-out infinite" : "none",
                   willChange: "transform",
                   transform: "translateZ(0)",
                 }} />
-              <div className="relative rounded-xl border border-[#e0dfd8] dark:border-[#2a2a25] bg-white dark:bg-[#1a1a18]
-                transition-all duration-300 focus-within:border-[#c0bfb8] dark:focus-within:border-[#40403a] focus-within:shadow-lg">
-                <div className="px-3 py-3 space-y-2 min-h-[72px] sm:min-h-0 max-h-40 overflow-y-auto scrollbar-thin">
-                  {tags.filter(Boolean).length === 0 && !currentInput && (
-                    <div className="flex items-center gap-2 px-2 py-1.5 text-base sm:text-sm text-[#c0bfb8] dark:text-[#4a4a45]">
-                      <span>描述你想要的画面，例如「夕阳下的海边小屋，水彩风格」</span>
-                    </div>
-                  )}
+              <div className="group relative rounded-2xl border border-border bg-card
+                transition-all duration-300 focus-within:border-transparent focus-within:shadow-lg focus-within:ring-2 focus-within:ring-primary/30">
+                <div className="px-3.5 py-3.5 space-y-2">
                   <div className="flex flex-wrap gap-2">
                     {tags.filter(Boolean).map((tag, i) => (
                       <span key={i}
-                        className="group inline-flex items-center gap-1 pl-3 pr-1 py-1.5 rounded-lg bg-[#f0efe8] dark:bg-[#252521]
-                          text-xs sm:text-[11px] text-[#1a1a18] dark:text-white max-w-full">
+                        className="group inline-flex items-center gap-1 pl-3 pr-1 py-1.5 rounded-lg bg-muted
+                          text-xs sm:text-[11px] text-foreground max-w-full">
                         <span onClick={() => editTag(i)} className="truncate max-w-[200px] sm:max-w-xs cursor-pointer" title="点击修改">{tag}</span>
                         {/* 份数控制：×N，可增减（1–10） */}
-                        <span className="inline-flex items-center gap-0.5 ml-0.5 px-1 rounded-md bg-white/60 dark:bg-[#1a1a18]/50 shrink-0">
+                        <span className="inline-flex items-center gap-0.5 ml-0.5 px-1 rounded-md bg-background/60 shrink-0">
                           <button onClick={e => { e.stopPropagation(); setTagCount(tag, getTagCount(tag) - 1); }}
-                            className="size-3.5 flex items-center justify-center text-[#9e9d98] hover:text-[#1a1a18] dark:hover:text-white disabled:opacity-30"
+                            className="size-3.5 flex items-center justify-center text-muted-foreground hover:text-foreground disabled:opacity-30"
                             disabled={getTagCount(tag) <= 1}>
                             <svg className="size-2" viewBox="0 0 10 2" fill="none"><path d="M1 1h8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg>
                           </button>
-                          <span className="text-[10px] font-mono tabular-nums w-3 text-center text-[#6b6a66] dark:text-[#9e9d98]">{getTagCount(tag)}</span>
+                          <span className={`${monoFont.className} text-[10px] tabular-nums w-3 text-center text-muted-foreground`}>{getTagCount(tag)}</span>
                           <button onClick={e => { e.stopPropagation(); setTagCount(tag, getTagCount(tag) + 1); }}
-                            className="size-3.5 flex items-center justify-center text-[#9e9d98] hover:text-[#1a1a18] dark:hover:text-white disabled:opacity-30"
+                            className="size-3.5 flex items-center justify-center text-muted-foreground hover:text-foreground disabled:opacity-30"
                             disabled={getTagCount(tag) >= 10}>
                             <svg className="size-2" viewBox="0 0 10 10" fill="none"><path d="M5 1v8M1 5h8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg>
                           </button>
                         </span>
                         <button onClick={e => { e.stopPropagation(); removeTag(i); }}
-                          className="size-3.5 rounded-full flex items-center justify-center text-[#9e9d98] hover:text-[#1a1a18] dark:hover:text-white hover:bg-[#d0cfc8] dark:hover:bg-[#3a3a35] shrink-0 transition-colors">
+                          className="size-3.5 rounded-full flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted shrink-0 transition-colors">
                           <svg className="size-2.5" viewBox="0 0 10 10" fill="none"><path d="M2 2l6 6M8 2l-6 6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg>
                         </button>
                       </span>
                     ))}
                   </div>
-                  <div className="flex items-center gap-2">
-                    <input ref={inputRef2}
-                      value={currentInput}
-                      onChange={e => setCurrentInput(e.target.value)}
-                      onKeyDown={e => {
-                        if (e.key === "Enter") { e.preventDefault(); addTag(); }
-                        if (e.key === "Backspace" && !currentInput && tags.filter(Boolean).length > 0) {
-                          removeTag(tags.filter(Boolean).length - 1);
-                        }
-                        if ((e.ctrlKey || e.metaKey) && e.key === "Enter") { e.preventDefault(); generate(); }
-                      }}
-                      placeholder="输入提示词，Enter 添加..."
-                      className="flex-1 bg-transparent text-base sm:text-sm text-[#1a1a18] dark:text-white placeholder:text-[#c0bfb8] dark:placeholder:text-[#4a4a45] outline-none"
-                    />
-                  </div>
-                </div>
-                {/* 风格模板：始终展示列表，高亮选中项，再点取消；hint 在生成时统一拼接，不污染输入框 */}
-                {styles.length > 0 && (
-                  <div className="px-3 sm:px-4 pb-2">
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-[10px] text-[#c0bfb8] dark:text-[#4a4a45] font-medium shrink-0">风格</span>
-                      <div className="relative min-w-0 flex-1">
-                        {/* 右侧渐变遮罩提示可横向滚动 */}
-                        <div className="pointer-events-none absolute right-0 top-0 bottom-0 w-8 bg-gradient-to-l from-white dark:from-[#1a1a18] to-transparent z-10" />
-                        <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-hide overscroll-x-contain pr-6 py-0.5">
-                          {styles.map(s => {
-                            const Icon = typeof s.icon === "string" ? resolveIcon(s.icon) : s.icon;
-                            const active = activeStyle === s.id;
-                            return (
-                              <button key={s.id} onClick={() => {
-                                setActiveStyle(active ? null : s.id);
-                                inputRef2.current?.focus();
-                              }}
-                                aria-pressed={active}
-                                className={`flex items-center gap-1 px-2.5 py-1.5 sm:py-1 rounded-lg text-[11px] sm:text-[10px] font-medium transition-colors shrink-0 border touch-manipulation ${
-                                  active
-                                    ? "bg-[#1a1a18] dark:bg-white text-white dark:text-[#1a1a18] border-transparent"
-                                    : "text-[#9e9d98] dark:text-[#6b6a66] border-transparent hover:text-[#1a1a18] dark:hover:text-white hover:bg-[#f0efe8] dark:hover:bg-[#252521] hover:border-[#e0dfd8] dark:hover:border-[#2a2a25]"
-                                }`}>
-                                <Icon className="w-3.5 h-3.5 sm:w-3 sm:h-3 shrink-0" />
-                                <span className="whitespace-nowrap">{s.label}</span>
-                              </button>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    </div>
-                    {activeStyle && (
-                      <p className="text-[10px] text-[#c0bfb8] dark:text-[#4a4a45] mt-1 truncate">
-                        已选「{styles.find(s => s.id === activeStyle)?.label}」· {styles.find(s => s.id === activeStyle)?.desc} · 生成时自动追加风格提示词
-                      </p>
-                    )}
-                  </div>
-                )}
-                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 px-3 sm:px-4 pb-3 pt-1">
-                  <div className="flex items-center gap-1 sm:gap-2 sm:flex-wrap overflow-x-auto scrollbar-hide overscroll-x-contain -mx-1 px-1 py-0.5">
-                    {/* Size pills — common + more dropdown */}
-                    <div className="flex items-center gap-1 shrink-0">
-                      {/* Auto：跟随参考图比例，仅图生图/有参考图时可选 */}
-                      {refImages.length > 0 && (
-                        <button onClick={() => setSize("auto")} title={refDim ? `跟随参考图 ${refDim.w}×${refDim.h}` : "跟随参考图比例"}
-                          className={`flex items-center gap-1 px-2.5 py-1.5 sm:px-2 sm:py-1 rounded-md text-[11px] sm:text-[10px] font-medium transition-colors shrink-0 touch-manipulation ${
-                            size === "auto"
-                              ? "bg-[#1a1a18] dark:bg-white text-white dark:text-[#1a1a18] shadow-sm"
-                              : "text-[#9e9d98] dark:text-[#6b6a66] hover:text-[#1a1a18] dark:hover:text-white hover:bg-[#f0efe8] dark:hover:bg-[#252521]"
-                          }`}>
-                          <Maximize2 className="w-3 h-3 sm:w-2.5 sm:h-2.5" />
-                          <span>Auto</span>
-                        </button>
-                      )}
-                      {SIZES.slice(0, 5).map(s => {
-                        const Icon = s.icon;
-                        return (
-                        <button key={s.id} onClick={() => setSize(s.id)}
-                          className={`flex items-center gap-1 px-2.5 py-1.5 sm:px-2 sm:py-1 rounded-md text-[11px] sm:text-[10px] font-medium transition-colors shrink-0 touch-manipulation ${
-                            size === s.id
-                              ? "bg-[#1a1a18] dark:bg-white text-white dark:text-[#1a1a18] shadow-sm"
-                              : "text-[#9e9d98] dark:text-[#6b6a66] hover:text-[#1a1a18] dark:hover:text-white hover:bg-[#f0efe8] dark:hover:bg-[#252521]"
-                          }`}>
-                          <Icon className="w-3 h-3 sm:w-2.5 sm:h-2.5" />
-                          <span className="hidden sm:inline">{s.desc}</span>
-                        </button>
-                      );})}
-                      <div className="relative shrink-0">
-                        <button ref={sizeBtnRef} onClick={toggleSizeMenu}
-                          className={`flex items-center gap-1 px-2.5 py-1.5 sm:px-2 sm:py-1 rounded-md text-[11px] sm:text-[10px] font-medium transition-colors touch-manipulation ${
-                            size !== "auto" && !SIZES.slice(0, 5).find(s => s.id === size)
-                              ? "bg-[#1a1a18] dark:bg-white text-white dark:text-[#1a1a18] shadow-sm"
-                              : "text-[#9e9d98] dark:text-[#6b6a66] hover:text-[#1a1a18] dark:hover:text-white hover:bg-[#f0efe8] dark:hover:bg-[#252521]"
-                          }`}>
-                          {(() => {
-                            const cur = SIZES.find(s => s.id === size);
-                            if (cur && !SIZES.slice(0, 5).includes(cur)) {
-                              const Icon = cur.icon;
-                              return <><Icon className="w-3 h-3 sm:w-2.5 sm:h-2.5" />{cur.desc}</>;
-                            }
-                            return "更多";
-                          })()}
-                        </button>
-                        {sizeOpen && sizeMenuPos && (
-                          <>
-                            <div className="fixed inset-0 z-40" onClick={() => setSizeOpen(false)} />
-                            <div style={{ left: sizeMenuPos.left, top: sizeMenuPos.top }}
-                              className="fixed z-50 w-[220px] p-2 rounded-xl bg-white dark:bg-[#1a1a18] border border-[#e0dfd8] dark:border-[#2a2a25] shadow-xl grid grid-cols-2 gap-1">
-                              {SIZES.slice(5).map(s => {
-                                const Icon = s.icon;
-                                const cur = size === s.id;
-                                return (
-                                <button key={s.id} onClick={() => { setSize(s.id); setSizeOpen(false); }}
-                                  className={`flex items-center gap-2 px-2 py-2 rounded-lg text-[10px] font-medium transition-all text-left ${
-                                    cur ? "bg-[#1a1a18] dark:bg-white text-white dark:text-[#1a1a18]" : "text-[#6b6a66] dark:text-[#9e9d98] hover:text-[#1a1a18] dark:hover:text-white hover:bg-[#f0efe8] dark:hover:bg-[#252521]"
-                                  }`}>
-                                  <Icon className={`w-3.5 h-3.5 shrink-0 ${cur ? "text-white dark:text-[#1a1a18]" : ""}`} />
-                                  <div className="min-w-0">
-                                    <div className="font-medium">{s.desc}</div>
-                                    <div className={`text-[10px] opacity-60 ${cur ? "text-white/70 dark:text-[#1a1a18]/70" : ""}`}>{s.label}</div>
-                                  </div>
-                                </button>
-                              );})}
-                            </div>
-                          </>
-                        )}
-                      </div>
-                    </div>
-                    <span className="w-px h-4 bg-[#e0dfd8] dark:bg-[#2a2a25] shrink-0" />
-                    {/* Ref image */}
-                    <button onClick={() => fileRef.current?.click()}
-                      className={`flex items-center gap-1 px-2.5 py-1.5 sm:px-2 sm:py-1 rounded-md text-[11px] sm:text-[10px] font-medium transition-colors shrink-0 touch-manipulation ${
-                        refImages.length > 0 ? "bg-[#1a1a18] dark:bg-white text-white dark:text-[#1a1a18]" : "text-[#9e9d98] dark:text-[#6b6a66] hover:text-[#1a1a18] dark:hover:text-white hover:bg-[#f0efe8] dark:hover:bg-[#252521]"
-                      }`}>
-                      <ImageIcon className="w-3 h-3 sm:w-2.5 sm:h-2.5" />
-                      {refImages.length > 0 ? `参考图(${refImages.length})` : (fusionMode ? "添加图片" : "参考图")}
-                    </button>
-                    {refImages.length > 0 && (
-                      <div className="flex items-center gap-1 shrink-0">
-                        {refImages.map((img, idx) => (
-                          <div key={idx} className="relative">
-                            <img src={refImageSrc(img)} className="w-6 h-6 rounded object-cover ring-1 ring-[#e0dfd8] dark:ring-[#2a2a25]"
-                              onLoad={idx === 0 ? (e) => { const im = e.currentTarget; if (im.naturalWidth && im.naturalHeight) setRefDim({ w: im.naturalWidth, h: im.naturalHeight }); } : undefined} />
-                            <button onClick={() => setRefImages(refImages.filter((_, i) => i !== idx))} className="absolute -top-1 -right-1 w-3 h-3 rounded-full bg-[#1a1a18] dark:bg-white text-white dark:text-[#1a1a18] flex items-center justify-center text-[6px]">×</button>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                    {refImages.length > 0 && fusionMode && (
-                      <span className="text-[10px] text-[#6b6a66] dark:text-[#9e9d98] font-medium px-1.5 py-0.5 rounded-md bg-[#f0efe8] dark:bg-[#252521] shrink-0">融合</span>
-                    )}
-                    <button onClick={() => { const next = !fusionMode; setFusionMode(next); setRefImages([]); if (next) fileRef.current?.click(); }}
-                      className={`flex items-center gap-1 px-2.5 py-1.5 sm:px-2 sm:py-1 rounded-md text-[11px] sm:text-[10px] font-medium transition-colors shrink-0 touch-manipulation ${
-                        fusionMode ? "bg-[#1a1a18] dark:bg-white text-white dark:text-[#1a1a18]" : "text-[#9e9d98] dark:text-[#6b6a66] hover:text-[#1a1a18] dark:hover:text-white hover:bg-[#f0efe8] dark:hover:bg-[#252521]"
-                      }`}>
-                      <ImageIcon className="w-3 h-3 sm:w-2.5 sm:h-2.5" />
-                      {fusionMode ? "融合" : "图生图"}
-                    </button>
-                    <input ref={fileRef} type="file" accept="image/*,image/heic,image/heif" multiple className="hidden"
-                      onChange={async e => {
-                        const files = e.target?.files;
-                        if (!files || files.length === 0) return;
-                        const results: string[] = [];
-                        for (const file of Array.from(files)) {
-                          let imgFile = file;
-                          if (/\.heic$/i.test(file.name) || file.type === "image/heic" || file.type === "image/heif") {
-                            try {
-                              const { default: heic2any } = await import("heic2any");
-                              const blob = await heic2any({ blob: file, toType: "image/jpeg" });
-                              imgFile = new File([blob as Blob], file.name.replace(/\.heic$/i, ".jpg"), { type: "image/jpeg" });
-                            } catch { toast.error("HEIC 转换失败"); continue; }
-                          }
-                          const raw = await new Promise<string>((resolve, reject) => {
-                            const reader = new FileReader();
-                            reader.onload = () => resolve((reader.result as string).split(",")[1] || (reader.result as string));
-                            reader.onerror = reject;
-                            reader.readAsDataURL(imgFile);
-                          });
-                          results.push(raw);
-                        }
-                        setRefImages(prev => [...prev, ...results]);
-                        e.target.value = "";
-                      }} />
-                  </div>
-
-                  <div className="flex items-center justify-end gap-2 shrink-0">
-                    {/* 总张数指示 */}
-                    {totalImages > 1 && (
-                      <span className="text-[10px] text-[#9e9d98] dark:text-[#6b6a66] font-mono tabular-nums bg-[#f0efe8] dark:bg-[#252521] px-1.5 py-0.5 rounded-md">
-                        {totalImages} 张
-                      </span>
-                    )}
-                    <span className="text-[10px] text-[#c0bfb8] dark:text-[#4a4a45] font-mono tabular-nums">{currentInput.length || tags.filter(Boolean).length}</span>
-                    <Button onClick={generate} disabled={loading || !currentInput.trim() && tags.filter(Boolean).length === 0} size="sm"
-                      className="flex-1 sm:flex-none h-10 sm:h-7 px-3 rounded-lg text-sm sm:text-[10px] font-semibold bg-[#1a1a18] dark:bg-white text-white dark:text-[#1a1a18] hover:bg-[#333] dark:hover:bg-[#e0dfd8] disabled:opacity-40 shadow-sm transition-all gap-1.5">
-                      {loading ? <Loader2 className="w-4 h-4 sm:w-3 sm:h-3 animate-spin" /> : <Wand2 className="w-4 h-4 sm:w-3 sm:h-3" />}
-                      {loading
-                        ? (batchProgress ? `提交中 ${batchProgress.done}/${batchProgress.total}` : "生成中...")
-                        : (totalImages > 1 ? `生成 ${totalImages} 张` : "生成")}
-                    </Button>
-                  </div>
+                  <input ref={inputRef2}
+                    value={currentInput}
+                    onChange={e => setCurrentInput(e.target.value)}
+                    onKeyDown={e => {
+                      if (e.key === "Enter") { e.preventDefault(); addTag(); }
+                      if (e.key === "Backspace" && !currentInput && tags.filter(Boolean).length > 0) {
+                        removeTag(tags.filter(Boolean).length - 1);
+                      }
+                      if ((e.ctrlKey || e.metaKey) && e.key === "Enter") { e.preventDefault(); generate(); }
+                    }}
+                    placeholder={tags.filter(Boolean).length > 0 ? "继续添加提示词…" : "描述你想要的画面，Enter 添加…"}
+                    className="w-full bg-transparent text-base sm:text-sm text-foreground placeholder:text-muted-foreground/50 outline-none"
+                  />
                 </div>
               </div>
             </div>
 
+            {/* 示例提示：放在卡片外，避免点击误触输入框 */}
+            {tags.filter(Boolean).length === 0 && !currentInput && (
+              <p className="mt-2 px-1 text-[11px] text-muted-foreground/60 leading-relaxed">
+                试试：<span className="text-cyan-600/70 dark:text-cyan-400/70">夕阳下的海边小屋，水彩风格</span>
+              </p>
+            )}
+
+            {/* ── 风格预设：全部平铺，纵向不藏 ── */}
+            {styles.length > 0 && (
+              <div className="mt-4">
+                <div className="flex items-center justify-between mb-2">
+                  <span className={`${heading.className} text-[11px] font-semibold text-foreground tracking-wide`}>风格</span>
+                  {activeStyle && (
+                    <button onClick={() => setActiveStyle(null)} className="text-[10px] text-muted-foreground hover:text-foreground transition-colors">清除</button>
+                  )}
+                </div>
+                <div className="flex flex-nowrap overflow-x-auto scrollbar-hide overscroll-x-contain -mx-1 px-1 lg:mx-0 lg:px-0 lg:flex-wrap gap-1.5">
+                  {styles.map(s => {
+                    const Icon = typeof s.icon === "string" ? resolveIcon(s.icon) : s.icon;
+                    const active = activeStyle === s.id;
+                    return (
+                      <button key={s.id} onClick={() => { setActiveStyle(active ? null : s.id); inputRef2.current?.focus(); }}
+                        aria-pressed={active}
+                        className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-medium transition-all shrink-0 touch-manipulation ${
+                          active
+                            ? "bg-foreground text-primary-foreground shadow-sm"
+                            : "text-muted-foreground bg-muted/60 hover:text-foreground hover:bg-muted"
+                        }`}>
+                        <Icon className="w-3 h-3 shrink-0" />
+                        <span className="whitespace-nowrap">{s.label}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+                {activeStyle && (
+                  <p className="text-[10px] text-muted-foreground/70 mt-1.5 leading-relaxed">
+                    {styles.find(s => s.id === activeStyle)?.desc} · 生成时自动追加风格提示词
+                  </p>
+                )}
+              </div>
+            )}
+
+            {/* ── 比例尺寸：移动端横滚单行，桌面侧栏平铺换行 ── */}
+            <div className="mt-4">
+              <span className={`${heading.className} text-[11px] font-semibold text-foreground tracking-wide block mb-2`}>比例 / 尺寸</span>
+              <div className="flex flex-nowrap overflow-x-auto scrollbar-hide overscroll-x-contain -mx-1 px-1 lg:mx-0 lg:px-0 lg:flex-wrap gap-1.5">
+                {/* Auto：仅有参考图时 */}
+                {refImages.length > 0 && (
+                  <button onClick={() => setSize("auto")} title={refDim ? `跟随参考图 ${refDim.w}×${refDim.h}` : "跟随参考图比例"}
+                    className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-medium transition-all shrink-0 touch-manipulation ${
+                      size === "auto" ? "bg-foreground text-primary-foreground shadow-sm" : "text-muted-foreground bg-muted/60 hover:text-foreground hover:bg-muted"
+                    }`}>
+                    <Maximize2 className="w-3 h-3" /><span>Auto</span>
+                  </button>
+                )}
+                {SIZES.map(s => {
+                  const Icon = s.icon;
+                  const active = size === s.id;
+                  return (
+                    <button key={s.id} onClick={() => setSize(s.id)} title={s.desc}
+                      className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-medium transition-all shrink-0 touch-manipulation ${
+                        active ? "bg-foreground text-primary-foreground shadow-sm" : "text-muted-foreground bg-muted/60 hover:text-foreground hover:bg-muted"
+                      }`}>
+                      <Icon className="w-3 h-3 shrink-0" />
+                      <span className="whitespace-nowrap">{s.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* ── 参考图 / 图生图 ── */}
+            <div className="mt-4">
+              <span className={`${heading.className} text-[11px] font-semibold text-foreground tracking-wide block mb-2`}>参考图</span>
+              <div className="flex flex-wrap items-center gap-1.5">
+                <button onClick={() => fileRef.current?.click()}
+                  className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-medium transition-all touch-manipulation ${
+                    refImages.length > 0 ? "bg-foreground text-primary-foreground" : "text-muted-foreground bg-muted/60 hover:text-foreground hover:bg-muted"
+                  }`}>
+                  <ImageIcon className="w-3 h-3" />
+                  {refImages.length > 0 ? `已选 ${refImages.length} 张` : (fusionMode ? "添加图片" : "上传")}
+                </button>
+                <button onClick={() => { const next = !fusionMode; setFusionMode(next); setRefImages([]); if (next) fileRef.current?.click(); }}
+                  className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-medium transition-all touch-manipulation ${
+                    fusionMode ? "bg-foreground text-primary-foreground" : "text-muted-foreground bg-muted/60 hover:text-foreground hover:bg-muted"
+                  }`}>
+                  <ImageIcon className="w-3 h-3" />
+                  {fusionMode ? "融合模式" : "图生图"}
+                </button>
+                {refImages.length > 0 && fusionMode && (
+                  <span className="text-[10px] text-muted-foreground font-medium px-1.5 py-0.5 rounded-md bg-muted">融合</span>
+                )}
+              </div>
+              {refImages.length > 0 && (
+                <div className="flex flex-wrap items-center gap-2 mt-2">
+                  {refImages.map((img, idx) => (
+                    <div key={idx} className="relative">
+                      <img src={refImageSrc(img)} className="w-12 h-12 rounded-lg object-cover ring-1 ring-border"
+                        onLoad={idx === 0 ? (e) => { const im = e.currentTarget; if (im.naturalWidth && im.naturalHeight) setRefDim({ w: im.naturalWidth, h: im.naturalHeight }); } : undefined} />
+                      <button onClick={() => setRefImages(refImages.filter((_, i) => i !== idx))} className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-foreground text-primary-foreground flex items-center justify-center text-[8px] shadow-sm">×</button>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <input ref={fileRef} type="file" accept="image/*,image/heic,image/heif" multiple className="hidden"
+                onChange={async e => {
+                  const files = e.target?.files;
+                  if (!files || files.length === 0) return;
+                  const results: string[] = [];
+                  for (const file of Array.from(files)) {
+                    let imgFile = file;
+                    if (/\.heic$/i.test(file.name) || file.type === "image/heic" || file.type === "image/heif") {
+                      try {
+                        const { default: heic2any } = await import("heic2any");
+                        const blob = await heic2any({ blob: file, toType: "image/jpeg" });
+                        imgFile = new File([blob as Blob], file.name.replace(/\.heic$/i, ".jpg"), { type: "image/jpeg" });
+                      } catch { toast.error("HEIC 转换失败"); continue; }
+                    }
+                    const raw = await new Promise<string>((resolve, reject) => {
+                      const reader = new FileReader();
+                      reader.onload = () => resolve((reader.result as string).split(",")[1] || (reader.result as string));
+                      reader.onerror = reject;
+                      reader.readAsDataURL(imgFile);
+                    });
+                    results.push(raw);
+                  }
+                  setRefImages(prev => [...prev, ...results]);
+                  e.target.value = "";
+                }} />
+            </div>
+
+            {/* ── 生成按钮：整行大 CTA（生成中渐变流动） ── */}
+            <button onClick={generate} disabled={loading || !currentInput.trim() && tags.filter(Boolean).length === 0}
+              className="group/btn relative w-full mt-5 inline-flex items-center justify-center h-11 rounded-xl text-sm font-semibold text-white overflow-hidden disabled:opacity-40 disabled:cursor-not-allowed shadow-sm hover:shadow-md transition-all gap-2"
+              style={{
+                background: "linear-gradient(135deg,#22d3ee,#6366f1 40%,#e879f9 70%,#22d3ee) 0% 50% / 250% 100%",
+                animation: loading ? "gradientFlow 2.5s ease-in-out infinite" : "none",
+              }}>
+              <span className="absolute inset-0 bg-white/0 group-hover/btn:bg-white/10 transition-colors" />
+              {/* 生成中：底部流动进度光条 */}
+              {loading && (
+                <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-white/40 overflow-hidden">
+                  <span className="block h-full w-1/3 bg-white/90 animate-[shimmer_1.6s_ease-in-out_infinite]" style={{ backgroundSize: "200% 100%" }} />
+                </span>
+              )}
+              {loading ? <Loader2 className="relative w-4 h-4 animate-spin" /> : <Sparkles className="relative w-4 h-4" />}
+              <span className="relative">
+                {loading
+                  ? (batchProgress ? `提交中 ${batchProgress.done}/${batchProgress.total}` : "生成中…")
+                  : (totalImages > 1 ? `生成 ${totalImages} 张` : "生成")}
+              </span>
+            </button>
+
             {/* Hint */}
-            <p className="mt-2 text-[11px] text-[#c0bfb8] dark:text-[#4a4a45] tracking-wide">
-              Ctrl+⏎ 发送 · Enter 添加提示词 · 点击标签可修改 · ±调整份数 · 多张自动按套餐并发排队
+            <p className="mt-2.5 text-[11px] text-muted-foreground/70 tracking-wide leading-relaxed">
+              Ctrl+⏎ 发送 · Enter 添加提示词 · 点击标签可修改 · ± 调整份数
             </p>
           </div>
         </div>
 
-        {/* ═══════════════ GALLERY ═══════════════ */}
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 py-6">
+        {/* ═══════════════ RIGHT — GALLERY ═══════════════ */}
+        <div className="flex-1 min-w-0 px-4 sm:px-6 py-6 lg:px-0 lg:py-0 lg:pb-6">
 
           {/* Gallery header */}
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2">
-              <h2 className="text-sm font-semibold text-[#1a1a18] dark:text-white tracking-tight">
+              <h2 className={`${heading.className} text-base font-semibold text-foreground tracking-tight`}>
                 作品
               </h2>
-              <span className="text-[10px] text-[#9e9d98] dark:text-[#6b6a66] font-mono">{total || generations.length}</span>
+              <span className={`${monoFont.className} text-[10px] text-muted-foreground tabular-nums`}>{total || generations.length}</span>
             </div>
             {generations.length > 0 && (
               <div className="flex items-center gap-1 overflow-x-auto scrollbar-hide flex-nowrap max-w-full -mx-2 sm:mx-0 px-2 sm:px-0">
-                <div className="flex items-center gap-1 p-0.5 rounded-lg bg-[#f0efe8] dark:bg-[#1f1f1b] shrink-0">
+                <div className="flex items-center gap-1 p-0.5 rounded-xl bg-muted shrink-0">
                   {FILTER_TABS.map(tab => (
                     <button key={tab.key} onClick={() => setHsFilter(tab.key)}
-                      className={`flex items-center gap-1 px-2.5 py-1.5 rounded-md text-[10px] font-medium transition-all ${
+                      className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[10px] font-medium transition-all ${
                         hsFilter === tab.key
-                          ? "bg-white dark:bg-[#2a2a25] text-[#1a1a18] dark:text-white shadow-sm"
-                          : "text-[#9e9d98] hover:text-[#1a1a18] dark:hover:text-white"
+                          ? "bg-card text-foreground shadow-sm ring-1 ring-foreground/5"
+                          : "text-muted-foreground hover:text-foreground"
                       }`}>
                       <tab.icon className="w-3 h-3" />
                       {tab.label}
-                      <span className="text-[10px] font-mono opacity-60">{counts[tab.key]}</span>
+                      <span className={`${monoFont.className} text-[10px] tabular-nums opacity-60`}>{counts[tab.key]}</span>
                     </button>
                   ))}
                 </div>
@@ -913,20 +870,21 @@ export default function CreatePage() {
 
           {/* Empty state */}
           {filtered.length === 0 ? (
-            <div className="flex flex-col items-center py-24 text-[#9e9d98]">
-              <div className="w-16 h-16 rounded-2xl bg-[#f0efe8] dark:bg-[#1f1f1b] flex items-center justify-center mb-4">
-                <Palette className="w-7 h-7 text-[#c0bfb8] dark:text-[#4a4a45]" />
+            <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }}
+              className="flex flex-col items-center py-24 text-muted-foreground">
+              <div className="w-16 h-16 rounded-3xl bg-muted flex items-center justify-center mb-4 ring-1 ring-foreground/5">
+                <Palette className="w-7 h-7 text-muted-foreground/60" />
               </div>
-              <p className="text-sm font-medium text-[#6b6a66] dark:text-[#9e9d98]">
+              <p className="text-sm font-medium text-muted-foreground">
                 {hsFilter !== "all" ? "无匹配记录" : "开始创作"}
               </p>
-              <p className="text-[11px] text-[#c0bfb8] dark:text-[#4a4a45] mt-1">
+              <p className="text-[11px] text-muted-foreground/70 mt-1">
                 {hsFilter !== "all" ? "切换筛选标签查看其他记录" : "输入提示词，Enter 添加多个"}
               </p>
-            </div>
+            </motion.div>
           ) : (
             /* Masonry — JS 横向轮转分列：外层 flex，每列 flex-col，视觉顺序左→右 */
-            <div className="flex gap-2 sm:gap-3 items-start">
+            <div ref={galleryRef} className="flex gap-2 sm:gap-3 items-start">
               {buckets.map((col, ci) => (
                 <div key={ci} className="flex-1 min-w-0 flex flex-col gap-2 sm:gap-3">
                   <AnimatePresence>
@@ -941,31 +899,30 @@ export default function CreatePage() {
                         exit={{ opacity: 0, scale: 0.85, transition: { duration: 0.25 } }}
                         transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
                         style={{ willChange: "transform" }}
-                        className="group relative rounded-xl overflow-hidden bg-white dark:bg-[#181814] border border-[#e8e7e2] dark:border-[#1f1f1b] cursor-pointer"
+                        className="group relative rounded-2xl overflow-hidden bg-card ring-1 ring-foreground/10 cursor-pointer transition-all duration-300 hover:ring-foreground/20 hover:shadow-lg hover:-translate-y-0.5"
                         onClick={() => { if (imageProxyUrl(g)) setPreviewGen(g); }}
                       >
                     {(g.image_url || (g.image_b64 && g.image_b64.length > 100)) ? (
                       <>
-                        <div className="h-[2px] bg-[#e0dfd8] dark:bg-[#2a2a25]" />
                         {mounted ? (
                           <img src={imageProxyUrl(g)} alt={g.prompt} className="w-full h-auto"
                             onLoad={() => setRevealedIds(prev => { if (prev.has(String(g.id))) return prev; return new Set(prev).add(String(g.id)); })} />
                         ) : (
-                          <div className="w-full aspect-square bg-[#f0efe8] dark:bg-[#181814]" />
+                          <div className="w-full aspect-square bg-muted" />
                         )}
                         {/* Loading shimmer — 显影效果 */}
                         {!isRev && (
                           <div className="absolute inset-0 overflow-hidden">
-                            <div className="absolute inset-0 bg-[#f0efe8] dark:bg-[#181814]" />
-                            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-[#ddd] dark:via-[#333] to-transparent animate-[shimmer_2.5s_ease-in-out_infinite]"
+                            <div className="absolute inset-0 bg-muted dark:bg-card" />
+                            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-foreground/10 to-transparent animate-[shimmer_2.5s_ease-in-out_infinite]"
                               style={{ backgroundSize: "200% 100%" }} />
-                            <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#e0dfd8] dark:bg-[#2a2a25] overflow-hidden">
-                              <div className="h-full bg-[#1a1a18] dark:bg-white rounded-full animate-[developProgress_3s_ease-out_forwards]" />
+                            <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-border overflow-hidden">
+                              <div className="h-full bg-foreground rounded-full animate-[developProgress_3s_ease-out_forwards]" />
                             </div>
                           </div>
                         )}
                         {/* 扫光渐出遮罩 — 与图片淡入重叠，防止生硬切换 */}
-                        <div className={`absolute inset-0 bg-[#f0efe8] dark:bg-[#181814] transition-opacity duration-700 pointer-events-none ${isRev ? "opacity-0" : "opacity-100"}`} />
+                        <div className={`absolute inset-0 bg-muted dark:bg-card transition-opacity duration-700 pointer-events-none ${isRev ? "opacity-0" : "opacity-100"}`} />
                         {/* 分享状态角标 — 仅移动端常驻：审核中(琥珀) / 已展示(翠绿) */}
                         {isRev && shareState(g).active && (
                           <span className={`sm:hidden absolute top-1.5 right-1.5 flex items-center justify-center w-5 h-5 rounded-full shadow-sm pointer-events-none ${shareState(g).key === "pending" ? "bg-amber-500/90" : "bg-emerald-500/90"}`}>
@@ -1030,7 +987,7 @@ export default function CreatePage() {
                         </div>
                       </>
                     ) : g.status === "pending" ? (
-                      <div className="ai-creating-border relative flex flex-col items-center justify-center gap-4 py-12 sm:py-16 bg-[#faf9f6] dark:bg-[#181814] overflow-hidden">
+                      <div className="ai-creating-border relative flex flex-col items-center justify-center gap-4 py-12 sm:py-16 bg-muted/50 dark:bg-card overflow-hidden">
                         {/* 光谱柔光呼吸底 */}
                         <div aria-hidden className="absolute left-1/2 top-1/2 w-32 h-32 rounded-full blur-3xl bg-[radial-gradient(circle,rgba(34,211,238,0.35),rgba(99,102,241,0.2)_50%,transparent_70%)]"
                           style={{ animation: "aiGlowBreathe 2.8s ease-in-out infinite" }} />
@@ -1039,7 +996,7 @@ export default function CreatePage() {
                         <div className="relative w-11 h-11">
                           <div aria-hidden className="absolute inset-0 rounded-full blur-[1px]"
                             style={{ background: "conic-gradient(from 0deg,#22d3ee,#6366f1,#e879f9,#fbbf24,#22d3ee)", animation: "aiPrismSpin 2s linear infinite" }} />
-                          <div aria-hidden className="absolute inset-[3px] rounded-full bg-[#faf9f6] dark:bg-[#181814]" />
+                          <div aria-hidden className="absolute inset-[3px] rounded-full bg-muted/50 dark:bg-card" />
                           <div aria-hidden className="absolute inset-1/2 -translate-x-1/2 -translate-y-1/2 w-3 h-3 rounded-full bg-white shadow-[0_0_10px_2px_rgba(34,211,238,0.7)]"
                             style={{ animation: "aiDotPulse 1.6s ease-in-out infinite" }} />
                         </div>
@@ -1047,7 +1004,7 @@ export default function CreatePage() {
                         {/* 文案 + 思考三点 */}
                         <div className="relative flex flex-col items-center gap-2">
                           <div className="flex items-center gap-1.5">
-                            <span className="text-[11px] text-[#6b6a66] dark:text-[#9e9d98] font-medium tracking-wide">AI 创作中</span>
+                            <span className="text-[11px] text-muted-foreground font-medium tracking-wide">AI 创作中</span>
                             <span className="flex items-center gap-0.5">
                               {[0, 1, 2].map(i => (
                                 <span key={i} className="w-1 h-1 rounded-full bg-gradient-to-r from-cyan-400 to-violet-500"
@@ -1055,20 +1012,20 @@ export default function CreatePage() {
                               ))}
                             </span>
                           </div>
-                          <span className="text-[10px] text-[#c0bfb8] dark:text-[#4a4a45]">约 10-30 秒</span>
+                          <span className="text-[10px] text-muted-foreground/70">约 10-30 秒</span>
                         </div>
                       </div>
                     ) : (
-                      <div className="flex flex-col items-center justify-center gap-3 py-10 sm:py-16 bg-[#faf9f6] dark:bg-[#181814]">
+                      <div className="flex flex-col items-center justify-center gap-3 py-10 sm:py-16 bg-muted/50 dark:bg-card">
                         <div className="w-10 h-10 rounded-full bg-red-50 dark:bg-red-500/10 flex items-center justify-center">
                           <AlertCircle className="w-5 h-5 text-red-400" />
                         </div>
                         <div className="text-center">
-                          <span className="text-[10px] text-[#9e9d98] dark:text-[#8a8985] font-medium block">生成失败</span>
-                          <span className="text-[10px] text-[#c0bfb8] dark:text-[#4a4a45] mt-0.5 block">{g.error_msg || g.prompt?.slice(0, 30)}</span>
+                          <span className="text-[10px] text-muted-foreground dark:text-muted-foreground font-medium block">生成失败</span>
+                          <span className="text-[10px] text-muted-foreground/70 mt-0.5 block">{g.error_msg || g.prompt?.slice(0, 30)}</span>
                         </div>
                         <button onClick={e => retryGen(e, g)}
-                          className="px-3 py-1 rounded-lg text-[10px] font-medium bg-[#f0efe8] dark:bg-[#252521] text-[#6b6a66] dark:text-[#9e9d98] hover:text-[#1a1a18] dark:hover:text-white transition-colors">
+                          className="px-3 py-1 rounded-lg text-[10px] font-medium bg-muted text-muted-foreground hover:text-foreground transition-colors">
                           重试
                         </button>
                       </div>
@@ -1086,16 +1043,19 @@ export default function CreatePage() {
           {filtered.length > 0 && (
             <div ref={sentinelRef} className="flex items-center justify-center py-8">
               {loadingMore ? (
-                <div className="flex items-center gap-2 text-[11px] text-[#9e9d98] dark:text-[#6b6a66]">
+                <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
                   <Loader2 className="w-3.5 h-3.5 animate-spin" /> 加载中...
                 </div>
               ) : hasMore ? (
-                <span className="text-[11px] text-[#c0bfb8] dark:text-[#4a4a45]">下滑加载更多</span>
+                <span className="text-[11px] text-muted-foreground/70">下滑加载更多</span>
               ) : (
-                <span className="text-[11px] text-[#c0bfb8] dark:text-[#4a4a45]">没有更多了</span>
+                <span className="text-[11px] text-muted-foreground/70">没有更多了</span>
               )}
             </div>
           )}
+        </div>
+
+        {/* 关闭左右分栏容器 */}
         </div>
 
         {/* ═══ Delete Confirm ═══ */}
@@ -1120,7 +1080,7 @@ export default function CreatePage() {
         <Dialog open={!!previewGen} onOpenChange={() => setPreviewGen(null)}>
           <DialogContent className="max-w-3xl p-0 px-3 sm:px-0 bg-transparent border-0 shadow-none [&>button]:hidden">
             {previewGen && (
-              <div className="bg-white dark:bg-[#181814] rounded-xl overflow-hidden shadow-2xl">
+              <div className="bg-card rounded-2xl overflow-hidden shadow-2xl ring-1 ring-foreground/10">
                 {/* Close */}
                 <div className="relative">
                   <button onClick={() => setPreviewGen(null)}
@@ -1131,31 +1091,31 @@ export default function CreatePage() {
                 </div>
                 {/* Info + Actions */}
                 <div className="p-3 sm:p-4 space-y-2 sm:space-y-3">
-                  <p className="text-xs sm:text-sm text-[#1a1a18] dark:text-white leading-relaxed line-clamp-2 sm:line-clamp-3">{previewGen.prompt}</p>
+                  <p className="text-xs sm:text-sm text-foreground leading-relaxed line-clamp-2 sm:line-clamp-3">{previewGen.prompt}</p>
                   <div className="flex items-center gap-2">
-                    {previewGen.size && <span className="text-[10px] px-1.5 py-0.5 rounded bg-[#f0efe8] dark:bg-[#252521] text-[#6b6a66] dark:text-[#9e9d98] font-mono">{sizeLabel(previewGen.size, true)}</span>}
-                    <span className="text-[10px] text-[#c0bfb8] dark:text-[#4a4a45]">{previewGen.created_at?.slice(5, 16)}</span>
+                    {previewGen.size && <span className="text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground font-mono">{sizeLabel(previewGen.size, true)}</span>}
+                    <span className="text-[10px] text-muted-foreground/70">{previewGen.created_at?.slice(5, 16)}</span>
                   </div>
                   {/* Action buttons — mobile: icons only, desktop: icon + label */}
-                  <div className="flex items-center gap-1 sm:gap-2 pt-2 sm:pt-3 border-t border-[#e8e7e2] dark:border-[#1f1f1b]">
+                  <div className="flex items-center gap-1 sm:gap-2 pt-2 sm:pt-3 border-t border-border">
                     <button onClick={async (e) => {
                         const cur = shareState(previewGen);
                         await toggleShare(e, previewGen);
                         setPreviewGen({ ...previewGen, share_status: cur.active ? "none" : "pending", shared: cur.active ? false : previewGen.shared });
                       }}
-                      className="flex items-center justify-center sm:justify-start gap-0.5 sm:gap-1.5 w-9 sm:w-auto h-9 sm:h-auto px-0 sm:px-3 py-2 sm:py-1.5 rounded-lg text-[11px] font-medium bg-[#f0efe8] dark:bg-[#252521] text-[#6b6a66] dark:text-[#9e9d98] hover:text-[#1a1a18] dark:hover:text-white transition-colors">
+                      className="flex items-center justify-center sm:justify-start gap-0.5 sm:gap-1.5 w-9 sm:w-auto h-9 sm:h-auto px-0 sm:px-3 py-2 sm:py-1.5 rounded-lg text-[11px] font-medium bg-muted text-muted-foreground hover:text-foreground transition-colors">
                       {shareState(previewGen).key === "pending"
                         ? <Clock className="w-4 h-4 sm:w-3.5 sm:h-3.5 shrink-0" />
                         : <Share2 className="w-4 h-4 sm:w-3.5 sm:h-3.5 shrink-0" />}
                       <span className="hidden sm:inline">{shareState(previewGen).label}</span>
                     </button>
                     <button onClick={(e) => { editGen(e, previewGen); setPreviewGen(null); }}
-                      className="flex items-center justify-center sm:justify-start gap-0.5 sm:gap-1.5 w-9 sm:w-auto h-9 sm:h-auto px-0 sm:px-3 py-2 sm:py-1.5 rounded-lg text-[11px] font-medium bg-[#f0efe8] dark:bg-[#252521] text-[#6b6a66] dark:text-[#9e9d98] hover:text-[#1a1a18] dark:hover:text-white transition-colors">
+                      className="flex items-center justify-center sm:justify-start gap-0.5 sm:gap-1.5 w-9 sm:w-auto h-9 sm:h-auto px-0 sm:px-3 py-2 sm:py-1.5 rounded-lg text-[11px] font-medium bg-muted text-muted-foreground hover:text-foreground transition-colors">
                       <ImageIcon className="w-4 h-4 sm:w-3.5 sm:h-3.5 shrink-0" />
                       <span className="hidden sm:inline">编辑</span>
                     </button>
                     <button onClick={() => { downloadImg(imageProxyUrl(previewGen), previewGen.id); }}
-                      className="flex items-center justify-center sm:justify-start gap-0.5 sm:gap-1.5 w-9 sm:w-auto h-9 sm:h-auto px-0 sm:px-3 py-2 sm:py-1.5 rounded-lg text-[11px] font-medium bg-[#f0efe8] dark:bg-[#252521] text-[#6b6a66] dark:text-[#9e9d98] hover:text-[#1a1a18] dark:hover:text-white transition-colors">
+                      className="flex items-center justify-center sm:justify-start gap-0.5 sm:gap-1.5 w-9 sm:w-auto h-9 sm:h-auto px-0 sm:px-3 py-2 sm:py-1.5 rounded-lg text-[11px] font-medium bg-muted text-muted-foreground hover:text-foreground transition-colors">
                       <Download className="w-4 h-4 sm:w-3.5 sm:h-3.5 shrink-0" />
                       <span className="hidden sm:inline">下载</span>
                     </button>

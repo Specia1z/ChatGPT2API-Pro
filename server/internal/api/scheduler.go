@@ -17,8 +17,9 @@ func (h *Handler) GetSchedulerStats(w http.ResponseWriter, r *http.Request) {
 // POST /api/admin/scheduler/config — 更新调度器配置
 func (h *Handler) SetSchedulerConfig(w http.ResponseWriter, r *http.Request) {
 	var req struct {
-		MaxGlobal  int `json:"max_global"`
-		MaxPerUser int `json:"max_per_user"`
+		MaxGlobal     int `json:"max_global"`
+		MaxPerUser    int `json:"max_per_user"`
+		MaxPerAccount int `json:"max_per_account"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeJSON(w, 400, model.APIResponse{Code: 400, Message: "参数错误"})
@@ -36,8 +37,16 @@ func (h *Handler) SetSchedulerConfig(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 400, model.APIResponse{Code: 400, Message: "单用户并发上限不能超过全局并发上限"})
 		return
 	}
+	// 兼容未传 max_per_account 的旧前端：保持当前值不变
+	if req.MaxPerAccount == 0 {
+		req.MaxPerAccount = service.GetScheduler().MaxPerAccount()
+	}
+	if req.MaxPerAccount < 1 {
+		writeJSON(w, 400, model.APIResponse{Code: 400, Message: "单账号并发上限必须 ≥ 1"})
+		return
+	}
 
-	service.GetScheduler().SetMax(req.MaxGlobal, req.MaxPerUser)
+	service.GetScheduler().SetMax(req.MaxGlobal, req.MaxPerUser, req.MaxPerAccount)
 	writeJSON(w, 200, model.APIResponse{Code: 200, Data: service.GetScheduler().Stats()})
 }
 

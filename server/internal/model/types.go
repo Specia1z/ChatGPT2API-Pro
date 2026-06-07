@@ -268,6 +268,16 @@ type ShopItem struct {
 	Enabled bool   `json:"enabled"`  // 是否上架
 }
 
+// PointsLog 积分流水（一笔变动）。Change 正=收入/负=支出；Balance=变动后余额。
+type PointsLog struct {
+	ID        int64  `json:"id"`
+	Change    int    `json:"change"`
+	Balance   int    `json:"balance"`
+	Type      string `json:"type"`   // checkin/invite/redeem_code/admin/exchange_token/shop
+	Remark    string `json:"remark"`
+	CreatedAt string `json:"created_at"`
+}
+
 // InviteConfig 邀请裂变配置（存于 settings.invite_config）
 type InviteConfig struct {
 	Enabled         bool `json:"enabled"`
@@ -466,8 +476,11 @@ type AdminStats struct {
 	TodayGenerations int     `json:"today_generations"`
 	TodaySuccess     int     `json:"today_success"`
 	TodayFailed      int     `json:"today_failed"`
+	TotalSvg         int     `json:"total_svg"`   // 矢量(SVG)累计生成
+	TodaySvg         int     `json:"today_svg"`   // 矢量(SVG)今日生成
 	TotalOrders      int     `json:"total_orders"`
 	PaidOrders       int     `json:"paid_orders"`
+	PaidUsers        int     `json:"paid_users"`  // 有过付费订单的去重用户数（转化率分子）
 	TodayRevenue     float64 `json:"today_revenue"`
 	TotalRevenue     float64 `json:"total_revenue"`
 	TotalAccounts    int     `json:"total_accounts"`
@@ -483,16 +496,113 @@ type TrendPoint struct {
 }
 
 type TrendsData struct {
-	Generations []TrendPoint `json:"generations"`
-	Success     []TrendPoint `json:"success"`
-	Failed      []TrendPoint `json:"failed"`
-	Revenue     []TrendPoint `json:"revenue"`
-	Users       []TrendPoint `json:"users"`
+	Generations    []TrendPoint `json:"generations"`
+	Success        []TrendPoint `json:"success"`
+	Failed         []TrendPoint `json:"failed"`
+	Svg            []TrendPoint `json:"svg"`             // 矢量(SVG)每日生成量
+	Revenue        []TrendPoint `json:"revenue"`
+	Users          []TrendPoint `json:"users"`
+	PointsIssued   []TrendPoint `json:"points_issued"`   // 每日积分发放（收入）
+	PointsConsumed []TrendPoint `json:"points_consumed"` // 每日积分消耗（支出，取正值）
 }
 
 type ModelBreakdown struct {
 	Model string `json:"model"`
 	Count int    `json:"count"`
+}
+
+// PointsStats 积分经济看板：发放 vs 消耗的总量与分类型拆解。
+type PointsStats struct {
+	TodayIssued   int              `json:"today_issued"`
+	TodayConsumed int              `json:"today_consumed"`
+	TotalIssued   int              `json:"total_issued"`
+	TotalConsumed int              `json:"total_consumed"`
+	ByType        []PointsTypeStat `json:"by_type"`
+}
+
+// PointsTypeStat 单一类型（签到/邀请/兑换…）的积分收支。
+type PointsTypeStat struct {
+	Type     string `json:"type"`
+	Issued   int    `json:"issued"`   // 该类型累计发放（正变动求和）
+	Consumed int    `json:"consumed"` // 该类型累计消耗（负变动取正求和）
+}
+
+// FailureReason 失败原因归类（按 error_msg 关键词归桶）。
+type FailureReason struct {
+	Reason string `json:"reason"`
+	Count  int    `json:"count"`
+}
+
+// AccountProductivity 单账号产能：累计成功/失败计数 + 最近使用。
+type AccountProductivity struct {
+	ID           int64  `json:"id"`
+	Email        string `json:"email"`
+	Status       string `json:"status"`
+	PlanType     string `json:"plan_type"`
+	SuccessCount int    `json:"success_count"`
+	FailCount    int    `json:"fail_count"`
+	LastUsedAt   string `json:"last_used_at"`
+}
+
+// RetentionStats 留存：基于 generations 出图行为推断（无 last_active 字段）。
+type RetentionStats struct {
+	ActiveUsers7d int `json:"active_users_7d"` // 近 7 日有出图的去重用户数
+	D1Cohort      int `json:"d1_cohort"`       // 注册满 1 天的用户数（次日留存分母）
+	D1Retained    int `json:"d1_retained"`     // 其中注册次日有出图的用户数
+	D7Cohort      int `json:"d7_cohort"`       // 注册满 7 天的用户数（7 日留存分母）
+	D7Retained    int `json:"d7_retained"`     // 其中注册第 7 天有出图的用户数
+}
+
+// AccountEventStats 账号事件累计：注册/封禁/删除的今日与累计数。
+type AccountEventStats struct {
+	TodayRegistered int `json:"today_registered"`
+	TotalRegistered int `json:"total_registered"`
+	TodayBanned     int `json:"today_banned"`
+	TotalBanned     int `json:"total_banned"`
+	TodayDeleted    int `json:"today_deleted"`
+	TotalDeleted    int `json:"total_deleted"`
+}
+
+// AccountEventTrends 账号事件每日趋势。
+type AccountEventTrends struct {
+	Registered []TrendPoint `json:"registered"`
+	Banned     []TrendPoint `json:"banned"`
+	Deleted    []TrendPoint `json:"deleted"`
+}
+
+// HourlyHeat 出图时段分布：hour=0..23，count=该小时累计出图量。
+type HourlyHeat struct {
+	Hour  int `json:"hour"`
+	Count int `json:"count"`
+}
+
+// PlanDistribution 套餐订阅分布：当前活跃订阅 + 已过期数。
+type PlanDistribution struct {
+	PlanName string `json:"plan_name"`
+	Active   int    `json:"active"`  // 未过期（subscription_expires_at > NOW 或永久）
+	Expired  int    `json:"expired"` // 已过期
+}
+
+// RevenueByPlan 收入构成：各套餐已付订单数与金额。
+type RevenueByPlan struct {
+	PlanName string  `json:"plan_name"`
+	Orders   int     `json:"orders"`
+	Amount   float64 `json:"amount"`
+}
+
+// InviteLeader 邀请裂变榜：单个邀请人的战绩。
+type InviteLeader struct {
+	Email      string `json:"email"`
+	Invites    int    `json:"invites"`     // 邀请注册数
+	Recharged  int    `json:"recharged"`   // 其中已首充人数
+	RewardSum  int    `json:"reward_sum"`  // 累计获得邀请积分
+}
+
+// RevenueComposition 营收构成汇总：按套餐 + 优惠券使用情况。
+type RevenueComposition struct {
+	ByPlan        []RevenueByPlan `json:"by_plan"`
+	CouponOrders  int             `json:"coupon_orders"`  // 用了优惠券的已付订单数
+	TotalPaid     int             `json:"total_paid"`     // 已付订单总数
 }
 
 /* ── 用户统计 ────────────────────────── */

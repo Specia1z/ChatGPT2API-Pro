@@ -128,7 +128,8 @@ function SubscribePageInner() {
   };
 
   const total = selected ? (billing === "yearly" ? selected.price_yearly : selected.price_monthly) : 0;
-  const months = selected ? Math.ceil((billing === "yearly" ? (selected.duration_days_yearly || selected.duration_days * 12) : selected.duration_days) / 30) : 0;
+  // 月数展示：年付按 365/30≈12 显示（用 round 而非 ceil，否则 365 天会向上取整成 13 个月）
+  const months = selected ? Math.round((billing === "yearly" ? (selected.duration_days_yearly || selected.duration_days * 12) : selected.duration_days) / 30) : 0;
   const originalTotal = selected ? (billing === "yearly"
     ? (selected.duration_days_yearly > 0 ? selected.price_yearly * 12 * selected.duration_days_yearly / 365 : selected.price_yearly * 12)
     : selected.price_monthly * selected.duration_days / 30) : 0;

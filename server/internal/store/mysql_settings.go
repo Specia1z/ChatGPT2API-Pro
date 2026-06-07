@@ -181,16 +181,17 @@ func (s *MySQLStore) SaveMonitorConfig(cfg *model.MonitorConfig) error {
 
 // --- Scheduler Config ---
 
-func (s *MySQLStore) GetSchedulerConfig() (maxGlobal, maxPerUser int) {
-	err := s.db.QueryRow("SELECT max_global, max_per_user FROM scheduler_config WHERE id=1").
-		Scan(&maxGlobal, &maxPerUser)
+func (s *MySQLStore) GetSchedulerConfig() (maxGlobal, maxPerUser, maxPerAccount int) {
+	err := s.db.QueryRow("SELECT max_global, max_per_user, max_per_account FROM scheduler_config WHERE id=1").
+		Scan(&maxGlobal, &maxPerUser, &maxPerAccount)
 	if err != nil {
-		return 20, 5
+		return 20, 5, 3
 	}
 	return
 }
 
-func (s *MySQLStore) SaveSchedulerConfig(maxGlobal, maxPerUser int) error {
-	_, err := s.db.Exec("UPDATE scheduler_config SET max_global=?, max_per_user=? WHERE id=1", maxGlobal, maxPerUser)
+func (s *MySQLStore) SaveSchedulerConfig(maxGlobal, maxPerUser, maxPerAccount int) error {
+	_, err := s.db.Exec("UPDATE scheduler_config SET max_global=?, max_per_user=?, max_per_account=? WHERE id=1",
+		maxGlobal, maxPerUser, maxPerAccount)
 	return err
 }

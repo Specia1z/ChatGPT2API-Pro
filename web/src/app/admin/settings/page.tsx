@@ -104,11 +104,11 @@ export default function SettingsPage() {
     setSaving(false);
   };
   const saveScheduler = async () => {
-    const g = +schedCfg.global_max, u = +schedCfg.per_user_max;
-    if (g < 1 || u < 1) { toast.error("并发上限必须 ≥ 1"); return; }
+    const g = +schedCfg.global_max, u = +schedCfg.per_user_max, a = +schedCfg.per_account_max;
+    if (g < 1 || u < 1 || a < 1) { toast.error("并发上限必须 ≥ 1"); return; }
     if (u > g) { toast.error("单用户上限不能超过全局上限"); return; }
     setSavingSched(true);
-    try { await api("/api/admin/scheduler/config", { method: "POST", body: JSON.stringify({ max_global: g, max_per_user: u }) }); toast.success("调度器配置已更新"); }
+    try { await api("/api/admin/scheduler/config", { method: "POST", body: JSON.stringify({ max_global: g, max_per_user: u, max_per_account: a }) }); toast.success("调度器配置已更新"); }
     catch (e: any) { toast.error(e.message); }
     setSavingSched(false);
   };
@@ -334,6 +334,7 @@ export default function SettingsPage() {
                     {[
                       { label: "全局并发上限", key: "global_max", hint: "全站同时进行的生图任务总数上限" },
                       { label: "单用户并发上限", key: "per_user_max", hint: "单用户同时进行的任务数上限（套餐 concurrency 更小时以套餐为准），不能超过全局上限" },
+                      { label: "单账号并发上限", key: "per_account_max", hint: "单个 ChatGPT 账号同时承载的生图任务数。调高可提升产能，但单账号并发过高易触发上游限流（默认 3）。实际产能 ≈ 此值 × 正常账号数，且不超过全局上限" },
                     ].map(s => (
                       <div key={s.key} className="space-y-1.5">
                         <Label>{s.label}</Label>

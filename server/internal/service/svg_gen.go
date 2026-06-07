@@ -78,7 +78,11 @@ func (s *SVGGenService) ListModels(ctx context.Context) ([]ModelInfo, error) {
 func (s *SVGGenService) GenerateSVG(ctx context.Context, modelSlug, prompt string, onDelta func(string)) (string, error) {
 	regCfg, _ := s.mysql.GetRegisterConfig()
 	proxy := regCfg.Proxy
-	const maxPerAccount = 3
+	// 单账号并发上限：后台可配（scheduler_config.max_per_account），热更新。
+	maxPerAccount := 3
+	if sched := GetScheduler(); sched != nil {
+		maxPerAccount = sched.MaxPerAccount()
+	}
 
 	candidates, err := GetAccountPool(s.mysql).PickCandidates()
 	if err != nil {

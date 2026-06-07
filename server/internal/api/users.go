@@ -127,13 +127,13 @@ func (h *Handler) AdjustUserPoints(w http.ResponseWriter, r *http.Request) {
 	if req.Delta < 0 {
 		// 扣减：原子钳制不低于 0，余额不足则按现有余额全扣
 		var ok bool
-		pts, ok, err = h.MySQL.DeductUserPoints(req.ID, -req.Delta)
+		pts, ok, err = h.MySQL.DeductUserPoints(req.ID, -req.Delta, "admin", "管理员调整")
 		if err == nil && !ok {
 			// 余额不足请求扣减量：扣到 0
-			if pts > 0 { pts, _, err = h.MySQL.DeductUserPoints(req.ID, pts) }
+			if pts > 0 { pts, _, err = h.MySQL.DeductUserPoints(req.ID, pts, "admin", "管理员调整") }
 		}
 	} else {
-		pts, err = h.MySQL.AddUserPoints(req.ID, req.Delta)
+		pts, err = h.MySQL.AddUserPoints(req.ID, req.Delta, "admin", "管理员调整")
 	}
 	if err != nil {
 		writeJSON(w, 500, model.APIResponse{Code: 500, Message: err.Error()})

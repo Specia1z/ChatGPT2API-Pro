@@ -55,6 +55,7 @@ func NewRouter(mysql *store.MySQLStore, redis *store.RedisStore, cleaner *servic
 mux.Handle("GET /api/user/stats", userAuth(http.HandlerFunc(h.GetUserStats)))
 mux.Handle("POST /api/user/change-password", userAuth(http.HandlerFunc(h.ChangePassword)))
 mux.Handle("POST /api/user/points/exchange", middleware.RateLimit(userAuth(http.HandlerFunc(h.ExchangePoints))))
+	mux.Handle("GET /api/user/points/logs", userAuth(http.HandlerFunc(h.GetPointsLogs)))
 	mux.Handle("GET /api/user/shop", userAuth(http.HandlerFunc(h.ListShop)))
 	mux.Handle("POST /api/user/shop/redeem", middleware.RateLimit(userAuth(http.HandlerFunc(h.RedeemShop))))
 	mux.Handle("GET /api/user/invite", userAuth(http.HandlerFunc(h.GetInviteInfo)))
@@ -100,6 +101,8 @@ mux.Handle("POST /api/user/points/exchange", middleware.RateLimit(userAuth(http.
 	mux.Handle("GET /api/admin/scheduler/stats", adminAuth(http.HandlerFunc(h.GetSchedulerStats)))
 	mux.Handle("GET /api/admin/scheduler/config", adminAuth(http.HandlerFunc(h.GetSchedulerConfig)))
 	mux.Handle("POST /api/admin/scheduler/config", adminAuth(http.HandlerFunc(h.SetSchedulerConfig)))
+	mux.Handle("GET /api/admin/system/snapshot", adminAuth(http.HandlerFunc(h.GetSystemSnapshot)))
+	mux.Handle("GET /api/admin/system/events", adminAuth(http.HandlerFunc(h.SystemEvents)))
 
 	// 套餐管理
 	mux.Handle("GET /api/admin/plans", adminAuth(http.HandlerFunc(h.AdminListPlans)))

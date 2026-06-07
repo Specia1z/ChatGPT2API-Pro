@@ -161,19 +161,20 @@ func (s *MySQLStore) ResetUserPassword(id int64, passwordHash string) error {
 	return err
 }
 
-func (s *MySQLStore) AddUserPoints(id int64, delta int) (int, error) {
+func (s *MySQLStore) AddUserPoints(id int64, delta int, typ, remark string) (int, error) {
 	_, err := s.db.Exec("UPDATE users SET points = points + ? WHERE id=?", delta, id)
 	if err != nil {
 		return 0, err
 	}
 	var pts int
 	s.db.QueryRow("SELECT points FROM users WHERE id=?", id).Scan(&pts)
+	logPoints(s.db, id, delta, typ, remark)
 	return pts, nil
 }
 
 // DeductUserPoints 原子扣减积分：仅当余额充足（points >= cost）才扣减，
 // 防并发 TOCTOU 超扣。ok=false 表示余额不足未扣；返回扣减后余额。
-func (s *MySQLStore) DeductUserPoints(id int64, cost int) (remaining int, ok bool, err error) {
+func (s *MySQLStore) DeductUserPoints(id int64, cost int, typ, remark string) (remaining int, ok bool, err error) {
 	if cost <= 0 {
 		// 非扣减场景不应走此方法；直接读当前余额返回
 		s.db.QueryRow("SELECT points FROM users WHERE id=?", id).Scan(&remaining)
@@ -190,6 +191,7 @@ func (s *MySQLStore) DeductUserPoints(id int64, cost int) (remaining int, ok boo
 		return remaining, false, nil
 	}
 	s.db.QueryRow("SELECT points FROM users WHERE id=?", id).Scan(&remaining)
+	logPoints(s.db, id, -cost, typ, remark)
 	return remaining, true, nil
 }
 
@@ -236,6 +238,7 @@ func (s *MySQLStore) CompleteCheckin(userID int64, points, streak int) error {
 	if err != nil {
 		return err
 	}
+	logPoints(tx, userID, points, "checkin", "每日签到")
 
 	return tx.Commit()
 }
@@ -434,6 +437,7 @@ func (s *MySQLStore) RedeemShopPlan(userID int64, planID, days, cost int) (remai
 	if err != nil {
 		return 0, false, err
 	}
+	logPoints(tx, userID, -cost, "shop", "积分商城兑换套餐")
 
 	if err = tx.Commit(); err != nil {
 		return 0, false, err

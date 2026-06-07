@@ -138,7 +138,7 @@ func (h *Handler) DeleteAccounts(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 400, model.APIResponse{Code: 400, Message: "参数错误"})
 		return
 	}
-	n, err := h.MySQL.DeleteAccounts(body.IDs)
+	n, err := h.MySQL.DeleteAccounts(body.IDs, "手动删除")
 	if err != nil {
 		writeJSON(w, 500, model.APIResponse{Code: 500, Message: err.Error()})
 		return
