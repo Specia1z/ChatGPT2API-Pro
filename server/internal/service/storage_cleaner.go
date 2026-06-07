@@ -35,7 +35,7 @@ func (sc *StorageCleaner) Start() {
 	sc.mu.Unlock()
 
 	go sc.loop()
-	log.Println("[cleaner] started")
+	log.Println("🧽 存储清理已启动")
 }
 
 // Stop 停止后台清理 goroutine（幂等）
@@ -47,7 +47,7 @@ func (sc *StorageCleaner) Stop() {
 	}
 	close(sc.stopCh)
 	sc.running = false
-	log.Println("[cleaner] stopped")
+	log.Println("🧽 存储清理已停止")
 }
 
 // IsRunning 返回 cleaner 是否在运行

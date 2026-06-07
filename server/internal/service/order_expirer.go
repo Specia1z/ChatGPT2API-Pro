@@ -21,7 +21,7 @@ func NewOrderExpirer(mysql *store.MySQLStore) *OrderExpirer {
 
 func (e *OrderExpirer) Start() {
 	go e.loop()
-	log.Println("[order-expirer] started")
+	log.Println("⏰ 订单超时检查已启动（每分钟一次）")
 }
 
 func (e *OrderExpirer) Stop() { close(e.stopCh) }
@@ -47,10 +47,10 @@ func (e *OrderExpirer) runOnce() {
 	}
 	n, err := e.mysql.ExpireStaleOrders(cfg.OrderTimeoutMinutes)
 	if err != nil {
-		log.Printf("[order-expirer] expire err: %v", err)
+		log.Printf("❌ 订单超时检查失败：%v", err)
 		return
 	}
 	if n > 0 {
-		log.Printf("[order-expirer] 已将 %d 个超时订单置为 expired（阈值 %d 分钟）", n, cfg.OrderTimeoutMinutes)
+		log.Printf("⏳ 已将 %d 个超时未支付订单置为「已过期」（阈值 %d 分钟）", n, cfg.OrderTimeoutMinutes)
 	}
 }

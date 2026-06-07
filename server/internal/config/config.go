@@ -2,6 +2,7 @@ package config
 
 import (
 	"bufio"
+	"log"
 	"os"
 	"strconv"
 	"strings"
@@ -36,8 +37,8 @@ func Load() *Config {
 	redisHost := env("REDIS_HOST", "127.0.0.1")
 	redisPort := env("REDIS_PORT", "6379")
 
-	println("[config] MySQL: " + mysqlUser + "@" + mysqlHost + ":" + mysqlPort + "/" + mysqlDB)
-	println("[config] Redis: " + redisHost + ":" + redisPort)
+	log.Printf("⚙️  配置加载完成 · MySQL：%s@%s:%s/%s", mysqlUser, mysqlHost, mysqlPort, mysqlDB)
+	log.Printf("⚙️  配置加载完成 · Redis：%s:%s", redisHost, redisPort)
 
 	dsn := mysqlUser + ":" + mysqlPass + "@tcp(" + mysqlHost + ":" + mysqlPort + ")/" + mysqlDB + "?charset=utf8mb4&parseTime=true"
 	if v := env("MYSQL_DSN", ""); v != "" {

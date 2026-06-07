@@ -73,7 +73,7 @@ func (m *AccountMonitor) Start() {
 		}
 	}()
 
-	log.Println("[monitor] 账号健康监控已启动")
+	log.Println("🩺 账号健康监控已启动")
 }
 
 func (m *AccountMonitor) Stop() {
@@ -84,7 +84,7 @@ func (m *AccountMonitor) Stop() {
 	}
 	atomic.StoreInt32(&m.running, 0)
 	close(m.stopCh)
-	log.Println("[monitor] 账号健康监控已停止")
+	log.Println("🩺 账号健康监控已停止")
 }
 
 func (m *AccountMonitor) runCheck() {

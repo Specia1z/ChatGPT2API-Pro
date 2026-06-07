@@ -27,7 +27,7 @@ var schedOnce sync.Once
 func InitScheduler(mysql *store.MySQLStore) *GenerationScheduler {
 	schedOnce.Do(func() {
 		maxG, maxU := mysql.GetSchedulerConfig()
-		log.Printf("[scheduler] 从 MySQL 加载: maxGlobal=%d maxPerUser=%d", maxG, maxU)
+		log.Printf("🧭 调度器已加载 · 全局并发=%d 单用户并发=%d", maxG, maxU)
 		scheduler = &GenerationScheduler{
 			userCounters: make(map[int64]*int32),
 			maxGlobal:    int32(maxG),
@@ -59,7 +59,7 @@ func (s *GenerationScheduler) startCleanup() {
 			}
 			s.mu.Unlock()
 			if cleaned > 0 {
-				log.Printf("[scheduler] 清理 %d 个闲置用户计数器", cleaned)
+				log.Printf("🧹 调度器已清理 %d 个闲置用户计数器", cleaned)
 			}
 		}
 	}()
