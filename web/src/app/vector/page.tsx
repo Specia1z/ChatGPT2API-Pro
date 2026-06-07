@@ -37,7 +37,16 @@ export default function VectorPage() {
   const [copiedId, setCopiedId] = useState<number | null>(null);
   const [history, setHistory] = useState<any[]>([]);
   const [histLoading, setHistLoading] = useState(true);
+  const [lightbox, setLightbox] = useState<string | null>(null); // 放大查看的 SVG
   const abortRef = useRef<AbortController | null>(null);
+
+  // ESC 关闭大图
+  useEffect(() => {
+    if (!lightbox) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setLightbox(null); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [lightbox]);
 
   const loadHistory = async () => {
     try {
@@ -199,7 +208,7 @@ export default function VectorPage() {
                   <div className="relative h-56 flex items-center justify-center p-4 overflow-hidden border-b">
                     <div className="absolute inset-0 opacity-[0.03] bg-[radial-gradient(circle,currentColor_1px,transparent_1px)] [background-size:16px_16px]" />
                     {svg ? (
-                      <div className="relative w-full h-full [&>svg]:!w-full [&>svg]:!h-full [&>svg]:!max-w-full [&>svg]:!max-h-full" dangerouslySetInnerHTML={{ __html: svg }} />
+                      <div onClick={() => setLightbox(svg)} title="点击放大" className="relative w-full h-full cursor-zoom-in [&>svg]:!w-full [&>svg]:!h-full [&>svg]:!max-w-full [&>svg]:!max-h-full" dangerouslySetInnerHTML={{ __html: svg }} />
                     ) : t.status === "error" ? (
                       <div className="text-center text-red-500"><AlertCircle className="size-6 mx-auto mb-1.5" /><p className="text-[11px] px-3">{t.error}</p></div>
                     ) : (
@@ -238,7 +247,7 @@ export default function VectorPage() {
                   <div key={h.id} className="group rounded-xl border bg-card overflow-hidden flex flex-col">
                     <div className="relative h-40 flex items-center justify-center p-3 overflow-hidden border-b bg-muted/20">
                       {ok ? (
-                        <div className="relative w-full h-full [&>svg]:!w-full [&>svg]:!h-full [&>svg]:!max-w-full [&>svg]:!max-h-full" dangerouslySetInnerHTML={{ __html: svg }} />
+                        <div onClick={() => setLightbox(svg)} title="点击放大" className="relative w-full h-full cursor-zoom-in [&>svg]:!w-full [&>svg]:!h-full [&>svg]:!max-w-full [&>svg]:!max-h-full" dangerouslySetInnerHTML={{ __html: svg }} />
                       ) : (
                         <div className="text-center text-muted-foreground/50"><AlertCircle className="size-5 mx-auto mb-1" /><p className="text-[10px]">{h.status === "failed" ? "生成失败" : "无效"}</p></div>
                       )}
@@ -261,6 +270,18 @@ export default function VectorPage() {
           )}
         </div>
       </main>
+
+      {/* 大图查看（灯箱） */}
+      {lightbox && (
+        <div onClick={() => setLightbox(null)} className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-6 sm:p-12">
+          <button onClick={() => setLightbox(null)} className="absolute top-4 right-4 size-9 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center" title="关闭 (Esc)"><X className="size-5" /></button>
+          <div
+            onClick={e => e.stopPropagation()}
+            className="bg-white dark:bg-zinc-900 rounded-2xl p-4 sm:p-8 shadow-2xl w-[min(86vw,86vh)] h-[min(86vw,86vh)] flex items-center justify-center [&>svg]:!w-full [&>svg]:!h-full [&>svg]:!max-w-full [&>svg]:!max-h-full"
+            dangerouslySetInnerHTML={{ __html: lightbox }}
+          />
+        </div>
+      )}
     </div>
   );
 }
