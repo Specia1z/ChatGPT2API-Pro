@@ -87,8 +87,8 @@ func dataURLToB64(u string) string {
 	return ""
 }
 
-// buildToolPrompt 工具调用提示词模拟（实验性）：把 tools 定义转成 system 指令，
-// 要求模型需要调用工具时只输出特定 JSON。返回注入用的 system 文本（无 tools 则空）。
+// buildToolPrompt 工具调用提示词模拟（实验性）：强约束指令，尽量逼模型输出约定 JSON。
+// 网页版模型默认倾向"我没有外部工具"，故这里用命令式 + 禁止退路 + 输出示例提高命中率。
 func buildToolPrompt(tools []json.RawMessage) string {
 	if len(tools) == 0 {
 		return ""
@@ -97,29 +97,92 @@ func buildToolPrompt(tools []json.RawMessage) string {
 	for _, t := range tools {
 		defs = append(defs, string(t))
 	}
-	return "你可以使用以下工具（function）。当且仅当需要调用工具时，只输出一行 JSON，" +
-		"格式：{\"tool_call\":{\"name\":\"函数名\",\"arguments\":{...}}}，不要输出任何其他内容；" +
-		"否则正常用自然语言回答。可用工具定义：\n" + strings.Join(defs, "\n")
+	return "【强制规则·最高优先级】本会话已接入下列外部函数（function/tool），由调用方在你的回复之外负责执行。\n" +
+		"你必须把这些函数当作真实可用。当用户的请求需要其中任一函数才能完成时，" +
+		"你【只能】输出一行严格的 JSON，不得有任何其他文字、解释、寒暄或代码块标记：\n" +
+		"{\"tool_call\":{\"name\":\"<函数名>\",\"arguments\":{<参数对象>}}}\n" +
+		"硬性要求：\n" +
+		"1. 禁止说“我无法访问/我没有该工具/请你提供”之类的话——这些函数确实可用，调用方会执行并把结果回传给你。\n" +
+		"2. 禁止使用你自己的联网搜索或内置能力来替代这些函数。\n" +
+		"3. 需要调用时，整个回复就是那一行 JSON，不要加 ```、不要加说明。\n" +
+		"4. 只有当请求完全不需要任何函数时，才用自然语言正常回答。\n" +
+		"可用函数定义（JSON Schema）：\n" + strings.Join(defs, "\n")
 }
 
 // detectToolCall 从模型回复里尝试解析提示词模拟的工具调用。
+// 容错：去 markdown 围栏；若混在文字中，截取第一个含 "tool_call" 的 {...} 子串再解析。
 func detectToolCall(text string) (name, argsJSON string, ok bool) {
 	t := strings.TrimSpace(text)
-	// 去掉可能的 markdown 围栏
 	t = strings.TrimPrefix(t, "```json")
 	t = strings.TrimPrefix(t, "```")
 	t = strings.TrimSuffix(t, "```")
 	t = strings.TrimSpace(t)
-	var parsed struct {
-		ToolCall struct {
-			Name      string          `json:"name"`
-			Arguments json.RawMessage `json:"arguments"`
-		} `json:"tool_call"`
+
+	try := func(s string) (string, string, bool) {
+		var parsed struct {
+			ToolCall struct {
+				Name      string          `json:"name"`
+				Arguments json.RawMessage `json:"arguments"`
+			} `json:"tool_call"`
+		}
+		if json.Unmarshal([]byte(s), &parsed) == nil && parsed.ToolCall.Name != "" {
+			return parsed.ToolCall.Name, string(parsed.ToolCall.Arguments), true
+		}
+		return "", "", false
 	}
-	if json.Unmarshal([]byte(t), &parsed) == nil && parsed.ToolCall.Name != "" {
-		return parsed.ToolCall.Name, string(parsed.ToolCall.Arguments), true
+	if n, a, k := try(t); k {
+		return n, a, k
+	}
+	// 兜底：从含 tool_call 的位置向后做花括号配平，截 JSON 子串
+	idx := strings.Index(t, "\"tool_call\"")
+	if idx < 0 {
+		return "", "", false
+	}
+	start := strings.LastIndex(t[:idx], "{")
+	if start < 0 {
+		return "", "", false
+	}
+	depth := 0
+	for i := start; i < len(t); i++ {
+		switch t[i] {
+		case '{':
+			depth++
+		case '}':
+			depth--
+			if depth == 0 {
+				return try(t[start : i+1])
+			}
+		}
 	}
 	return "", "", false
+}
+
+// cleanReply 清理网页版内部标记：引用标注 citeturnXXX、不可见占位符等，避免漏进 API 文本。
+func cleanReply(s string) string {
+	// 移除 citeturn... / turnXsearchX 等引用标记（出现在联网搜索回复里）
+	for _, marker := range []string{"citeturn", "turn0search", "turn1search", "turn2search"} {
+		for {
+			i := strings.Index(s, marker)
+			if i < 0 {
+				break
+			}
+			// 标记到下一个 ASCII 空白为止（citeturn... 标记体均为 ASCII）
+			j := i
+			for j < len(s) && s[j] != ' ' && s[j] != '\n' && s[j] != '\t' && s[j] != '.' && s[j] != ',' {
+				j++
+			}
+			s = s[:i] + s[j:]
+		}
+	}
+	// 去掉私有 Unicode 区的不可见占位符（网页版偶发的 -）
+	var b strings.Builder
+	for _, r := range s {
+		if r >= 0xE000 && r <= 0xF8FF {
+			continue
+		}
+		b.WriteRune(r)
+	}
+	return strings.TrimSpace(b.String())
 }
 
 // ChatCompletions —— POST /v1/chat/completions（OpenAI 兼容）。
@@ -277,6 +340,7 @@ func (h *Handler) chatStream(w http.ResponseWriter, r *http.Request, svc *servic
 
 // buildChatCompletion 构造非流式 chat.completion 响应；检测到模拟工具调用时填 tool_calls。
 func buildChatCompletion(id, modelSlug string, created int64, content string, toolsEnabled bool) map[string]any {
+	content = cleanReply(content)
 	msg := map[string]any{"role": "assistant", "content": content}
 	finish := "stop"
 	if toolsEnabled {
