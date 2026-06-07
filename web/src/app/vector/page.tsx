@@ -53,22 +53,25 @@ export default function VectorPage() {
       const decoder = new TextDecoder();
       let buf = "";
       let acc = "";
+      const handleBlock = (block: string) => {
+        const ev = /event: (\w+)/.exec(block)?.[1];
+        const dataLine = block.split("\n").find(l => l.startsWith("data: "));
+        if (!dataLine) return;
+        const payload = JSON.parse(dataLine.slice(6));
+        if (ev === "delta") { acc += payload.text || ""; setRaw(acc); }
+        else if (ev === "done") { setSvg(payload.svg || ""); setRaw(payload.raw || acc); }
+        else if (ev === "error") { throw new Error(payload.message || "生成失败"); }
+      };
       for (;;) {
         const { done, value } = await reader.read();
         if (done) break;
         buf += decoder.decode(value, { stream: true });
         const blocks = buf.split("\n\n");
         buf = blocks.pop() || "";
-        for (const block of blocks) {
-          const ev = /event: (\w+)/.exec(block)?.[1];
-          const dataLine = block.split("\n").find(l => l.startsWith("data: "));
-          if (!dataLine) continue;
-          const payload = JSON.parse(dataLine.slice(6));
-          if (ev === "delta") { acc += payload.text || ""; setRaw(acc); }
-          else if (ev === "done") { setSvg(payload.svg || ""); setRaw(payload.raw || acc); }
-          else if (ev === "error") { throw new Error(payload.message || "生成失败"); }
-        }
+        for (const block of blocks) handleBlock(block);
       }
+      // 收尾：flush 残留（防最后一个 done 事件未被分块切出）
+      if (buf.trim()) handleBlock(buf);
     } catch (e: any) {
       if (e.name !== "AbortError") { setError(e.message || "生成失败"); toast.error(e.message || "生成失败"); }
     }
@@ -139,10 +142,13 @@ export default function VectorPage() {
           </div>
 
           {/* 预览 */}
-          <div className="rounded-xl border bg-card flex items-center justify-center p-6 min-h-[320px] relative overflow-hidden">
+          <div className="rounded-xl border bg-card flex items-center justify-center p-6 h-[420px] relative overflow-hidden">
             <div className="absolute inset-0 opacity-[0.03] bg-[radial-gradient(circle,currentColor_1px,transparent_1px)] [background-size:16px_16px]" />
             {previewSvg ? (
-              <div className="relative max-w-full max-h-[420px] [&>svg]:max-w-full [&>svg]:max-h-[420px]" dangerouslySetInnerHTML={{ __html: previewSvg }} />
+              <div
+                className="relative w-full h-full [&>svg]:!w-full [&>svg]:!h-full [&>svg]:!max-w-full [&>svg]:!max-h-full"
+                dangerouslySetInnerHTML={{ __html: previewSvg }}
+              />
             ) : loading ? (
               <div className="text-center text-muted-foreground"><Loader2 className="size-6 animate-spin mx-auto mb-2" /><p className="text-xs">AI 正在绘制…</p></div>
             ) : (
