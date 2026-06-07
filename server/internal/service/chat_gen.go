@@ -132,22 +132,21 @@ func (s *ChatGenService) chatOnce(ctx context.Context, modelSlug string, message
 	proof := solvePoWIfNeeded(reqs, ua)
 
 	// ChatGPT 网页后端的 messages 多条不保证被当成多轮上下文（它更像新建会话的首批消息，
-	// 取最后一条为 prompt）。为可靠实现无状态多轮，把历史折叠成单条文本上下文 + 最后一条 user。
-	// 多模态图片取最后一条 user 的。
+	// 取最后一条为 prompt）。为可靠实现无状态多轮，把历史折叠成单条文本上下文 + 末条作为当前提问。
+	// 末条若是 tool 结果，则构造"请基于工具结果作答"的提问。多模态图片取末条 user 的。
 	var ctxParts []string
 	var lastImages []string
-	lastUserIdx := -1
-	for i, m := range messages {
-		if m.Role == "user" {
-			lastUserIdx = i
-		}
+	// 末条有效消息（user 或 tool）作为"当前提问"
+	lastIdx := len(messages) - 1
+	for lastIdx >= 0 && strings.TrimSpace(messages[lastIdx].Text) == "" && len(messages[lastIdx].Images) == 0 {
+		lastIdx--
 	}
 	for i, m := range messages {
 		role := m.Role
 		txt := strings.TrimSpace(m.Text)
-		if i == lastUserIdx {
+		if i == lastIdx {
 			lastImages = m.Images
-			continue // 最后一条 user 单独作为当前提问
+			continue // 末条单独处理
 		}
 		if txt == "" {
 			continue
@@ -157,16 +156,24 @@ func (s *ChatGenService) chatOnce(ctx context.Context, modelSlug string, message
 			ctxParts = append(ctxParts, "[系统指令] "+txt)
 		case "assistant":
 			ctxParts = append(ctxParts, "助手: "+txt)
+		case "tool":
+			ctxParts = append(ctxParts, "[工具返回结果] "+txt)
 		default:
 			ctxParts = append(ctxParts, "用户: "+txt)
 		}
 	}
 	finalText := ""
-	if lastUserIdx >= 0 {
-		finalText = strings.TrimSpace(messages[lastUserIdx].Text)
+	if lastIdx >= 0 {
+		lm := messages[lastIdx]
+		lt := strings.TrimSpace(lm.Text)
+		if lm.Role == "tool" {
+			finalText = "工具返回了以下结果，请基于它回答用户：\n" + lt
+		} else {
+			finalText = lt
+		}
 	}
 	if len(ctxParts) > 0 {
-		finalText = "以下是之前的对话历史：\n" + strings.Join(ctxParts, "\n") + "\n\n现在请回答用户最新的消息：\n" + finalText
+		finalText = "以下是之前的对话历史：\n" + strings.Join(ctxParts, "\n") + "\n\n现在请处理最新内容：\n" + finalText
 	}
 
 	// 构造单条 user 消息（含多模态图片）
