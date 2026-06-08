@@ -35,16 +35,28 @@ func (s *ImageGenService) Generate(ctx context.Context, prompt, size string, ref
 	// 每个账号允许的最大并发占用数（防止单账号被并发请求踩踏触发限流）。
 	// 后台可配（scheduler_config.max_per_account），热更新。
 	maxPerAccount := 3
+	maxAttemptsCfg := 0
 	if sched := GetScheduler(); sched != nil {
 		maxPerAccount = sched.MaxPerAccount()
+		maxAttemptsCfg = sched.MaxAttempts()
 	}
 
-	candidates, err := GetAccountPool(s.mysql).PickCandidates()
+	// 负载均衡选号：先批量读各账号当前 Redis 占用，占用少的优先（least-connections）
+	ap := GetAccountPool(s.mysql)
+	slotUsage := s.redis.GetImageSlots(ctx, ap.AllAccountIDs())
+	candidates, err := ap.PickCandidates(slotUsage)
 	if err != nil {
 		return "", fmt.Errorf("无可用账号: %w", err)
 	}
 
-	maxAttempts := 20
+	// 最大尝试账号数：0=自动（号池大小，至多 30）；>0 用配置值
+	maxAttempts := maxAttemptsCfg
+	if maxAttempts <= 0 {
+		maxAttempts = len(candidates)
+		if maxAttempts > 30 {
+			maxAttempts = 30
+		}
+	}
 	if len(candidates) < maxAttempts {
 		maxAttempts = len(candidates)
 	}

@@ -66,3 +66,8 @@ server/server_*
 
 # ───── 其他工具缓存 ─────
 .reasonix/
+
+# Python 缓存
+__pycache__/
+*.pyc
+*.egg-info/

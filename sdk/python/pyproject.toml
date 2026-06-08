@@ -1,0 +1,19 @@
+[project]
+name = "img2design"
+version = "1.0.0"
+description = "IMG2 Design AI 生图平台官方 Python SDK — 异步生图/AI矢量/图生图"
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "MIT" }
+dependencies = ["requests>=2.25"]
+
+[project.urls]
+Homepage = "https://img2.design"
+
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["img2design*"]

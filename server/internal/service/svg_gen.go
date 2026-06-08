@@ -34,7 +34,7 @@ type ModelInfo struct {
 // ListModels 用号池里一个可用账号拉取 /backend-api/models，返回可选模型列表。
 func (s *SVGGenService) ListModels(ctx context.Context) ([]ModelInfo, error) {
 	regCfg, _ := s.mysql.GetRegisterConfig()
-	candidates, err := GetAccountPool(s.mysql).PickCandidates()
+	candidates, err := GetAccountPool(s.mysql).PickCandidates(nil)
 	if err != nil || len(candidates) == 0 {
 		return nil, fmt.Errorf("无可用账号")
 	}
@@ -80,15 +80,25 @@ func (s *SVGGenService) GenerateSVG(ctx context.Context, modelSlug, prompt strin
 	proxy := regCfg.Proxy
 	// 单账号并发上限：后台可配（scheduler_config.max_per_account），热更新。
 	maxPerAccount := 3
+	maxAttemptsCfg := 0
 	if sched := GetScheduler(); sched != nil {
 		maxPerAccount = sched.MaxPerAccount()
+		maxAttemptsCfg = sched.MaxAttempts()
 	}
 
-	candidates, err := GetAccountPool(s.mysql).PickCandidates()
+	// 负载均衡选号：占用少的账号优先
+	ap := GetAccountPool(s.mysql)
+	candidates, err := ap.PickCandidates(s.redis.GetImageSlots(ctx, ap.AllAccountIDs()))
 	if err != nil {
 		return "", fmt.Errorf("无可用账号: %w", err)
 	}
-	maxAttempts := 20
+	maxAttempts := maxAttemptsCfg
+	if maxAttempts <= 0 {
+		maxAttempts = len(candidates)
+		if maxAttempts > 30 {
+			maxAttempts = 30
+		}
+	}
 	if len(candidates) < maxAttempts {
 		maxAttempts = len(candidates)
 	}

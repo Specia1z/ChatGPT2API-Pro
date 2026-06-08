@@ -20,6 +20,7 @@ func (h *Handler) SetSchedulerConfig(w http.ResponseWriter, r *http.Request) {
 		MaxGlobal     int `json:"max_global"`
 		MaxPerUser    int `json:"max_per_user"`
 		MaxPerAccount int `json:"max_per_account"`
+		MaxAttempts   int `json:"max_attempts"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeJSON(w, 400, model.APIResponse{Code: 400, Message: "参数错误"})
@@ -46,7 +47,12 @@ func (h *Handler) SetSchedulerConfig(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	service.GetScheduler().SetMax(req.MaxGlobal, req.MaxPerUser, req.MaxPerAccount)
+	// max_attempts 允许为 0（=自动按号池大小），负数钳为 0
+	if req.MaxAttempts < 0 {
+		req.MaxAttempts = 0
+	}
+
+	service.GetScheduler().SetMax(req.MaxGlobal, req.MaxPerUser, req.MaxPerAccount, req.MaxAttempts)
 	writeJSON(w, 200, model.APIResponse{Code: 200, Data: service.GetScheduler().Stats()})
 }
 

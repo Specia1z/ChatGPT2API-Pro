@@ -80,6 +80,10 @@ func (h *Handler) resolveAdminToken(r *http.Request) bool {
 
 // GET /api/images/{id} — 图片代理（隐藏真实存储地址）
 func (h *Handler) ServeGenerationImage(w http.ResponseWriter, r *http.Request) {
+	// 默认禁缓存：防止 CDN/CF 缓存错误响应（如图片异步生成中的 404）。
+	// 成功返回图片时下方会覆盖为 public/private。
+	w.Header().Set("Cache-Control", "no-store")
+
 	idStr := r.PathValue("id")
 	id, err := strconv.ParseInt(idStr, 10, 64)
 	if err != nil || id <= 0 {

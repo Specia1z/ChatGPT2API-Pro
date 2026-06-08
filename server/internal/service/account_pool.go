@@ -106,10 +106,11 @@ func (p *AccountPool) PickRoundRobin() (*model.Account, error) {
 	return available[idx], nil
 }
 
-// PickCandidates 返回按优先级排序的候选账号列表（供 Generate 依次占坑尝试）。
-// 排序：Plus > Pro > Team > Free；同优先级内随机打散，避免并发时都挤向同一个。
-// 调用方应配合 Redis 槽位逐个尝试占用，超上限则跳到下一个，从根本上防止单账号被并发踩踏。
-func (p *AccountPool) PickCandidates() ([]*model.Account, error) {
+// PickCandidates 返回候选账号列表（供 Generate 依次占坑尝试）。
+// slotUsage 为各账号当前 Redis 占用数（image_slot），传入则按「占用少→多」做负载均衡排序
+// （least-connections），高并发下把请求铺开、减少前排账号被争抢的 IncrImageSlot 空转；
+// 同占用时再按优先级 Plus>Pro>Team>Free。slotUsage 为 nil 时退回原「随机打散+轮询偏移」逻辑。
+func (p *AccountPool) PickCandidates(slotUsage map[int64]int) ([]*model.Account, error) {
 	p.mu.Lock()
 	idx := p.index
 	p.index++
@@ -133,20 +134,45 @@ func (p *AccountPool) PickCandidates() ([]*model.Account, error) {
 		candidates = append(candidates, acc)
 	}
 	if len(candidates) == 0 {
-		return nil, fmt.Errorf("无可用账号（总数 %d）", len(accounts))
+		return nil, fmt.Errorf("无可用账号（总数 %d）", len(candidates))
 	}
 
 	priority := map[string]int{"pro": 4, "plus": 3, "team": 2, "free": 1}
 
-	// 同优先级内先随机打散（降低并发同选），再按优先级稳定排序
+	// 先随机打散（同占用/同级时避免并发同选），再做稳定排序
 	rand.Shuffle(len(candidates), func(i, j int) { candidates[i], candidates[j] = candidates[j], candidates[i] })
-	// 轮询起点偏移，让不同请求的同级账号尝试顺序错开
-	if len(candidates) > 1 {
-		off := idx % len(candidates)
-		candidates = append(candidates[off:], candidates[:off]...)
+
+	if slotUsage != nil {
+		// 负载均衡：占用少的优先；占用相同再看优先级高的优先
+		sort.SliceStable(candidates, func(i, j int) bool {
+			ui, uj := slotUsage[candidates[i].ID], slotUsage[candidates[j].ID]
+			if ui != uj {
+				return ui < uj
+			}
+			return priority[candidates[i].PlanType] > priority[candidates[j].PlanType]
+		})
+	} else {
+		// 兼容旧逻辑：轮询起点偏移 + 按优先级排序
+		if len(candidates) > 1 {
+			off := idx % len(candidates)
+			candidates = append(candidates[off:], candidates[:off]...)
+		}
+		sort.SliceStable(candidates, func(i, j int) bool {
+			return priority[candidates[i].PlanType] > priority[candidates[j].PlanType]
+		})
 	}
-	sort.SliceStable(candidates, func(i, j int) bool {
-		return priority[candidates[i].PlanType] > priority[candidates[j].PlanType]
-	})
 	return candidates, nil
+}
+
+// AllAccountIDs 返回当前号池所有账号 ID（供选号前批量查 Redis 占用）。
+func (p *AccountPool) AllAccountIDs() []int64 {
+	accounts, err := p.mysql.GetAccountsForRefresh()
+	if err != nil {
+		return nil
+	}
+	ids := make([]int64, 0, len(accounts))
+	for i := range accounts {
+		ids = append(ids, accounts[i].ID)
+	}
+	return ids
 }

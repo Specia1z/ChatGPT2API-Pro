@@ -62,7 +62,7 @@ mux.Handle("POST /api/user/points/exchange", middleware.RateLimit(userAuth(http.
 	mux.Handle("GET /api/user/invite", userAuth(http.HandlerFunc(h.GetInviteInfo)))
 	mux.Handle("GET /api/generations", userAuth(http.HandlerFunc(h.GetUserGenerations)))
 	mux.Handle("POST /api/generations/share", userAuth(http.HandlerFunc(h.ToggleShare)))
-	mux.HandleFunc("GET /api/images/{id}", h.ServeGenerationImage)
+	mux.Handle("GET /api/images/{id}", middleware.RateLimitImage(http.HandlerFunc(h.ServeGenerationImage)))
 
 	// 公开画廊
 	mux.HandleFunc("GET /api/gallery", publicCached("gallery", h.ListGallery))
@@ -129,7 +129,7 @@ mux.Handle("POST /api/user/points/exchange", middleware.RateLimit(userAuth(http.
 	mux.Handle("POST /api/admin/users/toggle-status", adminAuth(http.HandlerFunc(h.ToggleUserStatus)))
 
 	// 系统设置（GET 公开，POST 需管理员）
-	mux.HandleFunc("GET /api/settings", h.GetSettings)
+	mux.Handle("GET /api/settings", middleware.RateLimitPublic(http.HandlerFunc(h.GetSettings)))
 	mux.Handle("POST /api/settings", adminAuth(http.HandlerFunc(h.SaveSettings)))
 	mux.Handle("GET /api/admin/style-presets/defaults", adminAuth(http.HandlerFunc(h.GetDefaultStylePresets)))
 

@@ -39,15 +39,24 @@ func (s *SVGGenService) PolishPrompt(ctx context.Context, modelSlug, userPrompt,
 	proxy := regCfg.Proxy
 
 	maxPerAccount := 3
+	maxAttemptsCfg := 0
 	if sched := GetScheduler(); sched != nil {
 		maxPerAccount = sched.MaxPerAccount()
+		maxAttemptsCfg = sched.MaxAttempts()
 	}
 
-	candidates, err := GetAccountPool(s.mysql).PickCandidates()
+	ap := GetAccountPool(s.mysql)
+	candidates, err := ap.PickCandidates(s.redis.GetImageSlots(ctx, ap.AllAccountIDs()))
 	if err != nil {
 		return "", fmt.Errorf("无可用账号: %w", err)
 	}
-	maxAttempts := 20
+	maxAttempts := maxAttemptsCfg
+	if maxAttempts <= 0 {
+		maxAttempts = len(candidates)
+		if maxAttempts > 30 {
+			maxAttempts = 30
+		}
+	}
 	if len(candidates) < maxAttempts {
 		maxAttempts = len(candidates)
 	}

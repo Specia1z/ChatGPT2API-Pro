@@ -105,10 +105,11 @@ export default function SettingsPage() {
   };
   const saveScheduler = async () => {
     const g = +schedCfg.global_max, u = +schedCfg.per_user_max, a = +schedCfg.per_account_max;
+    const at = Math.max(0, +schedCfg.max_attempts || 0);
     if (g < 1 || u < 1 || a < 1) { toast.error("并发上限必须 ≥ 1"); return; }
     if (u > g) { toast.error("单用户上限不能超过全局上限"); return; }
     setSavingSched(true);
-    try { await api("/api/admin/scheduler/config", { method: "POST", body: JSON.stringify({ max_global: g, max_per_user: u, max_per_account: a }) }); toast.success("调度器配置已更新"); }
+    try { await api("/api/admin/scheduler/config", { method: "POST", body: JSON.stringify({ max_global: g, max_per_user: u, max_per_account: a, max_attempts: at }) }); toast.success("调度器配置已更新"); }
     catch (e: any) { toast.error(e.message); }
     setSavingSched(false);
   };
@@ -344,6 +345,13 @@ export default function SettingsPage() {
                         <p className="text-[10px] text-muted-foreground">{s.hint}</p>
                       </div>
                     ))}
+                    <div className="space-y-1.5">
+                      <Label>选号最大尝试数</Label>
+                      <Input type="number" min={0} value={schedCfg.max_attempts ?? 0}
+                        onChange={e => setSchedCfg((p: any) => ({ ...p, max_attempts: +e.target.value }))}
+                        className={inputCls} placeholder="0" />
+                      <p className="text-[10px] text-muted-foreground">生图选号时最多尝试几个账号（占满则跳下一个）。0 = 自动按号池大小（至多 30）。号池很大、并发很高时可适当调高，避免前 N 个账号都满时误判「无可用账号」。</p>
+                    </div>
                   </div>
                 )}
               </Card>

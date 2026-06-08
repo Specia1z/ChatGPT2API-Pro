@@ -18,6 +18,7 @@ type GenerationScheduler struct {
 	maxGlobal     int32
 	maxPerUser    int32
 	maxPerAccount int32
+	maxAttempts   int32
 	mysql         *store.MySQLStore
 	cleanupOnce   sync.Once
 }
@@ -27,13 +28,14 @@ var schedOnce sync.Once
 
 func InitScheduler(mysql *store.MySQLStore) *GenerationScheduler {
 	schedOnce.Do(func() {
-		maxG, maxU, maxA := mysql.GetSchedulerConfig()
-		log.Printf("🧭 调度器已加载 · 全局并发=%d 单用户并发=%d 单账号并发=%d", maxG, maxU, maxA)
+		maxG, maxU, maxAcc, maxAtt := mysql.GetSchedulerConfig()
+		log.Printf("🧭 调度器已加载 · 全局并发=%d 单用户并发=%d 单账号并发=%d 选号尝试=%d", maxG, maxU, maxAcc, maxAtt)
 		scheduler = &GenerationScheduler{
 			userCounters:  make(map[int64]*int32),
 			maxGlobal:     int32(maxG),
 			maxPerUser:    int32(maxU),
-			maxPerAccount: int32(maxA),
+			maxPerAccount: int32(maxAcc),
+			maxAttempts:   int32(maxAtt),
 		}
 		scheduler.mysql = mysql
 		scheduler.startCleanup()
@@ -156,12 +158,13 @@ func (s *GenerationScheduler) Release(userID int64) {
 }
 
 // SetMax 动态调整上限
-func (s *GenerationScheduler) SetMax(maxGlobal, maxPerUser, maxPerAccount int) {
+func (s *GenerationScheduler) SetMax(maxGlobal, maxPerUser, maxPerAccount, maxAttempts int) {
 	atomic.StoreInt32(&s.maxGlobal, int32(maxGlobal))
 	atomic.StoreInt32(&s.maxPerUser, int32(maxPerUser))
 	atomic.StoreInt32(&s.maxPerAccount, int32(maxPerAccount))
+	atomic.StoreInt32(&s.maxAttempts, int32(maxAttempts))
 	if s.mysql != nil {
-		s.mysql.SaveSchedulerConfig(maxGlobal, maxPerUser, maxPerAccount)
+		s.mysql.SaveSchedulerConfig(maxGlobal, maxPerUser, maxPerAccount, maxAttempts)
 	}
 }
 
@@ -172,6 +175,11 @@ func (s *GenerationScheduler) MaxPerAccount() int {
 		return 3 // 兜底，防止配置为 0 时无账号可用
 	}
 	return int(v)
+}
+
+// MaxAttempts 返回生图选号最大尝试账号数（0=由调用方按号池大小自动决定）。
+func (s *GenerationScheduler) MaxAttempts() int {
+	return int(atomic.LoadInt32(&s.maxAttempts))
 }
 
 // Stats 返回调度统计
@@ -193,6 +201,7 @@ func (s *GenerationScheduler) Stats() map[string]any {
 		"global_max":      atomic.LoadInt32(&s.maxGlobal),
 		"per_user_max":    atomic.LoadInt32(&s.maxPerUser),
 		"per_account_max": atomic.LoadInt32(&s.maxPerAccount),
+		"max_attempts":    atomic.LoadInt32(&s.maxAttempts),
 		"active_users":    activeUsers,
 		"total_active":    totalActive,
 	}

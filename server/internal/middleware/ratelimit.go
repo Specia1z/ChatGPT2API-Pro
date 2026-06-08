@@ -53,28 +53,45 @@ func init() {
 
 var limiter = &rateLimiter{entries: make(map[string]*rateEntry)}
 
-// RateLimit 简单令牌桶限流 (10 req/s per IP)
-func RateLimit(next http.Handler) http.Handler {
+// rateLimitBucket 通用 IP 固定窗口限流：每秒最多 perSec 个请求。
+// scope 用于隔离不同接口的计数（key=ip:scope），避免图片接口消耗注册接口的额度。
+func rateLimitBucket(scope string, perSec int, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		ip := ClientIP(r)
+		key := ClientIP(r) + ":" + scope
 		limiter.mu.Lock()
-		entry, ok := limiter.entries[ip]
+		entry, ok := limiter.entries[key]
 		now := time.Now()
 		if !ok || now.After(entry.resetAt) {
 			entry = &rateEntry{count: 0, resetAt: now.Add(time.Second)}
-			limiter.entries[ip] = entry
+			limiter.entries[key] = entry
 		}
 		entry.count++
 		count := entry.count
 		limiter.mu.Unlock()
 
-		if count > 10 {
+		if count > perSec {
 			w.Header().Set("Retry-After", "1")
 			http.Error(w, `{"code":429,"message":"请求过于频繁"}`, http.StatusTooManyRequests)
 			return
 		}
 		next.ServeHTTP(w, r)
 	})
+}
+
+// RateLimit 简单 IP 限流 (10 req/s per IP)，用于注册/登录/验证码等敏感接口。
+func RateLimit(next http.Handler) http.Handler {
+	return rateLimitBucket("default", 10, next)
+}
+
+// RateLimitImage 图片代理限流 (60 req/s per IP)。比 RateLimit 宽松——
+// 正常浏览画廊一屏会并发加载十几张图；同时挡住把图片 URL 当图床高频盗刷流量的滥用。
+func RateLimitImage(next http.Handler) http.Handler {
+	return rateLimitBucket("image", 60, next)
+}
+
+// RateLimitPublic 公开只读接口限流 (30 req/s per IP)，给 /api/settings 等匿名裸接口兜底。
+func RateLimitPublic(next http.Handler) http.Handler {
+	return rateLimitBucket("public", 30, next)
 }
 
 // UserRateLimit 按用户维度限流（用于 API Key 认证的接口）。

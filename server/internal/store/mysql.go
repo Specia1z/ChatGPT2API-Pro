@@ -130,12 +130,17 @@ func (s *MySQLStore) autoMigrate() {
 		max_global INT NOT NULL DEFAULT 20,
 		max_per_user INT NOT NULL DEFAULT 5,
 		max_per_account INT NOT NULL DEFAULT 3,
+		max_attempts INT NOT NULL DEFAULT 0,
 		updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 	) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`)
 	s.db.Exec(`INSERT IGNORE INTO scheduler_config (id) VALUES (1)`)
 	// 单账号并发上限：旧库补列（防单账号被并发踩踏触发上游限流）
 	if !s.columnExists(s.currentDBName(), "scheduler_config", "max_per_account") {
 		s.db.Exec("ALTER TABLE scheduler_config ADD COLUMN max_per_account INT NOT NULL DEFAULT 3")
+	}
+	// 生图选号最大尝试账号数：旧库补列（0=自动按号池大小，防号池大时前 N 个满就误判无可用）
+	if !s.columnExists(s.currentDBName(), "scheduler_config", "max_attempts") {
+		s.db.Exec("ALTER TABLE scheduler_config ADD COLUMN max_attempts INT NOT NULL DEFAULT 0")
 	}
 
 	s.db.Exec(`CREATE TABLE IF NOT EXISTS plans (
