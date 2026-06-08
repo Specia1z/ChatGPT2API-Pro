@@ -14,3 +14,15 @@ func MetricsCount(next http.Handler) http.Handler {
 		next.ServeHTTP(w, r)
 	})
 }
+
+// SecurityHeaders 给后端响应加基础安全头。后端主要返回 JSON / 图片，
+// 核心是防嗅探(nosniff)与防被嵌入(点击劫持)；页面级 CSP 由前端 next.config 负责。
+func SecurityHeaders(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		h := w.Header()
+		h.Set("X-Content-Type-Options", "nosniff")
+		h.Set("X-Frame-Options", "DENY")
+		h.Set("Referrer-Policy", "strict-origin-when-cross-origin")
+		next.ServeHTTP(w, r)
+	})
+}

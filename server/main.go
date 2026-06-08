@@ -43,8 +43,8 @@ func main() {
 
 	cleaner := service.NewStorageCleaner(mysql)
 	router := api.NewRouter(mysql, redis, cleaner)
-	// 全局 QPS 采集：包裹整个路由，每个请求计一次数（原子，开销极小）
-	handler := middleware.MetricsCount(router)
+	// 全局中间件链：安全头 + QPS 采集，包裹整个路由
+	handler := middleware.SecurityHeaders(middleware.MetricsCount(router))
 
 	// 启动账号健康监控
 	service.GetMonitor(mysql).Start()

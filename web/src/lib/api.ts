@@ -6,10 +6,23 @@ const runtimeURL = typeof window !== "undefined" ? (window as any).RUNTIME_API_U
 export const BASE = runtimeURL || process.env.NEXT_PUBLIC_API_URL || "";
 
 let token: string | null = null;
+
+// 写图片代理用的 cookie。img 标签无法带 Authorization 头，故 token 同步进 cookie。
+// 加固：SameSite=Strict 防 CSRF；HTTPS 下加 Secure 防明文传输（本地 http 不加，否则 cookie 不生效）。
+// 注：因 img 需读取，无法用 HttpOnly（那样 img 仍能带但属同一权衡）；存储型 XSS 入口已由 SVG sanitize 堵住。
+function writeTokenCookie(t: string | null) {
+  if (typeof document === "undefined") return;
+  const secure = typeof location !== "undefined" && location.protocol === "https:" ? "; Secure" : "";
+  if (t) {
+    document.cookie = `token=${t}; path=/; max-age=86400; SameSite=Strict${secure}`;
+  } else {
+    document.cookie = `token=; path=/; max-age=0; SameSite=Strict${secure}`;
+  }
+}
+
 if (typeof window !== "undefined") {
   token = localStorage.getItem("auth-token");
-  // 同步写入 cookie，供 img 标签自动携带（img 无法发送 Authorization 头）
-  if (token) document.cookie = `token=${token}; path=/; max-age=86400`;
+  if (token) writeTokenCookie(token);
 }
 
 export function getToken() { return token; }
@@ -17,10 +30,10 @@ export function setToken(t: string | null) {
   token = t;
   if (t) {
     localStorage.setItem("auth-token", t);
-    document.cookie = `token=${t}; path=/; max-age=86400`;
+    writeTokenCookie(t);
   } else {
     localStorage.removeItem("auth-token");
-    document.cookie = "token=; path=/; max-age=0";
+    writeTokenCookie(null);
   }
 }
 

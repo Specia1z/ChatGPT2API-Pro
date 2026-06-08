@@ -21,31 +21,30 @@ func (h *Handler) fulfillOrder(orderNo, tradeNo string) bool {
 		return false // 幂等：已处理
 	}
 
-	ok, err := h.MySQL.MarkOrderPaid(orderNo, tradeNo)
-	if err != nil || !ok {
-		return false // 标记失败或被并发抢先（非 pending→paid）
-	}
-
-	// 开通/续期套餐
+	// 计算续期天数：订单指定优先，否则取套餐默认。plan 不存在则只标记已付不开通。
+	planID := order.PlanID
+	days := order.DurationDays
 	if p, _ := h.MySQL.GetPlanByID(order.PlanID); p != nil {
-		d := order.DurationDays
-		if d <= 0 {
-			d = p.DurationDays
-		}
-		if d > 0 {
-			h.MySQL.RawExec(`UPDATE users SET plan_id=?, subscription_expires_at=DATE_ADD(CASE WHEN subscription_expires_at IS NULL OR subscription_expires_at < NOW() THEN NOW() ELSE subscription_expires_at END, INTERVAL ? DAY) WHERE id=?`, order.PlanID, d, order.UserID)
-		} else {
-			h.MySQL.RawExec("UPDATE users SET plan_id=?, subscription_expires_at=NULL WHERE id=?", order.PlanID, order.UserID)
-		}
-		// 核销优惠券（仅在套餐有效时）
-		if order.CouponCode != "" {
-			h.MySQL.AtomicUseCoupon(order.CouponCode, order.Amount)
+		if days <= 0 {
+			days = p.DurationDays
 		}
 	} else {
 		log.Printf("[payment] fulfillOrder: plan %d not found for order %s", order.PlanID, orderNo)
+		planID = 0 // 标记已付但不开通
 	}
 
-	// 邀请首充奖励（幂等，仅被邀请用户首笔付费触发）
+	// 标记已付 + 开通套餐 + 核销优惠券，三步在同一事务内原子完成
+	fulfilled, err := h.MySQL.FulfillOrderTx(orderNo, tradeNo, order.UserID, planID, days, order.CouponCode, order.Amount)
+	if err != nil {
+		log.Printf("[payment] fulfillOrder tx 失败 order=%s: %v", orderNo, err)
+		return false
+	}
+	if !fulfilled {
+		return false // 已被处理过或并发抢先
+	}
+
+	// 邀请首充奖励（幂等，仅被邀请用户首笔付费触发）。
+	// 放在事务外：它自带幂等且失败不应回滚已完成的支付开通。
 	h.grantInviteRecharge(order.UserID)
 	return true
 }

@@ -114,20 +114,22 @@ func UserRateLimit(redis *store.RedisStore, limit int, window time.Duration) fun
 
 // ClientIP 提取请求的客户端 IP（剥离端口）。
 // 优先取反向代理设置的 X-Forwarded-For / X-Real-IP；否则回退到 RemoteAddr。
-// 注意：XFF 可被客户端伪造，仅在部署于可信反向代理之后时可靠。
+// 注意：XFF 可被客户端伪造。生产部署于宝塔 Nginx 之后，Nginx 用 proxy_set_header
+// X-Real-IP $remote_addr 强制写入真实客户端 IP（覆盖客户端伪造值），故优先信任 X-Real-IP。
+// XFF 仅作兜底，且取最后一跳（最接近本服务的可信代理追加值），而非客户端可控的第一个。
 func ClientIP(r *http.Request) string {
-	if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
-		// 取链路中第一个地址（最初的客户端）
-		if i := strings.IndexByte(xff, ','); i >= 0 {
-			xff = xff[:i]
-		}
-		if ip := strings.TrimSpace(xff); ip != "" {
-			return ip
-		}
-	}
+	// 1. 优先 X-Real-IP（Nginx 强制写入，不可被客户端伪造）
 	if xrip := strings.TrimSpace(r.Header.Get("X-Real-IP")); xrip != "" {
 		return xrip
 	}
+	// 2. 兜底 XFF：取最后一跳（反代追加），不取客户端可伪造的第一个
+	if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
+		parts := strings.Split(xff, ",")
+		if last := strings.TrimSpace(parts[len(parts)-1]); last != "" {
+			return last
+		}
+	}
+	// 3. 直连：RemoteAddr
 	if host, _, err := net.SplitHostPort(r.RemoteAddr); err == nil {
 		return host
 	}

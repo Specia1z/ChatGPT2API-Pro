@@ -5,6 +5,7 @@ import { Outfit, DM_Mono } from "next/font/google";
 import { Shapes, Sparkles, Download, Copy, Check, Loader2, AlertCircle, X } from "lucide-react";
 import { toast } from "sonner";
 import { BASE, getToken, api } from "@/lib/api";
+import { sanitizeSVG } from "@/lib/sanitize";
 import { Navbar } from "@/components/navbar";
 import { Button } from "@/components/ui/button";
 
@@ -208,7 +209,7 @@ export default function VectorPage() {
                   <div className="relative h-56 flex items-center justify-center p-4 overflow-hidden border-b">
                     <div className="absolute inset-0 opacity-[0.03] bg-[radial-gradient(circle,currentColor_1px,transparent_1px)] [background-size:16px_16px]" />
                     {svg ? (
-                      <div onClick={() => setLightbox(svg)} title="点击放大" className="relative w-full h-full cursor-zoom-in [&>svg]:!w-full [&>svg]:!h-full [&>svg]:!max-w-full [&>svg]:!max-h-full" dangerouslySetInnerHTML={{ __html: svg }} />
+                      <div onClick={() => setLightbox(svg)} title="点击放大" className="relative w-full h-full cursor-zoom-in [&>svg]:!w-full [&>svg]:!h-full [&>svg]:!max-w-full [&>svg]:!max-h-full" dangerouslySetInnerHTML={{ __html: sanitizeSVG(svg) }} />
                     ) : t.status === "error" ? (
                       <div className="text-center text-red-500"><AlertCircle className="size-6 mx-auto mb-1.5" /><p className="text-[11px] px-3">{t.error}</p></div>
                     ) : (
@@ -247,7 +248,7 @@ export default function VectorPage() {
                   <div key={h.id} className="group rounded-xl border bg-card overflow-hidden flex flex-col">
                     <div className="relative h-40 flex items-center justify-center p-3 overflow-hidden border-b bg-muted/20">
                       {ok ? (
-                        <div onClick={() => setLightbox(svg)} title="点击放大" className="relative w-full h-full cursor-zoom-in [&>svg]:!w-full [&>svg]:!h-full [&>svg]:!max-w-full [&>svg]:!max-h-full" dangerouslySetInnerHTML={{ __html: svg }} />
+                        <div onClick={() => setLightbox(svg)} title="点击放大" className="relative w-full h-full cursor-zoom-in [&>svg]:!w-full [&>svg]:!h-full [&>svg]:!max-w-full [&>svg]:!max-h-full" dangerouslySetInnerHTML={{ __html: sanitizeSVG(svg) }} />
                       ) : (
                         <div className="text-center text-muted-foreground/50"><AlertCircle className="size-5 mx-auto mb-1" /><p className="text-[10px]">{h.status === "failed" ? "生成失败" : "无效"}</p></div>
                       )}
@@ -278,7 +279,7 @@ export default function VectorPage() {
           <div
             onClick={e => e.stopPropagation()}
             className="bg-white dark:bg-zinc-900 rounded-2xl p-4 sm:p-8 shadow-2xl w-[min(86vw,86vh)] h-[min(86vw,86vh)] flex items-center justify-center [&>svg]:!w-full [&>svg]:!h-full [&>svg]:!max-w-full [&>svg]:!max-h-full"
-            dangerouslySetInnerHTML={{ __html: lightbox }}
+            dangerouslySetInnerHTML={{ __html: sanitizeSVG(lightbox) }}
           />
         </div>
       )}
