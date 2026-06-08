@@ -33,8 +33,10 @@ func (s *MySQLStore) ListAccountSlotInfo() ([]AccountSlotInfo, error) {
 }
 
 // GetHourlyHeat 出图时段分布：按小时(0-23)聚合 image 生成量（累计，含全部历史）。
+// GetHourlyHeat 出图时段分布：按小时(0-23)聚合**近 7 天** image 生成量。
+// 用近 7 天而非全历史，更反映当前用户的活跃时段规律（习惯会随运营变化）。
 func (s *MySQLStore) GetHourlyHeat() ([]model.HourlyHeat, error) {
-	rows, err := s.db.Query("SELECT HOUR(created_at) AS h, COUNT(*) FROM generations WHERE gen_type='image' GROUP BY h")
+	rows, err := s.db.Query("SELECT HOUR(created_at) AS h, COUNT(*) FROM generations WHERE gen_type='image' AND created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY) GROUP BY h")
 	if err != nil {
 		return nil, err
 	}

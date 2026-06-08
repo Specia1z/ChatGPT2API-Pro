@@ -9,6 +9,7 @@ import { toast } from "sonner";
 import { api } from "@/lib/api";
 import { AdminSidebar } from "@/components/admin-sidebar";
 import { Button } from "@/components/ui/button";
+import { IconTip } from "@/components/ui/icon-tip";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -180,9 +181,9 @@ export default function AdminStylesPage() {
                       <Button variant="ghost" size="sm" className="h-7 gap-1 text-xs text-muted-foreground" onClick={() => editItem(s)}>
                         <Settings2 className="size-3.5" /> 编辑
                       </Button>
-                      <Button variant="ghost" size="icon-sm" className="hover:text-destructive" onClick={() => setDeleteTarget(s)} title="删除">
+                      <IconTip label="删除"><Button variant="ghost" size="icon-sm" className="hover:text-destructive" onClick={() => setDeleteTarget(s)}>
                         <Trash2 className="size-3.5" />
-                      </Button>
+                      </Button></IconTip>
                     </div>
                   </motion.div>
                 ))}

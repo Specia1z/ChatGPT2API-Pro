@@ -11,7 +11,7 @@ import {
 } from "lucide-react";
 import {
   AreaChart, Area, BarChart, Bar, PieChart as RPieChart, Pie, Cell,
-  XAxis, YAxis, CartesianGrid, ComposedChart, Line, Tooltip,
+  XAxis, YAxis, CartesianGrid, ComposedChart, Line, Tooltip, ReferenceDot,
 } from "recharts";
 import { api } from "@/lib/api";
 import { AdminSidebar } from "@/components/admin-sidebar";
@@ -98,6 +98,7 @@ const genChartConfig = {
 } satisfies ChartConfig;
 const revenueChartConfig = { value: { label: "收入 ¥", theme: { light: "#f59e0b", dark: "#fbbf24" } } } satisfies ChartConfig;
 const usersChartConfig = { value: { label: "新用户", theme: { light: "#6366f1", dark: "#818cf8" } } } satisfies ChartConfig;
+const hourChartConfig = { count: { label: "出图", theme: { light: "#6366f1", dark: "#818cf8" } } } satisfies ChartConfig;
 const dailyChartConfig = {
   success: { label: "成功", theme: { light: "#10b981", dark: "#34d399" } },
   failed: { label: "失败", theme: { light: "#ef4444", dark: "#f87171" } },
@@ -236,7 +237,12 @@ export default function StatsPage() {
     date: r.date, registered: r.value, banned: aeTrends.banned[i]?.value || 0, deleted: aeTrends.deleted[i]?.value || 0,
   })) || [], [aeTrends]);
   const hourlyHeat = data?.hourly_heat || [];
-  const hourMax = Math.max(...hourlyHeat.map(h => h.count), 1);
+  const hourTotal = hourlyHeat.reduce((a, h) => a + h.count, 0);
+  // 主/次高峰：主峰=出图最多的小时；次峰=与主峰相隔≥3 小时的第二高（避开相邻同一波）
+  const peakHour = hourlyHeat.reduce((m, h) => (h.count > m.count ? h : m), { hour: 0, count: 0 });
+  const secondPeak = hourlyHeat
+    .filter(h => Math.abs(h.hour - peakHour.hour) >= 3 && h.count > 0)
+    .reduce((m, h) => (h.count > m.count ? h : m), { hour: -1, count: 0 });
   const planDist = data?.plan_distribution || [];
   const revComp = data?.revenue_composition;
   const inviteBoard = data?.invite_leaderboard || [];
@@ -488,23 +494,53 @@ export default function StatsPage() {
                     <Clock className="size-4 text-indigo-500" />
                   </div>
                   <h2 className={`${heading.className} text-sm font-semibold`}>出图时段分布</h2>
-                  <span className="ml-auto text-[10px] text-muted-foreground">全部历史 · 按小时</span>
+                  <span className="ml-auto text-[10px] text-muted-foreground">近 7 天 · 按小时</span>
                 </div>
-                {hourlyHeat.some(h => h.count > 0) ? (
+                {hourTotal > 0 ? (
                   <>
-                    <div className="grid grid-cols-12 gap-1">
-                      {hourlyHeat.map(h => {
-                        const intensity = h.count / hourMax;
-                        return (
-                          <div key={h.hour} className="flex flex-col items-center gap-1" title={`${h.hour}:00 · ${h.count} 张`}>
-                            <div className="w-full aspect-square rounded-md transition-colors"
-                              style={{ backgroundColor: h.count > 0 ? `rgba(99,102,241,${0.15 + intensity * 0.85})` : "var(--muted)" }} />
-                            {h.hour % 3 === 0 && <span className="text-[8px] text-muted-foreground/60 tabular-nums">{h.hour}</span>}
-                          </div>
-                        );
-                      })}
+                    {/* 高峰提示：主峰 + 次峰 */}
+                    <div className="flex items-center flex-wrap gap-2 mb-3 text-[11px]">
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 font-medium">
+                        主高峰 {peakHour.hour}:00–{peakHour.hour + 1}:00
+                      </span>
+                      <span className="text-muted-foreground">{peakHour.count} 张 · 占比 {Math.round((peakHour.count / hourTotal) * 100)}%</span>
+                      {secondPeak.hour >= 0 && (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-muted text-muted-foreground font-medium">
+                          次高峰 {secondPeak.hour}:00–{secondPeak.hour + 1}:00 · {secondPeak.count} 张
+                        </span>
+                      )}
                     </div>
-                    <p className="text-[10px] text-muted-foreground/70 mt-3">颜色越深出图越多。可据高峰时段安排号池补充与维护窗口。</p>
+                    {/* 24h 面积曲线 */}
+                    <div className="h-[200px]">
+                      {mounted && (
+                        <ChartContainer config={hourChartConfig} className="h-full w-full" initialDimension={{ width: 500, height: 200 }}>
+                          <AreaChart data={hourlyHeat} margin={{ top: 8, right: 12, bottom: 0, left: 4 }}>
+                            <defs>
+                              <linearGradient id="hourGrad" x1="0" y1="0" x2="0" y2="1">
+                                <stop offset="0%" stopColor="var(--color-count)" stopOpacity={0.4} />
+                                <stop offset="100%" stopColor="var(--color-count)" stopOpacity={0.02} />
+                              </linearGradient>
+                            </defs>
+                            <CartesianGrid strokeDasharray="3 3" vertical={false} className="stroke-border" />
+                            <XAxis dataKey="hour" tickLine={false} axisLine={false} tickMargin={6} tick={{ fontSize: 10 }}
+                              ticks={[0, 3, 6, 9, 12, 15, 18, 21]} tickFormatter={(v) => `${v}时`} interval={0} />
+                            <YAxis tickLine={false} axisLine={false} tickMargin={4} tick={{ fontSize: 10 }} allowDecimals={false} width={40} />
+                            <ChartTooltip content={<ChartTooltipContent labelFormatter={(_, p) => `${p?.[0]?.payload?.hour ?? 0}:00–${(p?.[0]?.payload?.hour ?? 0) + 1}:00`} />} />
+                            <Area type="monotone" dataKey="count" stroke="var(--color-count)" fill="url(#hourGrad)" strokeWidth={2}
+                              dot={false} activeDot={{ r: 4 }} name="count" />
+                            {/* 主高峰：大实心高亮点 */}
+                            <ReferenceDot x={peakHour.hour} y={peakHour.count} r={5}
+                              fill="var(--color-count)" stroke="var(--background)" strokeWidth={2} />
+                            {/* 次高峰：小一号半透明点 */}
+                            {secondPeak.hour >= 0 && (
+                              <ReferenceDot x={secondPeak.hour} y={secondPeak.count} r={4}
+                                fill="var(--color-count)" fillOpacity={0.45} stroke="var(--background)" strokeWidth={2} />
+                            )}
+                          </AreaChart>
+                        </ChartContainer>
+                      )}
+                    </div>
+                    <p className="text-[10px] text-muted-foreground/70 mt-2">近 7 天按小时聚合，反映当前用户活跃时段。可据高峰安排号池补充与维护窗口。</p>
                   </>
                 ) : <div className="flex items-center justify-center h-48 text-xs text-muted-foreground">尚无生成数据</div>}
               </motion.div>

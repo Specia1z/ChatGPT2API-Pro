@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { Outfit, DM_Mono } from "next/font/google";
-import { Plus, Trash2, Tag, Copy, Check, Percent, DollarSign, Calendar, Search, Clock, TicketCheck } from "lucide-react";
+import { Plus, Trash2, Tag, Copy, Check, Percent, DollarSign, Calendar, Search, TicketCheck } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
 import { AdminSidebar } from "@/components/admin-sidebar";
@@ -34,83 +34,71 @@ function CouponCard({ c, onCopy, onDisable, copied }: any) {
   const usedUp = c.max_uses > 0 && c.use_count >= c.max_uses;
   const valid = c.status && !expired && !usedUp;
   const isPercent = c.discount_type === "percent";
-  const Icon = isPercent ? Percent : DollarSign;
-  const accent = isPercent ? { color: "text-violet-500", bg: "bg-violet-500/10" } : { color: "text-emerald-500", bg: "bg-emerald-500/10" };
   const statusKey = !c.status ? "disabled" : expired ? "expired" : usedUp ? "used_up" : "active";
   const st = STATUS_META[statusKey];
+  // 百分比券=紫，满减券=翠绿，作为券面主题色
+  const grad = isPercent ? "linear-gradient(135deg,#7c3aed,#a855f7)" : "linear-gradient(135deg,#059669,#10b981)";
+  const glow = isPercent ? "rgba(168,85,247,0.22)" : "rgba(16,185,129,0.22)";
 
   return (
     <motion.div variants={cardPop}
-      className={`group relative rounded-2xl border bg-card overflow-hidden transition-all duration-300 ${
-        valid ? "hover:shadow-lg hover:-translate-y-0.5" : "opacity-50 grayscale-[40%]"
-      }`}>
-      {/* 券票打孔装饰条 */}
-      <div className="flex gap-1 px-3 pt-3">
-        {Array.from({ length: 16 }).map((_, i) => (
-          <div key={i} className="h-1 flex-1 rounded-full bg-muted" />
-        ))}
-      </div>
+      className={`group relative transition-all duration-300 ${valid ? "hover:-translate-y-1" : "opacity-50 grayscale-[45%]"}`}>
+      <div className="relative flex rounded-2xl overflow-hidden shadow-sm group-hover:shadow-xl transition-shadow"
+        style={valid ? { boxShadow: `0 8px 30px -12px ${glow}` } : undefined}>
 
-      <div className="p-4 sm:p-5 pt-3">
-        {/* 类型 + 状态 */}
-        <div className="flex items-center justify-between mb-3 sm:mb-4">
-          <div className="flex items-center gap-2">
-            <div className={`size-8 rounded-xl ${accent.bg} flex items-center justify-center`}>
-              <Icon className={`size-4 ${accent.color}`} />
-            </div>
-            <span className="text-xs font-medium text-muted-foreground">{isPercent ? "百分比折扣" : "固定折扣"}</span>
+        {/* ── 左：折扣面额区 ── */}
+        <div className="relative w-[34%] shrink-0 flex flex-col items-center justify-center px-2 py-5 text-white text-center" style={{ background: grad }}>
+          {/* 斜纹光泽 */}
+          <div className="pointer-events-none absolute inset-0 opacity-20"
+            style={{ backgroundImage: "repeating-linear-gradient(45deg,#fff 0 1px,transparent 1px 9px)" }} />
+          <div className="relative flex items-baseline justify-center gap-0.5">
+            {!isPercent && <span className="text-base font-semibold">¥</span>}
+            <span className={`${heading.className} text-3xl font-extrabold tabular-nums tracking-tight leading-none`}>{c.discount_value}</span>
+            {isPercent && <span className="text-base font-semibold">%</span>}
           </div>
-          <span className={`inline-flex items-center gap-1.5 text-[10px] font-medium px-2 py-0.5 rounded-full ${st.bg}`} style={{ color: st.color }}>
-            <span className="size-1.5 rounded-full" style={{ backgroundColor: st.color }} /> {st.label}
-          </span>
+          <span className="relative text-[10px] font-medium text-white/80 mt-1.5">{isPercent ? "折扣券" : "满减券"}</span>
         </div>
 
-        {/* 优惠码 */}
-        <div className="flex items-center gap-2 mb-4">
-          <span className={`${mono.className} text-lg font-medium tracking-[0.12em]`}>{c.code}</span>
-          <button onClick={() => onCopy(c.code)}
-            className="size-6 rounded-lg flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition-all opacity-100 sm:opacity-0 sm:group-hover:opacity-100">
-            {copied === c.code ? <Check className="size-3 text-emerald-500" /> : <Copy className="size-3" />}
-          </button>
+        {/* ── 竖向撕裂缝：上下半圆缺口 + 虚线 ── */}
+        <div className="relative w-0 shrink-0">
+          <div className="absolute -top-2 -left-2 size-4 rounded-full bg-background" />
+          <div className="absolute -bottom-2 -left-2 size-4 rounded-full bg-background" />
+          <div className="absolute inset-y-3 -left-px border-l-2 border-dashed border-white/40" />
         </div>
 
-        {/* 折扣值 */}
-        <div className="flex items-baseline gap-0.5 mb-4">
-          {!isPercent && <span className="text-base font-medium text-muted-foreground">¥</span>}
-          <span className={`${heading.className} text-3xl font-extrabold tabular-nums tracking-tight`}>{c.discount_value}</span>
-          {isPercent && <span className="text-base font-medium text-muted-foreground">%</span>}
-        </div>
-
-        {/* 元信息 */}
-        <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-[11px] text-muted-foreground">
-          <div className="flex items-center gap-1.5">
-            <TicketCheck className="size-3" />
-            <span>已用 <strong className="text-foreground font-medium">{c.use_count}</strong>/{c.max_uses}</span>
-          </div>
-          {c.min_amount > 0 && (
-            <div className="flex items-center gap-1.5">
-              <DollarSign className="size-3" /><span>满 <strong className="text-foreground font-medium">¥{c.min_amount}</strong></span>
+        {/* ── 右：券信息区 ── */}
+        <div className="flex-1 min-w-0 bg-card border border-l-0 border-border rounded-r-2xl px-4 py-3.5">
+          {/* 状态 + 码 */}
+          <div className="flex items-center justify-between gap-2 mb-2">
+            <div className="flex items-center gap-1.5 min-w-0">
+              <span className={`${mono.className} text-sm font-semibold tracking-[0.1em] truncate`}>{c.code}</span>
+              <button onClick={() => onCopy(c.code)}
+                className="size-5 shrink-0 rounded flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition-all opacity-100 sm:opacity-0 sm:group-hover:opacity-100">
+                {copied === c.code ? <Check className="size-3 text-emerald-500" /> : <Copy className="size-3" />}
+              </button>
             </div>
-          )}
-          {c.expires_at && (
-            <div className="flex items-center gap-1.5">
-              <Calendar className="size-3" /><span>到期 <strong className="text-foreground font-medium">{c.expires_at.slice(0, 10)}</strong></span>
-            </div>
-          )}
-          <div className="flex items-center gap-1.5">
-            <Clock className="size-3" /><span>创建 {c.created_at?.slice(0, 10) || "—"}</span>
+            <span className={`inline-flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded-full shrink-0 ${st.bg}`} style={{ color: st.color }}>
+              <span className="size-1.5 rounded-full" style={{ backgroundColor: st.color }} /> {st.label}
+            </span>
           </div>
-        </div>
 
-        {/* 底部 */}
-        <div className="mt-5 pt-3 border-t flex items-center justify-between">
-          <span className={`${mono.className} text-[10px] text-muted-foreground/50`}>ID {c.id}</span>
-          {valid && (
-            <button onClick={() => onDisable(c)}
-              className="text-[11px] font-medium text-muted-foreground hover:text-destructive transition-colors flex items-center gap-1 px-2 py-1 rounded-lg hover:bg-destructive/10">
-              <Trash2 className="size-3" /> 禁用
-            </button>
-          )}
+          {/* 元信息 */}
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-muted-foreground">
+            <span className="flex items-center gap-1"><TicketCheck className="size-3" /> {c.use_count}/{c.max_uses}</span>
+            {c.min_amount > 0 && <span className="flex items-center gap-1"><DollarSign className="size-3" /> 满¥{c.min_amount}</span>}
+            <span className="flex items-center gap-1"><Calendar className="size-3" /> {c.expires_at ? c.expires_at.slice(0, 10) : "永久"}</span>
+          </div>
+
+          {/* 底部 */}
+          <div className="flex items-center justify-between mt-2.5 pt-2.5 border-t border-dashed border-border">
+            <span className={`${mono.className} text-[10px] text-muted-foreground/50`}>NO.{String(c.id).padStart(4, "0")}</span>
+            {valid && (
+              <button onClick={() => onDisable(c)}
+                className="text-[11px] font-medium text-muted-foreground hover:text-destructive transition-colors flex items-center gap-1 px-2 py-0.5 rounded-lg hover:bg-destructive/10">
+                <Trash2 className="size-3" /> 禁用
+              </button>
+            )}
+          </div>
         </div>
       </div>
     </motion.div>
@@ -265,7 +253,7 @@ export default function CouponsPage() {
                 <p className="text-xs text-muted-foreground mt-1">{search || statusFilter !== "all" ? "尝试修改搜索条件" : "点击右上角创建第一个优惠码"}</p>
               </div>
             ) : (
-              <motion.div variants={stagger} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+              <motion.div variants={stagger} className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4">
                 {filtered.map((c: any) => (
                   <CouponCard key={c.id} c={c} onCopy={copyCode} onDisable={setDeleteTarget} copied={copied} />
                 ))}

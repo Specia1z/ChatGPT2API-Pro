@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import { api } from "@/lib/api";
 import { AdminSidebar } from "@/components/admin-sidebar";
 import { Button } from "@/components/ui/button";
+import { IconTip } from "@/components/ui/icon-tip";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -161,8 +162,8 @@ export default function AdminAnnouncementsPage() {
                         </p>
                       </div>
                       <Switch checked={a.enabled} onCheckedChange={() => toggleEnabled(a)} />
-                      <Button variant="ghost" size="icon-sm" onClick={() => setEditing({ ...a })} title="编辑"><Settings2 className="size-3.5" /></Button>
-                      <Button variant="ghost" size="icon-sm" className="hover:text-destructive" onClick={() => setDeleteTarget(a)} title="删除"><Trash2 className="size-3.5" /></Button>
+                      <IconTip label="编辑"><Button variant="ghost" size="icon-sm" onClick={() => setEditing({ ...a })}><Settings2 className="size-3.5" /></Button></IconTip>
+                      <IconTip label="删除"><Button variant="ghost" size="icon-sm" className="hover:text-destructive" onClick={() => setDeleteTarget(a)}><Trash2 className="size-3.5" /></Button></IconTip>
                     </motion.div>
                   );
                 })}

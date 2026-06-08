@@ -9,6 +9,7 @@ import { toast } from "sonner";
 import { api } from "@/lib/api";
 import { AdminSidebar } from "@/components/admin-sidebar";
 import { Button } from "@/components/ui/button";
+import { IconTip } from "@/components/ui/icon-tip";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -251,17 +252,17 @@ export default function UsersPage() {
                           <td className={`${mono.className} hidden sm:table-cell py-3 text-[11px] text-muted-foreground tabular-nums`}>{u.created_at?.slice(0, 10) || "—"}</td>
                           <td className="py-3 pr-5">
                             <div className="flex items-center justify-end gap-0.5 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
-                              <Button variant="ghost" size="icon-sm" className="hover:text-primary" onClick={() => router.push(`/admin/users/${u.id}`)} title="查看详情"><Eye className="size-3.5" /></Button>
-                              <Button variant="ghost" size="icon-sm" onClick={() => { setEditUser(u); setEditName(u.name || ""); }} title="编辑昵称"><Pencil className="size-3.5" /></Button>
-                              <Button variant="ghost" size="icon-sm" className="hover:text-amber-500" onClick={() => setResetTarget(u)} title="重置密码"><Key className="size-3.5" /></Button>
-                              <Button variant="ghost" size="icon-sm" className="hover:text-emerald-500" onClick={() => { setPointsUser(u); setPointsDelta(0); }} title="调整积分"><Coins className="size-3.5" /></Button>
-                              <Button variant="ghost" size="icon-sm" className="hover:text-violet-500" onClick={() => openSub(u)} title="套餐/续期"><Crown className="size-3.5" /></Button>
+                              <IconTip label="查看详情"><Button variant="ghost" size="icon-sm" className="hover:text-primary" onClick={() => router.push(`/admin/users/${u.id}`)}><Eye className="size-3.5" /></Button></IconTip>
+                              <IconTip label="编辑昵称"><Button variant="ghost" size="icon-sm" onClick={() => { setEditUser(u); setEditName(u.name || ""); }}><Pencil className="size-3.5" /></Button></IconTip>
+                              <IconTip label="重置密码"><Button variant="ghost" size="icon-sm" className="hover:text-amber-500" onClick={() => setResetTarget(u)}><Key className="size-3.5" /></Button></IconTip>
+                              <IconTip label="调整积分"><Button variant="ghost" size="icon-sm" className="hover:text-emerald-500" onClick={() => { setPointsUser(u); setPointsDelta(0); }}><Coins className="size-3.5" /></Button></IconTip>
+                              <IconTip label="套餐/续期"><Button variant="ghost" size="icon-sm" className="hover:text-violet-500" onClick={() => openSub(u)}><Crown className="size-3.5" /></Button></IconTip>
                               {isSuper && !u.is_super_admin && (
-                                <Button variant="ghost" size="icon-sm" className={u.role >= 1 ? "text-blue-500 hover:text-muted-foreground" : "hover:text-blue-500"} onClick={() => setRoleTarget(u)} title={u.role >= 1 ? "取消管理员" : "设为管理员"}><Shield className="size-3.5" /></Button>
+                                <IconTip label={u.role >= 1 ? "取消管理员" : "设为管理员"}><Button variant="ghost" size="icon-sm" className={u.role >= 1 ? "text-blue-500 hover:text-muted-foreground" : "hover:text-blue-500"} onClick={() => setRoleTarget(u)}><Shield className="size-3.5" /></Button></IconTip>
                               )}
-                              <Button variant="ghost" size="icon-sm" className={u.status ? "hover:text-destructive" : "text-red-400 hover:text-emerald-500"} onClick={() => setToggleTarget(u)} title={u.status ? "禁用" : "启用"}>
+                              <IconTip label={u.status ? "禁用" : "启用"}><Button variant="ghost" size="icon-sm" className={u.status ? "hover:text-destructive" : "text-red-400 hover:text-emerald-500"} onClick={() => setToggleTarget(u)}>
                                 {u.status ? <Ban className="size-3.5" /> : <Check className="size-3.5" />}
-                              </Button>
+                              </Button></IconTip>
                             </div>
                           </td>
                         </motion.tr>

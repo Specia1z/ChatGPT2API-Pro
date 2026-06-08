@@ -9,7 +9,6 @@ import { api } from "@/lib/api";
 import { AdminSidebar } from "@/components/admin-sidebar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -110,94 +109,80 @@ export default function PlansPage() {
                 const isFree = p.price_monthly === 0;
                 return (
                   <motion.div key={p.id} variants={cardPop}
-                    className={`group relative rounded-2xl border bg-card overflow-hidden transition-all duration-200 hover:shadow-lg hover:-translate-y-0.5 ${
-                      p.highlighted ? "border-primary/40 ring-1 ring-primary/20" : ""
+                    className={`group relative rounded-2xl bg-card overflow-hidden flex flex-col transition-all duration-300 hover:-translate-y-1 ${
+                      p.highlighted
+                        ? "ring-2 ring-primary/50 shadow-lg shadow-primary/10"
+                        : "border border-border hover:shadow-lg"
                     } ${!p.enabled ? "opacity-50 grayscale-[30%]" : ""}`}>
-                    {/* 推荐标识 */}
+
+                    {/* 推荐款：顶部品牌渐变条 */}
                     {p.highlighted && (
-                      <div className="absolute top-0 right-0 px-2.5 py-0.5 rounded-bl-lg bg-primary text-primary-foreground text-[10px] font-semibold inline-flex items-center gap-1">
-                        <Star className="size-2.5 fill-current" /> 推荐
-                      </div>
+                      <div className="h-1 w-full shrink-0" style={{ background: "linear-gradient(90deg,#22d3ee,#6366f1 55%,#e879f9)" }} />
                     )}
 
-                    <div className="p-4 sm:p-5">
-                      {/* 名称行 */}
-                      <div className="flex items-center justify-between mb-2 sm:mb-3">
-                        <div className="flex items-center gap-1.5 sm:gap-2 min-w-0">
-                          <button onClick={() => toggleHighlighted(p)}
-                            className={`shrink-0 transition-colors ${p.highlighted ? "text-primary" : "text-muted-foreground/40 hover:text-primary"}`}>
+                    <div className="p-5 flex flex-col flex-1">
+                      {/* 名称 + 状态切换 */}
+                      <div className="flex items-center justify-between mb-3">
+                        <div className="flex items-center gap-1.5 min-w-0">
+                          <button onClick={() => toggleHighlighted(p)} title="设为推荐"
+                            className={`shrink-0 transition-colors ${p.highlighted ? "text-amber-400" : "text-muted-foreground/30 hover:text-amber-400"}`}>
                             <Star className={`size-4 ${p.highlighted ? "fill-current" : ""}`} />
                           </button>
-                          <h3 className={`${heading.className} text-base font-bold truncate`}>{p.name}</h3>
+                          <h3 className={`${heading.className} text-lg font-bold truncate`}>{p.name}</h3>
+                          {p.highlighted && (
+                            <span className="shrink-0 text-[9px] font-bold px-1.5 py-0.5 rounded-full text-white" style={{ background: "linear-gradient(135deg,#6366f1,#e879f9)" }}>推荐</span>
+                          )}
                         </div>
                         <button onClick={() => toggleEnabled(p)}
-                          className={`text-[10px] font-medium px-2 py-0.5 rounded-full transition-colors ${
+                          className={`shrink-0 text-[10px] font-medium px-2 py-0.5 rounded-full transition-colors ${
                             p.enabled ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" : "bg-muted text-muted-foreground"
                           }`}>
-                          {p.enabled ? "启用" : "禁用"}
+                          {p.enabled ? "启用中" : "已禁用"}
                         </button>
                       </div>
 
                       {/* 价格 */}
-                      <div className="flex items-baseline gap-1.5 sm:gap-2 mb-3 sm:mb-4">
+                      <div className="mb-4 pb-4 border-b border-dashed">
                         {isFree ? (
-                          <span className={`${heading.className} text-xl sm:text-2xl font-bold text-emerald-600 dark:text-emerald-400`}>免费</span>
+                          <span className={`${heading.className} text-3xl font-extrabold text-emerald-600 dark:text-emerald-400`}>免费</span>
                         ) : (
-                          <>
-                            <div className="flex items-baseline flex-wrap">
-                              <span className="text-[10px] sm:text-xs text-muted-foreground mr-0.5">¥</span>
-                              <span className={`${mono.className} text-2xl sm:text-3xl font-medium tabular-nums tracking-tight`}>{p.price_monthly}</span>
-                              <span className="text-[10px] sm:text-xs text-muted-foreground ml-0.5 sm:ml-1">/月</span>
-                            </div>
+                          <div className="flex items-baseline gap-1 flex-wrap">
+                            <span className="text-sm text-muted-foreground">¥</span>
+                            <span className={`${heading.className} text-3xl font-extrabold tabular-nums tracking-tight`}>{p.price_monthly}</span>
+                            <span className="text-xs text-muted-foreground">/月</span>
                             {p.price_yearly > 0 && (
-                              <span className={`${mono.className} text-[10px] sm:text-xs text-muted-foreground tabular-nums`}>¥{p.price_yearly}/月<span className="text-[9px] sm:text-[10px]">(年付)</span></span>
+                              <span className="ml-2 text-[11px] text-muted-foreground tabular-nums">年付 <span className="text-foreground font-medium">¥{p.price_yearly}</span>/月</span>
                             )}
-                          </>
-                        )}
-                      </div>
-
-                      {/* 指标条 */}
-                      <div className="grid grid-cols-4 gap-1.5 sm:gap-2 mb-3 sm:mb-4">
-                        {[
-                          { icon: Zap, value: p.concurrency || 1, label: "并发", color: "text-primary", bg: "bg-primary/10" },
-                          { icon: Coins, value: p.token_capacity || 50, label: "令牌", color: "text-emerald-500", bg: "bg-emerald-500/10" },
-                          { icon: Timer, value: p.token_refill_per_hour || 3, label: "/小时", color: "text-blue-500", bg: "bg-blue-500/10" },
-                          { icon: Gauge, value: p.rate_limit_per_min || 30, label: "API/分", color: "text-violet-500", bg: "bg-violet-500/10" },
-                        ].map(m => (
-                          <div key={m.label} className="rounded-xl bg-muted/40 p-2 sm:p-2.5 text-center">
-                            <div className={`size-6 sm:size-7 rounded-lg ${m.bg} flex items-center justify-center mx-auto mb-1 sm:mb-1.5`}>
-                              <m.icon className={`size-3 sm:size-3.5 ${m.color}`} />
-                            </div>
-                            <p className={`${mono.className} text-sm sm:text-base font-medium tabular-nums leading-none`}>{m.value}</p>
-                            <p className="text-[8px] sm:text-[9px] text-muted-foreground mt-0.5 sm:mt-1">{m.label}</p>
                           </div>
+                        )}
+                        <p className="text-[11px] text-muted-foreground mt-1.5">
+                          {isFree ? "永久免费使用" : <>月付 {fmtDuration(p.duration_days || 0)}{p.price_yearly > 0 && ` · 年付 ${fmtDuration(p.duration_days_yearly || 0)}`}</>}
+                        </p>
+                      </div>
+
+                      {/* 配额清单 */}
+                      <ul className="space-y-2 text-[13px] flex-1">
+                        {[
+                          { icon: Zap, color: "text-primary", text: <><span className="font-semibold tabular-nums">{p.concurrency || 1}</span> 路并发生成</> },
+                          { icon: Coins, color: "text-emerald-500", text: <>令牌容量 <span className="font-semibold tabular-nums">{p.token_capacity || 50}</span></> },
+                          { icon: Timer, color: "text-blue-500", text: <>每小时恢复 <span className="font-semibold tabular-nums">{p.token_refill_per_hour || 3}</span> 令牌</> },
+                          { icon: Gauge, color: "text-violet-500", text: <>API <span className="font-semibold tabular-nums">{p.rate_limit_per_min || 0}</span>/分钟{!p.rate_limit_per_min && <span className="text-muted-foreground">（默认）</span>}</> },
+                        ].map((m, i) => (
+                          <li key={i} className="flex items-center gap-2.5">
+                            <m.icon className={`size-4 shrink-0 ${m.color}`} />
+                            <span className="text-foreground/90">{m.text}</span>
+                          </li>
                         ))}
-                      </div>
-
-                      {/* 有效期 */}
-                      <div className="space-y-1 mb-3 text-[11px]">
-                        <div className="flex items-center justify-between">
-                          <span className="text-muted-foreground">月付有效期</span>
-                          <span className="font-medium">{fmtDuration(p.duration_days || 0)}</span>
-                        </div>
-                        <div className="flex items-center justify-between">
-                          <span className="text-muted-foreground">年付有效期</span>
-                          <span className="font-medium">{fmtDuration(p.duration_days_yearly || 0)}</span>
-                        </div>
-                      </div>
-
-                      {features.length > 0 && (
-                        <div className="flex flex-wrap gap-1 mb-3 sm:mb-4">
-                          {features.map((f, i) => (
-                            <span key={i} className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-muted text-[10px] text-muted-foreground">
-                              <Check className="size-2.5 text-emerald-500" /> {f}
-                            </span>
-                          ))}
-                        </div>
-                      )}
+                        {features.map((f, i) => (
+                          <li key={`f${i}`} className="flex items-center gap-2.5">
+                            <Check className="size-4 shrink-0 text-emerald-500" />
+                            <span className="text-foreground/90">{f}</span>
+                          </li>
+                        ))}
+                      </ul>
 
                       {/* 操作 */}
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 mt-5">
                         <Button variant="outline" size="sm" onClick={() => setEditing({ ...p })} className="flex-1 gap-1.5 text-xs">
                           <Edit2 className="size-3.5" /> 编辑
                         </Button>

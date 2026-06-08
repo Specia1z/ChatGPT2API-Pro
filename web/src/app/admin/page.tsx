@@ -235,12 +235,14 @@ export default function AdminPage() {
                 { label: "总配额", value: stats?.total_quota ?? 0, icon: Zap, color: "text-primary", bg: "bg-primary/10" },
                 { label: "成功数", value: stats?.total_success ?? 0, icon: CheckCircle, color: "text-emerald-500", bg: "bg-emerald-500/10" },
               ].map(item => (
-                <div key={item.label} className="rounded-xl border bg-card p-3 sm:p-3.5 hover:shadow-sm transition-shadow">
-                  <div className={`size-7 sm:size-8 rounded-lg ${item.bg} flex items-center justify-center mb-1.5 sm:mb-2`}>
-                    <item.icon className={`size-3.5 sm:size-4 ${item.color}`} />
+                <div key={item.label} className="group rounded-xl border bg-card p-3 sm:p-3.5 flex items-center gap-2.5 sm:gap-3 hover:shadow-md hover:-translate-y-0.5 transition-all duration-200">
+                  <div className={`size-9 sm:size-10 rounded-xl ${item.bg} flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform`}>
+                    <item.icon className={`size-4 sm:size-[18px] ${item.color}`} />
                   </div>
-                  <p className={`${mono.className} text-base sm:text-lg font-medium tabular-nums`}>{item.value.toLocaleString()}</p>
-                  <p className="text-[9px] sm:text-[10px] text-muted-foreground mt-0.5">{item.label}</p>
+                  <div className="min-w-0">
+                    <p className={`${mono.className} text-lg sm:text-xl font-semibold tabular-nums leading-none ${item.color}`}>{item.value.toLocaleString()}</p>
+                    <p className="text-[9px] sm:text-[10px] text-muted-foreground mt-1 truncate">{item.label}</p>
+                  </div>
                 </div>
               ))}
             </motion.div>
@@ -358,16 +360,16 @@ export default function AdminPage() {
               <div className="overflow-x-auto">
                 <table className="w-full">
                   <thead>
-                    <tr className="border-b bg-muted/30">
-                      <th className="w-10 pl-4 py-3"><Checkbox checked={accounts.length > 0 && selected.size === accounts.length} onCheckedChange={toggleAll} /></th>
-                      <th className="text-left text-[10px] font-medium text-muted-foreground uppercase tracking-wider py-3">邮箱 · Token</th>
-                      <th className="text-left text-[10px] font-medium text-muted-foreground uppercase tracking-wider py-3">类型</th>
-                      <th className="text-left text-[10px] font-medium text-muted-foreground uppercase tracking-wider py-3">状态</th>
-                      <th className="text-center text-[10px] font-medium text-muted-foreground uppercase tracking-wider py-3">占用</th>
-                      <th className="text-right text-[10px] font-medium text-muted-foreground uppercase tracking-wider py-3 pr-4">配额</th>
-                      <th className="text-right text-[10px] font-medium text-muted-foreground uppercase tracking-wider py-3 pr-4">成功率</th>
-                      <th className="text-right text-[10px] font-medium text-muted-foreground uppercase tracking-wider py-3 pr-4">重置时间</th>
-                      <th className="w-10 pr-4 py-3" />
+                    <tr className="border-b-2 border-border bg-muted/40">
+                      <th className="w-10 pl-4 py-3.5"><Checkbox checked={accounts.length > 0 && selected.size === accounts.length} onCheckedChange={toggleAll} /></th>
+                      <th className="text-left text-[10px] font-semibold text-muted-foreground uppercase tracking-[0.08em] py-3.5">邮箱 · Token</th>
+                      <th className="text-left text-[10px] font-semibold text-muted-foreground uppercase tracking-[0.08em] py-3.5">类型</th>
+                      <th className="text-left text-[10px] font-semibold text-muted-foreground uppercase tracking-[0.08em] py-3.5">状态</th>
+                      <th className="text-center text-[10px] font-semibold text-muted-foreground uppercase tracking-[0.08em] py-3.5">占用</th>
+                      <th className="text-right text-[10px] font-semibold text-muted-foreground uppercase tracking-[0.08em] py-3.5 pr-4">配额</th>
+                      <th className="text-right text-[10px] font-semibold text-muted-foreground uppercase tracking-[0.08em] py-3.5 pr-4">成功率</th>
+                      <th className="text-right text-[10px] font-semibold text-muted-foreground uppercase tracking-[0.08em] py-3.5 pr-4">重置时间</th>
+                      <th className="w-10 pr-4 py-3.5" />
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border">

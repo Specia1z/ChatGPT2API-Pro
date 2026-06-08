@@ -15,6 +15,7 @@ import { imageProxyUrl } from "@/lib/utils";
 import { AdminSidebar } from "@/components/admin-sidebar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { IconTip } from "@/components/ui/icon-tip";
 
 const heading = Outfit({ subsets: ["latin"], weight: ["400", "500", "600", "700"], variable: "--font-heading" });
 const mono = DM_Mono({ subsets: ["latin"], weight: ["400", "500"], variable: "--font-mono" });
@@ -72,7 +73,7 @@ export default function UserDetailPage() {
 
         {/* Header */}
         <div className="border-b bg-card px-4 sm:px-8 py-4 flex items-center gap-3 shrink-0">
-          <Button variant="ghost" size="icon-sm" onClick={() => router.push("/admin/users")} title="返回"><ArrowLeft className="size-4" /></Button>
+          <IconTip label="返回"><Button variant="ghost" size="icon-sm" onClick={() => router.push("/admin/users")}><ArrowLeft className="size-4" /></Button></IconTip>
           <div className={`size-10 rounded-xl bg-gradient-to-br ${grad(u.email || "")} flex items-center justify-center text-white text-sm font-bold shadow-sm shrink-0`}>
             {(u.name || u.email || "?")[0]?.toUpperCase()}
           </div>

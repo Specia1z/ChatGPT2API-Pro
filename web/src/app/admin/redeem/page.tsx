@@ -6,6 +6,7 @@ import { Outfit, DM_Mono } from "next/font/google";
 import {
   Plus, Copy, Check, Gift, Package, Ban, Eye, Ticket,
   CheckCircle, XCircle, AlertCircle, RefreshCw,
+  Calendar, Clock, TicketCheck, Search,
 } from "lucide-react";
 import { AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
@@ -13,7 +14,6 @@ import { api } from "@/lib/api";
 import { AdminSidebar } from "@/components/admin-sidebar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 
@@ -23,7 +23,7 @@ const mono = DM_Mono({ subsets: ["latin"], weight: ["400", "500"], variable: "--
 /* ── 动画 ─────────────────────────────────── */
 const stagger = { hidden: {}, visible: { transition: { staggerChildren: 0.04 } } };
 const fadeUp = { hidden: { opacity: 0, y: 10 }, visible: { opacity: 1, y: 0, transition: { duration: 0.35, ease: [0.25, 0.46, 0.45, 0.94] as const } } };
-const rowFade = { hidden: { opacity: 0 }, visible: { opacity: 1, transition: { duration: 0.3 } } };
+const cardPop = { hidden: { opacity: 0, y: 14, scale: 0.97 }, visible: { opacity: 1, y: 0, scale: 1, transition: { duration: 0.4, ease: [0.25, 0.46, 0.45, 0.94] as const } } };
 
 /* ── 状态判断 ─────────────────────────────── */
 function getStatus(rc: any) {
@@ -31,6 +31,113 @@ function getStatus(rc: any) {
   if (rc.use_count >= rc.max_uses) return { color: "#f59e0b", bg: "bg-amber-500/10", label: "已用完", icon: XCircle };
   if (rc.expires_at && new Date(rc.expires_at) < new Date()) return { color: "#ef4444", bg: "bg-red-500/10", label: "已过期", icon: AlertCircle };
   return { color: "#10b981", bg: "bg-emerald-500/10", label: "可用", icon: CheckCircle };
+}
+
+/* ── 兑换码券票卡 ─────────────────────────── */
+function RedeemCard({ rc, onCopy, onDisable, onLogs, copied }: any) {
+  const st = getStatus(rc);
+  const valid = st.label === "可用";
+  const isPlan = rc.type === "plan";
+  const Icon = isPlan ? Package : Gift;
+  // 套餐=紫色系，积分=琥珀系，作为彩票主题色
+  const theme = isPlan
+    ? { grad: "linear-gradient(135deg,#7c3aed,#a855f7)", chip: "text-violet-50", glow: "rgba(168,85,247,0.25)" }
+    : { grad: "linear-gradient(135deg,#d97706,#f59e0b)", chip: "text-amber-50", glow: "rgba(245,158,11,0.25)" };
+
+  return (
+    <motion.div variants={cardPop}
+      className={`group relative transition-all duration-300 ${valid ? "hover:-translate-y-1" : "opacity-50 grayscale-[50%]"}`}>
+      {/* 彩票外壳：上彩头 + 下票根，中间虚线撕裂缝 + 两侧半圆缺口 */}
+      <div className="relative rounded-2xl overflow-hidden shadow-sm group-hover:shadow-xl transition-shadow"
+        style={valid ? { boxShadow: `0 8px 30px -12px ${theme.glow}` } : undefined}>
+
+        {/* ── 顶部彩头区 ── */}
+        <div className="relative px-4 pt-3.5 pb-4 text-white" style={{ background: theme.grad }}>
+          {/* 斜纹光泽 */}
+          <div className="pointer-events-none absolute inset-0 opacity-20"
+            style={{ backgroundImage: "repeating-linear-gradient(45deg,#fff 0 1px,transparent 1px 9px)" }} />
+          <div className="relative flex items-center justify-between mb-3">
+            <div className="flex items-center gap-1.5">
+              <Icon className="size-3.5" />
+              <span className="text-[11px] font-semibold tracking-wide">{isPlan ? "套餐兑换券" : "积分兑换券"}</span>
+            </div>
+            <span className="inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full bg-white/20 backdrop-blur-sm">
+              <span className="size-1.5 rounded-full" style={{ backgroundColor: st.color }} /> {st.label}
+            </span>
+          </div>
+          {/* 中奖内容（大字突出，像彩票面额） */}
+          <div className="relative flex items-baseline gap-1">
+            {isPlan ? (
+              <>
+                <span className={`${heading.className} text-xl font-extrabold tracking-tight truncate`}>{rc.plan_name || `套餐 #${rc.plan_id}`}</span>
+                {rc.plan_duration_days > 0 && <span className={`${mono.className} text-sm font-semibold text-white/80 shrink-0`}>{rc.plan_duration_days}天</span>}
+              </>
+            ) : (
+              <>
+                <span className={`${heading.className} text-3xl font-extrabold tabular-nums tracking-tight`}>{rc.points}</span>
+                <span className="text-sm font-semibold text-white/80">积分</span>
+              </>
+            )}
+          </div>
+        </div>
+
+        {/* ── 撕裂缝：两侧半圆缺口 + 虚线 ── */}
+        <div className="relative h-0">
+          <div className="absolute -left-2 -top-2 size-4 rounded-full bg-background" />
+          <div className="absolute -right-2 -top-2 size-4 rounded-full bg-background" />
+          <div className="absolute inset-x-3 -top-px border-t-2 border-dashed border-border" />
+        </div>
+
+        {/* ── 票根区（刮开窗：兑换码 + 元信息） ── */}
+        <div className="bg-card border border-t-0 border-border rounded-b-2xl px-4 pt-4 pb-3.5">
+          {/* 刮刮码窗口 */}
+          <div className="relative rounded-lg px-3 py-2.5 mb-3 overflow-hidden flex items-center justify-between gap-2"
+            style={{ background: "linear-gradient(135deg,#3f3f46,#52525b 50%,#3f3f46)" }}>
+            <div className="pointer-events-none absolute inset-0 opacity-30"
+              style={{ backgroundImage: "repeating-linear-gradient(45deg,#fff 0 1px,transparent 1px 4px)" }} />
+            <span className={`${mono.className} relative text-sm font-semibold tracking-[0.12em] text-zinc-100 break-all`}>{rc.code}</span>
+            <button onClick={() => onCopy(rc.code)}
+              className="relative size-6 shrink-0 rounded-md flex items-center justify-center text-zinc-300 hover:text-white hover:bg-white/10 transition-all">
+              {copied === rc.code ? <Check className="size-3.5 text-emerald-400" /> : <Copy className="size-3.5" />}
+            </button>
+          </div>
+
+          {/* 元信息 */}
+          <div className="grid grid-cols-3 gap-2 text-[10px] text-muted-foreground mb-3">
+            <div className="flex flex-col gap-0.5">
+              <span className="flex items-center gap-1"><TicketCheck className="size-3" /> 已用</span>
+              <span className={`${mono.className} text-foreground font-medium`}>{rc.use_count}/{rc.max_uses}</span>
+            </div>
+            <div className="flex flex-col gap-0.5">
+              <span className="flex items-center gap-1"><Calendar className="size-3" /> 有效期</span>
+              <span className={`${mono.className} text-foreground font-medium`}>{rc.expires_at ? rc.expires_at.slice(5, 10) : "永久"}</span>
+            </div>
+            <div className="flex flex-col gap-0.5">
+              <span className="flex items-center gap-1"><Clock className="size-3" /> 创建</span>
+              <span className={`${mono.className} text-foreground font-medium`}>{rc.created_at?.slice(5, 10) || "—"}</span>
+            </div>
+          </div>
+
+          {/* 底部操作 */}
+          <div className="flex items-center justify-between pt-2.5 border-t border-dashed border-border">
+            <span className={`${mono.className} text-[10px] text-muted-foreground/50`}>NO.{String(rc.id).padStart(4, "0")}</span>
+            <div className="flex items-center gap-1">
+              <button onClick={() => onLogs(rc)}
+                className="text-[11px] font-medium text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1 px-2 py-1 rounded-lg hover:bg-muted">
+                <Eye className="size-3" /> 记录
+              </button>
+              {valid && (
+                <button onClick={() => onDisable(rc)}
+                  className="text-[11px] font-medium text-muted-foreground hover:text-destructive transition-colors flex items-center gap-1 px-2 py-1 rounded-lg hover:bg-destructive/10">
+                  <Ban className="size-3" /> 禁用
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+    </motion.div>
+  );
 }
 
 /* ── 主页面 ─────────────────────────────────── */
@@ -58,6 +165,9 @@ export default function RedeemPage() {
 
   const [disableTarget, setDisableTarget] = useState<any>(null);
   const [disabling, setDisabling] = useState(false);
+
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState<"all" | "active" | "used" | "expired" | "disabled">("all");
 
   useEffect(() => {
     Promise.all([api("/api/admin/redeem"), api("/api/admin/plans")]).then(([r1, r2]) => {
@@ -104,6 +214,28 @@ export default function RedeemPage() {
     }
     return { total: codes.length, active, used, expired, disabled };
   }, [codes]);
+
+  // 状态筛选 + 搜索（按兑换码文本）
+  const filtered = useMemo(() => {
+    return codes.filter(c => {
+      const label = getStatus(c).label;
+      const matchStatus = statusFilter === "all"
+        || (statusFilter === "active" && label === "可用")
+        || (statusFilter === "used" && label === "已用完")
+        || (statusFilter === "expired" && label === "已过期")
+        || (statusFilter === "disabled" && label === "已禁用");
+      const matchSearch = !search || (c.code || "").toLowerCase().includes(search.toLowerCase());
+      return matchStatus && matchSearch;
+    });
+  }, [codes, statusFilter, search]);
+
+  const STATUS_TABS = [
+    { key: "all" as const, label: "全部", count: stats.total },
+    { key: "active" as const, label: "可用", count: stats.active },
+    { key: "used" as const, label: "已用完", count: stats.used },
+    { key: "expired" as const, label: "已过期", count: stats.expired },
+    { key: "disabled" as const, label: "已禁用", count: stats.disabled },
+  ];
 
   if (loading) return (
     <div className="h-screen bg-background flex items-center justify-center">
@@ -154,83 +286,49 @@ export default function RedeemPage() {
               ))}
             </motion.div>
 
-            {/* ═══ 表格 ═══ */}
-            {codes.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-24">
-                <div className="size-12 rounded-2xl bg-muted flex items-center justify-center mb-3">
-                  <Ticket className="size-5 text-muted-foreground/50" />
+            {/* ═══ 筛选 + 搜索 ═══ */}
+            {codes.length > 0 && (
+              <motion.div variants={fadeUp} className="flex items-center justify-between gap-4 flex-wrap">
+                <div className="flex items-center gap-1 overflow-x-auto scrollbar-hide">
+                  {STATUS_TABS.map(tab => (
+                    <button key={tab.key} onClick={() => setStatusFilter(tab.key)}
+                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-all ${
+                        statusFilter === tab.key ? "bg-foreground text-background shadow-sm" : "text-muted-foreground hover:text-foreground hover:bg-muted"
+                      }`}>
+                      {tab.label}<span className={`${mono.className} text-[10px] tabular-nums ${statusFilter === tab.key ? "opacity-70" : "opacity-50"}`}>{tab.count}</span>
+                    </button>
+                  ))}
                 </div>
-                <p className="text-sm text-muted-foreground">暂无兑换码，点击「生成兑换码」创建</p>
+                <div className="relative">
+                  <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground pointer-events-none" />
+                  <Input value={search} onChange={e => setSearch(e.target.value)} placeholder="搜索兑换码…" className="w-44 sm:w-56 pl-8 h-9 text-xs" />
+                </div>
+              </motion.div>
+            )}
+
+            {/* ═══ 卡片网格 ═══ */}
+            {codes.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-28">
+                <div className="size-14 rounded-2xl bg-muted flex items-center justify-center mb-3">
+                  <Ticket className="size-6 text-muted-foreground/50" />
+                </div>
+                <p className="text-sm font-medium text-muted-foreground">暂无兑换码</p>
+                <p className="text-xs text-muted-foreground/70 mt-1">点击右上角「生成兑换码」创建</p>
+              </div>
+            ) : filtered.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-28">
+                <div className="size-14 rounded-2xl bg-muted flex items-center justify-center mb-3">
+                  <Search className="size-6 text-muted-foreground/50" />
+                </div>
+                <p className="text-sm font-medium text-muted-foreground">无匹配兑换码</p>
+                <p className="text-xs text-muted-foreground/70 mt-1">尝试修改搜索或筛选条件</p>
               </div>
             ) : (
-              <motion.div variants={fadeUp} className="rounded-2xl border bg-card overflow-hidden">
-                <div className="overflow-x-auto">
-                  <table className="w-full">
-                    <thead>
-                      <tr className="border-b bg-muted/30">
-                        <th className="text-left text-[10px] font-medium text-muted-foreground uppercase tracking-wider py-3 pl-5">兑换码</th>
-                        <th className="text-left text-[10px] font-medium text-muted-foreground uppercase tracking-wider py-3">类型 · 内容</th>
-                        <th className="text-left text-[10px] font-medium text-muted-foreground uppercase tracking-wider py-3">状态</th>
-                        <th className="text-center text-[10px] font-medium text-muted-foreground uppercase tracking-wider py-3">使用</th>
-                        <th className="text-left text-[10px] font-medium text-muted-foreground uppercase tracking-wider py-3">有效期</th>
-                        <th className="hidden sm:table-cell text-left text-[10px] font-medium text-muted-foreground uppercase tracking-wider py-3">创建时间</th>
-                        <th className="w-20 py-3 pr-5" />
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-border">
-                      {codes.map(rc => {
-                        const st = getStatus(rc);
-                        return (
-                          <motion.tr key={rc.id} variants={rowFade} className={`group transition-colors hover:bg-muted/40 ${!rc.status ? "opacity-50" : ""}`}>
-                            <td className="py-3 pl-5">
-                              <div className="flex items-center gap-2">
-                                <code className={`${mono.className} text-xs font-medium tracking-wider`}>{rc.code}</code>
-                                <button onClick={() => copyCode(rc.code)} className="p-0.5 rounded hover:bg-muted opacity-0 group-hover:opacity-100 transition-all">
-                                  {copiedCode === rc.code ? <Check className="size-3 text-emerald-500" /> : <Copy className="size-3 text-muted-foreground" />}
-                                </button>
-                              </div>
-                            </td>
-                            <td className="py-3">
-                              {rc.type === "plan" ? (
-                                <div className="flex items-center gap-1.5">
-                                  <Package className="size-3.5 text-violet-500 shrink-0" />
-                                  <span className="text-xs">{rc.plan_name || `套餐 #${rc.plan_id}`}{rc.plan_duration_days > 0 && <span className="text-muted-foreground ml-1">{rc.plan_duration_days}天</span>}</span>
-                                </div>
-                              ) : (
-                                <div className="flex items-center gap-1.5">
-                                  <Gift className="size-3.5 text-amber-500 shrink-0" />
-                                  <span className="text-xs">{rc.points} 积分</span>
-                                </div>
-                              )}
-                            </td>
-                            <td className="py-3">
-                              <span className={`inline-flex items-center gap-1.5 text-[11px] font-medium px-2 py-0.5 rounded-full ${st.bg}`} style={{ color: st.color }}>
-                                <st.icon className="size-3" /> {st.label}
-                              </span>
-                            </td>
-                            <td className="py-3 text-center">
-                              <span className={`${mono.className} text-xs tabular-nums`}>
-                                <span className="font-semibold">{rc.use_count}</span>
-                                <span className="text-muted-foreground/40 mx-0.5">/</span>
-                                <span className="text-muted-foreground">{rc.max_uses}</span>
-                              </span>
-                            </td>
-                            <td className={`${mono.className} py-3 text-[11px] text-muted-foreground tabular-nums`}>{rc.expires_at ? rc.expires_at.slice(0, 16) : "永久"}</td>
-                            <td className={`${mono.className} hidden sm:table-cell py-3 text-[11px] text-muted-foreground tabular-nums`}>{rc.created_at?.slice(0, 16)}</td>
-                            <td className="py-3 pr-5">
-                              <div className="flex items-center gap-1 justify-end opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
-                                {rc.status && rc.use_count < rc.max_uses && (
-                                  <Button variant="ghost" size="icon-sm" className="hover:text-destructive" onClick={() => setDisableTarget(rc)} title="禁用"><Ban className="size-3.5" /></Button>
-                                )}
-                                <Button variant="ghost" size="icon-sm" onClick={() => viewLogs(rc)} title="使用记录"><Eye className="size-3.5" /></Button>
-                              </div>
-                            </td>
-                          </motion.tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
+              <motion.div variants={stagger} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                {filtered.map(rc => (
+                  <RedeemCard key={rc.id} rc={rc} copied={copiedCode}
+                    onCopy={copyCode} onDisable={setDisableTarget} onLogs={viewLogs} />
+                ))}
               </motion.div>
             )}
           </div>
