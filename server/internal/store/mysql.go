@@ -245,6 +245,7 @@ func (s *MySQLStore) autoMigrate() {
 	s.db.Exec("ALTER TABLE settings ADD COLUMN burst_token_cap INT NOT NULL DEFAULT 0 AFTER points_exchange_bonus")
 	s.db.Exec("ALTER TABLE settings ADD COLUMN points_exchange_bonus_threshold INT NOT NULL DEFAULT 0 AFTER burst_token_cap")
 	s.db.Exec("ALTER TABLE settings ADD COLUMN tokens_per_image INT NOT NULL DEFAULT 0 AFTER points_exchange_bonus_threshold")
+	s.db.Exec("ALTER TABLE settings ADD COLUMN prompt_polish_cost INT NOT NULL DEFAULT 0 AFTER tokens_per_image")
 	s.db.Exec("ALTER TABLE settings ADD COLUMN default_rate_limit_per_min INT NOT NULL DEFAULT 0 AFTER burst_token_cap")
 	s.db.Exec("ALTER TABLE settings ADD COLUMN config_cache_ttl_seconds INT NOT NULL DEFAULT 0 AFTER default_rate_limit_per_min")
 	s.db.Exec("ALTER TABLE settings ADD COLUMN apikey_lastused_throttle_seconds INT NOT NULL DEFAULT 0 AFTER config_cache_ttl_seconds")

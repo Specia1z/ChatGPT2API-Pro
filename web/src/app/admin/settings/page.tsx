@@ -371,6 +371,13 @@ export default function SettingsPage() {
                   <div className="rounded-xl bg-muted/40 p-3.5 text-xs text-muted-foreground leading-relaxed">
                     生成 1 张图扣除的令牌数。0 = 使用内置默认 1。调高则同等令牌额度下可生成的图片更少（如设为 2，则 50 令牌只能生成 25 张）。原生接口与 OpenAI 兼容接口均生效，保存后即时生效。
                   </div>
+                  <div className="space-y-1.5">
+                    <Label>AI 提示词优化消耗令牌</Label>
+                    <Input type="number" min={0} value={cfg?.prompt_polish_cost ?? 0} onChange={e => update("prompt_polish_cost", +e.target.value)} className={inputCls} placeholder="0" />
+                  </div>
+                  <div className="rounded-xl bg-muted/40 p-3.5 text-xs text-muted-foreground leading-relaxed">
+                    创作页「AI 优化」每次扣除的令牌数。0 = 免费（适合走量拉新）。该功能调用「AI 矢量生成」配置的同一个模型，需先配置模型。
+                  </div>
                 </div>
               </Card>
 

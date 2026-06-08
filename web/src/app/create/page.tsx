@@ -123,6 +123,7 @@ export default function CreatePage() {
   const [currentInput, setCurrentInput] = useState("");
   const inputRef2 = useRef<HTMLInputElement>(null);
   const [loading, setLoading] = useState(false);
+  const [polishing, setPolishing] = useState(false);
   const [batchProgress, setBatchProgress] = useState<{ done: number; total: number } | null>(null);
   const [generations, setGenerations] = useState<any[]>([]);
   const [previewGen, setPreviewGen] = useState<any>(null);
@@ -134,6 +135,31 @@ export default function CreatePage() {
   const [styles, setStyles] = useState<StylePreset[]>([]);
   const [activeStyle, setActiveStyle] = useState<string | null>(null);
   const [hsFilter, setHsFilter] = useState<"all" | "completed" | "failed" | "pending">("all");
+  // AI 润色：只作用于「当前正在输入的这句」(currentInput)，不碰已添加的 tag——
+  // tag 是用户已确定的独立提示词，批量场景下不应被擅自改写。润色后填回输入框，用户确认再回车成 tag。
+  const doPolish = async () => {
+    const src = currentInput.trim();
+    if (!src || polishing) return;
+    setPolishing(true);
+    try {
+      const styleLabel = activeStyle ? (styles.find(s => s.id === activeStyle)?.label || "") : "";
+      const r = await api("/api/user/prompt/polish", { method: "POST", body: JSON.stringify({ prompt: src, style: styleLabel }) });
+      const polished = r.data?.prompt?.trim();
+      if (polished) {
+        setCurrentInput(polished);
+        inputRef2.current?.focus();
+        const cost = r.data?.cost || 0;
+        toast.success(cost > 0 ? `已优化（消耗 ${cost} 令牌）` : "已优化");
+      } else {
+        toast.error("优化失败，请重试");
+      }
+    } catch (e: any) {
+      toast.error(e.message || "优化失败");
+    } finally {
+      setPolishing(false);
+    }
+  };
+
   const addTag = () => {
     const v = currentInput.trim();
     if (!v) return;
@@ -667,6 +693,16 @@ export default function CreatePage() {
                     placeholder={tags.filter(Boolean).length > 0 ? "继续添加提示词…" : "描述你想要的画面，Enter 添加…"}
                     className="w-full bg-transparent text-base sm:text-sm text-foreground placeholder:text-muted-foreground/50 outline-none"
                   />
+                  {/* 工具行：AI 优化 */}
+                  <div className="flex items-center justify-end pt-1">
+                    <button onClick={doPolish}
+                      disabled={polishing || !currentInput.trim()}
+                      title="把输入框里这句话用 AI 扩写成专业提示词"
+                      className="group/p inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-medium text-violet-600 dark:text-violet-400 hover:bg-violet-500/10 disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
+                      {polishing ? <Loader2 className="w-3 h-3 animate-spin" /> : <Sparkles className="w-3 h-3" />}
+                      {polishing ? "优化中…" : "AI 优化"}
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>

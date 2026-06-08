@@ -98,7 +98,7 @@ func (s *SVGGenService) GenerateSVG(ctx context.Context, modelSlug, prompt strin
 			return "", false, nil
 		}
 		defer s.redis.DecrImageSlot(ctx, acc.ID)
-		txt, e := s.chatSVG(ctx, modelSlug, prompt, acc.AccessToken, proxy, onDelta)
+		txt, e := s.chatText(ctx, modelSlug, svgSystemHint, prompt, acc.AccessToken, proxy, onDelta)
 		return txt, true, e
 	}
 
@@ -148,8 +148,9 @@ func (s *SVGGenService) GenerateSVG(ctx context.Context, modelSlug, prompt strin
 const svgSystemHint = "你是一个 SVG 矢量图生成器。根据用户描述输出一段完整、合法、可独立渲染的 SVG 代码，" +
 	"使用 viewBox，不要外部依赖。只输出 ```svg 代码块，不要任何多余解释。"
 
-// chatSVG 用单个账号发起一次文本对话，SSE 流式累积 assistant 文本。
-func (s *SVGGenService) chatSVG(ctx context.Context, modelSlug, prompt, accessToken, proxy string, onDelta func(string)) (string, error) {
+// chatText 用单个账号发起一次文本对话，SSE 流式累积 assistant 文本。
+// systemHint 为系统提示词（SVG 生成 / 提示词润色等不同用途传不同 hint）。
+func (s *SVGGenService) chatText(ctx context.Context, modelSlug, systemHint, prompt, accessToken, proxy string, onDelta func(string)) (string, error) {
 	transport := getChromeTransport(proxy)
 	client := &http.Client{Transport: transport, Timeout: 180 * time.Second}
 	ua := "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/143.0.0.0 Safari/537.36"
@@ -178,7 +179,7 @@ func (s *SVGGenService) chatSVG(ctx context.Context, modelSlug, prompt, accessTo
 	sentinel, _ := reqs["token"].(string)
 	proof := solvePoWIfNeeded(reqs, ua)
 
-	fullPrompt := svgSystemHint + "\n\n用户描述：" + prompt
+	fullPrompt := systemHint + "\n\n用户描述：" + prompt
 	msg := map[string]any{
 		"id":      newUUID(),
 		"author":  map[string]string{"role": "user"},
