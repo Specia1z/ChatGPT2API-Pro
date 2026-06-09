@@ -227,7 +227,7 @@ function DocsContent() {
 }`} />
             <div className="rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900/40 p-4 space-y-2 text-[13px] text-zinc-600 dark:text-zinc-400">
               <p><strong className="text-zinc-700 dark:text-zinc-300">status</strong> 取值：<code className="font-mono text-xs px-1 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800">pending</code>（排队/生成中）、<code className="font-mono text-xs px-1 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800">completed</code>（成功）、<code className="font-mono text-xs px-1 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800">failed</code>（失败，原因见 <code className="font-mono text-xs px-1 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800">error_msg</code>）。</p>
-              <p><strong className="text-zinc-700 dark:text-zinc-300">图片获取</strong>：站点为对象存储/本地存储时，<code className="font-mono text-xs px-1 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800">image_url</code> 为可直接访问的地址；为数据库存储时，<code className="font-mono text-xs px-1 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800">image_b64</code> 为 base64，需解码后使用。两者取其一。</p>
+              <p><strong className="text-zinc-700 dark:text-zinc-300">图片获取</strong>：<code className="font-mono text-xs px-1 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800">image_url</code> 为带签名的代理地址（形如 <code className="font-mono text-xs px-1 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800">/api/images/&#123;id&#125;?exp=...&amp;sig=...</code>），可直接 GET 下载，链接有效期 24 小时。无论后端用对象存储还是数据库存储，统一通过此地址获取，无需关心底层存储。</p>
               <p className="text-amber-600 dark:text-amber-400 flex items-start gap-1.5"><AlertTriangle className="w-3.5 h-3.5 mt-0.5 shrink-0" /><span>任务若超过 15 分钟仍未完成，将自动标记为 failed（生成超时）。</span></p>
             </div>
           </Section>
