@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { Outfit, DM_Mono } from "next/font/google";
-import { Globe, Shield, Save, Gauge, Gift, Database, Users, Activity, Rocket, Coins, Layers, Shapes, RefreshCw, ShoppingBag, Plus, Trash2 } from "lucide-react";
+import { Globe, Shield, Save, Gauge, Gift, Database, Users, Activity, Rocket, Coins, Layers, Shapes, RefreshCw, ShoppingBag, Plus, Trash2, Upload } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
 import { AdminSidebar } from "@/components/admin-sidebar";
@@ -23,6 +23,7 @@ const SECTIONS = [
   { id: "scheduler", label: "生图调度", icon: Gauge, color: "text-emerald-500", bg: "bg-emerald-500/10" },
   { id: "apirate", label: "API 限速", icon: Activity, color: "text-rose-500", bg: "bg-rose-500/10" },
   { id: "imgcost", label: "生图消耗", icon: Coins, color: "text-emerald-500", bg: "bg-emerald-500/10" },
+  { id: "upload", label: "图片上传", icon: Upload, color: "text-teal-500", bg: "bg-teal-500/10" },
   { id: "svg", label: "AI 矢量", icon: Shapes, color: "text-fuchsia-500", bg: "bg-fuchsia-500/10" },
   { id: "shop", label: "积分商城", icon: ShoppingBag, color: "text-pink-500", bg: "bg-pink-500/10" },
   { id: "freequota", label: "无套餐额度", icon: Layers, color: "text-sky-500", bg: "bg-sky-500/10" },
@@ -385,6 +386,45 @@ export default function SettingsPage() {
                   </div>
                   <div className="rounded-xl bg-muted/40 p-3.5 text-xs text-muted-foreground leading-relaxed">
                     创作页「AI 优化」每次扣除的令牌数。0 = 免费（适合走量拉新）。该功能调用「AI 矢量生成」配置的同一个模型，需先配置模型。
+                  </div>
+                </div>
+              </Card>
+
+              {/* ═══ 图片上传压缩 ═══ */}
+              <Card id="upload" icon={Upload} color="text-teal-500" bg="bg-teal-500/10" title="图片上传压缩" desc="参考图上传前在浏览器内压缩，降体积、提上传速度">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-start">
+                  <div className="space-y-1.5">
+                    <Label>最长边像素</Label>
+                    <Input type="number" min={0} value={cfg?.upload_max_edge ?? 0} onChange={e => update("upload_max_edge", +e.target.value)} className={inputCls} placeholder="1536" />
+                  </div>
+                  <div className="rounded-xl bg-muted/40 p-3.5 text-xs text-muted-foreground leading-relaxed">
+                    压缩后图片最长边的像素上限。0 = 默认 1536。上游生图只用约 1.5MP（≈1254×1254），传更大纯属浪费；1280~2048 之间都对画质无损。调小上传更快。
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label>压缩质量（1-100）</Label>
+                    <Input type="number" min={0} max={100} value={cfg?.upload_quality ?? 0} onChange={e => update("upload_quality", +e.target.value)} className={inputCls} placeholder="82" />
+                  </div>
+                  <div className="rounded-xl bg-muted/40 p-3.5 text-xs text-muted-foreground leading-relaxed">
+                    WebP/JPEG 有损压缩质量。0 = 默认 82。82 左右肉眼几乎无损且体积小；追求极限速度可降到 70-75。
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label>输出格式</Label>
+                    <select value={cfg?.upload_format || "auto"} onChange={e => update("upload_format", e.target.value)}
+                      className={`${inputCls} w-full rounded-lg border bg-background px-3 py-2 outline-none focus:ring-2 focus:ring-primary/20`}>
+                      <option value="auto">自动（优先 WebP，回退 JPEG）</option>
+                      <option value="webp">WebP（体积最小）</option>
+                      <option value="jpeg">JPEG（兼容最好）</option>
+                    </select>
+                  </div>
+                  <div className="rounded-xl bg-muted/40 p-3.5 text-xs text-muted-foreground leading-relaxed">
+                    自动模式下浏览器支持 WebP 就用 WebP（同画质比 JPEG 再小 25-35%），否则回退 JPEG。极限性能选「自动」即可。
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label>压缩触发阈值（KB）</Label>
+                    <Input type="number" min={0} value={cfg?.upload_compress_threshold_kb ?? 0} onChange={e => update("upload_compress_threshold_kb", +e.target.value)} className={inputCls} placeholder="100" />
+                  </div>
+                  <div className="rounded-xl bg-muted/40 p-3.5 text-xs text-muted-foreground leading-relaxed">
+                    文件超过此大小才压缩。0 = 默认 100KB。小图直传不折腾，省去解码/编码开销。保存后用户端即时生效（下次打开创作页拉取新配置）。
                   </div>
                 </div>
               </Card>

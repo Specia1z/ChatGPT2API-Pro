@@ -253,6 +253,11 @@ type Settings struct {
 	DBMaxOpenConns         int `json:"db_max_open_conns"`          // MySQL 最大连接数（0=用内置默认 25；上限 200 防爆内存）
 	OrderTimeoutMinutes    int `json:"order_timeout_minutes"`      // 待支付订单超时分钟数，超时自动置为 expired（0=不自动处理）
 	SVGModel               string `json:"svg_model"`               // AI 矢量生成使用的对话模型 slug（空=功能关闭）
+	// 参考图上传压缩（前端上传前在浏览器压缩，降体积提上传速度；上游只用 ~1.5MP，压缩对画质无损）
+	UploadMaxEdge        int    `json:"upload_max_edge"`        // 压缩后最长边像素（0=用内置默认 1536；建议 1280~2048）
+	UploadQuality        int    `json:"upload_quality"`         // WebP/JPEG 质量 1-100（0=用内置默认 82）
+	UploadFormat         string `json:"upload_format"`          // 压缩输出格式：webp/jpeg/auto（空=auto，优先 webp 回退 jpeg）
+	UploadCompressThresholdKB int `json:"upload_compress_threshold_kb"` // 文件超过此 KB 才压缩（0=用内置默认 100；小图直传不折腾）
 	StylePresets string `json:"style_presets"` // JSON 数组：风格预设
 	EmailConfig string `json:"email_config"` // JSON：SMTP+域名规则
 	InviteConfig string `json:"invite_config"` // JSON：邀请裂变配置

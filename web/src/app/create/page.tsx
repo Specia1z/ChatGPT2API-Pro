@@ -13,6 +13,7 @@ const {
 } = LucideIcons;
 import { useAuth } from "@/lib/auth";
 import { api, BASE } from "@/lib/api";
+import { compressImage, compressOptionsFromSettings } from "@/lib/imageCompress";
 import { Navbar } from "@/components/navbar";
 import { imageProxyUrl } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -866,9 +867,12 @@ export default function CreatePage() {
                 onChange={async e => {
                   const files = e.target?.files;
                   if (!files || files.length === 0) return;
+                  const opts = compressOptionsFromSettings(settings);
                   const results: string[] = [];
+                  let savedBytes = 0, origBytes = 0;
                   for (const file of Array.from(files)) {
                     let imgFile = file;
+                    // HEIC/HEIF 先转 JPEG（浏览器原生无法解码 HEIC）
                     if (/\.heic$/i.test(file.name) || file.type === "image/heic" || file.type === "image/heif") {
                       try {
                         const { default: heic2any } = await import("heic2any");
@@ -876,16 +880,30 @@ export default function CreatePage() {
                         imgFile = new File([blob as Blob], file.name.replace(/\.heic$/i, ".jpg"), { type: "image/jpeg" });
                       } catch { toast.error("HEIC 转换失败"); continue; }
                     }
-                    const raw = await new Promise<string>((resolve, reject) => {
-                      const reader = new FileReader();
-                      reader.onload = () => resolve((reader.result as string).split(",")[1] || (reader.result as string));
-                      reader.onerror = reject;
-                      reader.readAsDataURL(imgFile);
-                    });
-                    results.push(raw);
+                    // 浏览器内压缩 + 降采样（上游只用 ~1.5MP，对画质无损）
+                    try {
+                      origBytes += imgFile.size;
+                      const { b64 } = await compressImage(imgFile, opts);
+                      savedBytes += Math.round((b64.length * 3) / 4); // base64 → 原字节估算
+                      results.push(b64);
+                    } catch {
+                      // 压缩失败兜底：原图直传
+                      const raw = await new Promise<string>((resolve, reject) => {
+                        const reader = new FileReader();
+                        reader.onload = () => resolve((reader.result as string).split(",")[1] || (reader.result as string));
+                        reader.onerror = reject;
+                        reader.readAsDataURL(imgFile);
+                      });
+                      results.push(raw);
+                    }
                   }
                   setRefImages(prev => [...prev, ...results]);
                   e.target.value = "";
+                  // 压缩生效时给个轻提示（仅当确实显著减小）
+                  if (origBytes > 0 && savedBytes > 0 && savedBytes < origBytes * 0.8) {
+                    const pct = Math.round((1 - savedBytes / origBytes) * 100);
+                    toast.success(`已优化上传体积 -${pct}%`);
+                  }
                 }} />
             </div>
 

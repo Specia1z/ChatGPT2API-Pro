@@ -258,6 +258,19 @@ func (s *MySQLStore) autoMigrate() {
 	s.db.Exec("ALTER TABLE settings ADD COLUMN db_max_open_conns INT NOT NULL DEFAULT 0 AFTER public_cache_ttl_seconds")
 	s.db.Exec("ALTER TABLE settings ADD COLUMN order_timeout_minutes INT NOT NULL DEFAULT 0 AFTER db_max_open_conns")
 	s.db.Exec("ALTER TABLE settings ADD COLUMN svg_model VARCHAR(64) NOT NULL DEFAULT '' AFTER order_timeout_minutes")
+	// 参考图上传压缩配置（前端浏览器内压缩，降体积提上传速度）
+	if !s.columnExists(dbName, "settings", "upload_max_edge") {
+		s.db.Exec("ALTER TABLE settings ADD COLUMN upload_max_edge INT NOT NULL DEFAULT 0 AFTER svg_model")
+	}
+	if !s.columnExists(dbName, "settings", "upload_quality") {
+		s.db.Exec("ALTER TABLE settings ADD COLUMN upload_quality INT NOT NULL DEFAULT 0 AFTER upload_max_edge")
+	}
+	if !s.columnExists(dbName, "settings", "upload_format") {
+		s.db.Exec("ALTER TABLE settings ADD COLUMN upload_format VARCHAR(16) NOT NULL DEFAULT '' AFTER upload_quality")
+	}
+	if !s.columnExists(dbName, "settings", "upload_compress_threshold_kb") {
+		s.db.Exec("ALTER TABLE settings ADD COLUMN upload_compress_threshold_kb INT NOT NULL DEFAULT 0 AFTER upload_format")
+	}
 	if !s.columnExists(dbName, "settings", "style_presets") {
 		s.db.Exec("ALTER TABLE settings ADD COLUMN style_presets TEXT AFTER points_exchange_bonus")
 	}
