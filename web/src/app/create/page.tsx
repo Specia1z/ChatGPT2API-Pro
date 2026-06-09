@@ -8,7 +8,7 @@ import * as LucideIcons from "lucide-react";
 const {
   ImageIcon, Loader2, Wand2, X, Download, Trash2,
   CheckCircle, AlertCircle, Clock, Filter, Share2,
-  Square, Monitor, Smartphone, Camera, MonitorDown, Tv, FileText,
+  Square, Monitor, Smartphone, Camera,
   Zap, Palette, Sparkles, Maximize2,
 } = LucideIcons;
 import { useAuth } from "@/lib/auth";
@@ -29,26 +29,54 @@ const monoFont = DM_Mono({ subsets: ["latin"], weight: ["400", "500"], variable:
 const stagger = { hidden: {}, visible: { transition: { staggerChildren: 0.05 } } };
 const fadeUp = { hidden: { opacity: 0, y: 14 }, visible: { opacity: 1, y: 0, transition: { duration: 0.45, ease: [0.25, 0.46, 0.45, 0.94] as const } } };
 
-/* ── Size presets ────────────────────── */
+/* ── Size presets ──────────────────────
+   注意：上游 gpt-image 只认「比例」，不认「分辨率」——总像素恒定 ~1.5MP，
+   按比例分配长宽。故所有档位本质是比例；id 仍传比例字符串给后端（契约不变）。
+   旧的 HD/2K/4K/A4 等「分辨率档」已删除：实测它们与对应比例输出完全相同。
+   label=场景/平台（用户视角），ratio=底层比例（进阶参考，也是传后端的 id）。
+   分组展示：默认折叠成分组 chip，点开某组才平铺该组预设，避免一屏堆几十个。 */
 
-const SIZES = [
-  { id: "1:1", label: "1:1", desc: "头像/Logo", icon: Square },
-  { id: "4:3", label: "4:3", desc: "横版", icon: Monitor },
-  { id: "3:4", label: "3:4", desc: "小红书封面", icon: Smartphone },
-  { id: "16:9", label: "16:9", desc: "视频封面", icon: Monitor },
-  { id: "9:16", label: "9:16", desc: "手机壁纸", icon: Smartphone },
-  { id: "16:10", label: "16:10", desc: "宽屏", icon: Monitor },
-  { id: "10:16", label: "10:16", desc: "竖幅海报", icon: Smartphone },
-  { id: "21:9", label: "21:9", desc: "超宽电影", icon: Monitor },
-  { id: "9:21", label: "9:21", desc: "超长竖屏", icon: Smartphone },
-  { id: "2:3", label: "2:3", desc: "电商商品", icon: Camera },
-  { id: "3:2", label: "3:2", desc: "标准照片", icon: Camera },
-  { id: "4:5", label: "4:5", desc: "人像摄影", icon: Smartphone },
-  { id: "5:4", label: "5:4", desc: "经典摄影", icon: Camera },
-  { id: "HD", label: "HD", desc: "1280×720", icon: MonitorDown },
-  { id: "2K", label: "2K", desc: "高清壁纸", icon: Monitor },
-  { id: "4K", label: "4K", desc: "超高清", icon: Tv },
-  { id: "A4", label: "A4", desc: "文档打印", icon: FileText },
+type SizePreset = { id: string; label: string; ratio: string; icon: any; desc: string };
+type SizeGroup = { group: string; icon: any; items: SizePreset[] };
+
+const SIZE_GROUPS: SizeGroup[] = [
+  {
+    group: "社交媒体", icon: Smartphone, items: [
+      { id: "1:1",  label: "方形",       ratio: "1:1",  icon: Square,     desc: "IG 方图 / 头像 / 微博" },
+      { id: "3:4",  label: "小红书",     ratio: "3:4",  icon: Smartphone, desc: "小红书 / 竖版封面" },
+      { id: "4:5",  label: "朋友圈/IG",  ratio: "4:5",  icon: Smartphone, desc: "朋友圈 / Instagram 竖图" },
+      { id: "9:16", label: "短视频竖屏", ratio: "9:16", icon: Smartphone, desc: "抖音 / 快手 / Reels / Shorts" },
+      { id: "16:9", label: "视频封面",   ratio: "16:9", icon: Monitor,    desc: "B站 / YouTube 封面" },
+      { id: "10:16",label: "竖版海报",   ratio: "10:16",icon: Smartphone, desc: "长图文 / 活动海报" },
+    ],
+  },
+  {
+    group: "电商", icon: Camera, items: [
+      { id: "1:1",  label: "商品主图",   ratio: "1:1",  icon: Square,     desc: "淘宝/京东 主图方版" },
+      { id: "3:4",  label: "详情竖图",   ratio: "3:4",  icon: Smartphone, desc: "详情页 / 服饰展示" },
+      { id: "2:3",  label: "商品长图",   ratio: "2:3",  icon: Camera,     desc: "海报 / 竖版宣传" },
+      { id: "16:9", label: "Banner",     ratio: "16:9", icon: Monitor,    desc: "店铺横幅 / 轮播图" },
+      { id: "4:3",  label: "通用横版",   ratio: "4:3",  icon: Monitor,    desc: "通用展示横版" },
+    ],
+  },
+  {
+    group: "壁纸 / 屏幕", icon: Monitor, items: [
+      { id: "9:16", label: "手机壁纸",   ratio: "9:16", icon: Smartphone, desc: "手机全屏壁纸" },
+      { id: "16:9", label: "电脑壁纸",   ratio: "16:9", icon: Monitor,    desc: "桌面 / 显示器壁纸" },
+      { id: "16:10",label: "宽屏壁纸",   ratio: "16:10",icon: Monitor,    desc: "MacBook / 宽屏笔记本" },
+      { id: "21:9", label: "带鱼屏",     ratio: "21:9", icon: Monitor,    desc: "超宽显示器 / 影视感" },
+      { id: "9:21", label: "超长竖屏",   ratio: "9:21", icon: Smartphone, desc: "信息流长图 / 锁屏" },
+    ],
+  },
+  {
+    group: "摄影 / 经典", icon: Camera, items: [
+      { id: "3:2",  label: "横版照片",   ratio: "3:2",  icon: Camera,     desc: "单反横拍 / 风光" },
+      { id: "2:3",  label: "竖版照片",   ratio: "2:3",  icon: Camera,     desc: "单反竖拍 / 人像" },
+      { id: "4:3",  label: "标准",       ratio: "4:3",  icon: Monitor,    desc: "经典 4:3 横构图" },
+      { id: "5:4",  label: "经典框",     ratio: "5:4",  icon: Camera,     desc: "近正方横幅" },
+      { id: "1:1",  label: "方画幅",     ratio: "1:1",  icon: Square,     desc: "中画幅 / 方构图" },
+    ],
+  },
 ];
 
 /* ── 图标名称 → 组件映射 ──────────────── */
@@ -82,12 +110,16 @@ const refImageSrc = (img: string): string => {
   return `data:${b64Mime(img)};base64,${img}`;
 };
 // size 展示：Auto 出图存为复合值 "auto:宽x高"。角标只显「Auto」，详情可显「Auto · 宽×高」。
+// 历史遗留的「分辨率档」(HD/2K/4K/A4 等) 实际是固定比例，统一映射回比例展示，避免误导。
+const LEGACY_SIZE_RATIO: Record<string, string> = {
+  "HD": "16:9", "2K": "1:1", "4K": "1:1", "8K": "1:1", "A4": "3:4",
+};
 const sizeLabel = (size: string, withDim = false): string => {
   if (size.startsWith("auto:")) {
     const dim = size.slice(5).replace(/[xX*]/, "×");
     return withDim && dim ? `Auto · ${dim}` : "Auto";
   }
-  return size;
+  return LEGACY_SIZE_RATIO[size] || size;
 };
 // hover 提示：复合值返回精确像素（宽×高），其余返回空串（无需 title）。
 const sizeTitle = (size: string): string => {
@@ -132,6 +164,7 @@ export default function CreatePage() {
   const [fusionMode, setFusionMode] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<number | null>(null);
   const [size, setSize] = useState("1:1");
+  const [sizeGroup, setSizeGroup] = useState(0); // 当前展开的尺寸分组索引
   const [styles, setStyles] = useState<StylePreset[]>([]);
   const [activeStyle, setActiveStyle] = useState<string | null>(null);
   const [hsFilter, setHsFilter] = useState<"all" | "completed" | "failed" | "pending">("all");
@@ -749,9 +782,26 @@ export default function CreatePage() {
               </div>
             )}
 
-            {/* ── 比例尺寸：移动端横滚单行，桌面侧栏平铺换行 ── */}
+            {/* ── 比例尺寸：分组 chip + 展开该组预设 ── */}
             <div className="mt-4">
-              <span className={`${heading.className} text-[11px] font-semibold text-foreground tracking-wide block mb-2`}>比例 / 尺寸</span>
+              <span className={`${heading.className} text-[11px] font-semibold text-foreground tracking-wide block mb-2`}>比例 / 用途</span>
+              {/* 分组切换 chip */}
+              <div className="flex flex-nowrap overflow-x-auto scrollbar-hide overscroll-x-contain -mx-1 px-1 lg:mx-0 lg:px-0 gap-1.5 mb-2">
+                {SIZE_GROUPS.map((g, gi) => {
+                  const GIcon = g.icon;
+                  const on = sizeGroup === gi;
+                  return (
+                    <button key={g.group} onClick={() => setSizeGroup(gi)}
+                      className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-medium transition-all shrink-0 touch-manipulation ${
+                        on ? "bg-primary/15 text-primary ring-1 ring-primary/30" : "text-muted-foreground bg-muted/40 hover:text-foreground hover:bg-muted"
+                      }`}>
+                      <GIcon className="w-3 h-3 shrink-0" />
+                      <span className="whitespace-nowrap">{g.group}</span>
+                    </button>
+                  );
+                })}
+              </div>
+              {/* 当前组的预设 */}
               <div className="flex flex-nowrap overflow-x-auto scrollbar-hide overscroll-x-contain -mx-1 px-1 lg:mx-0 lg:px-0 lg:flex-wrap gap-1.5">
                 {/* Auto：仅有参考图时 */}
                 {refImages.length > 0 && (
@@ -762,16 +812,17 @@ export default function CreatePage() {
                     <Maximize2 className="w-3 h-3" /><span>Auto</span>
                   </button>
                 )}
-                {SIZES.map(s => {
+                {SIZE_GROUPS[sizeGroup].items.map(s => {
                   const Icon = s.icon;
                   const active = size === s.id;
                   return (
-                    <button key={s.id} onClick={() => setSize(s.id)} title={s.desc}
-                      className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-medium transition-all shrink-0 touch-manipulation ${
+                    <button key={`${s.label}-${s.id}`} onClick={() => setSize(s.id)} title={`${s.desc} · ${s.ratio}`}
+                      className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-medium transition-all shrink-0 touch-manipulation ${
                         active ? "bg-foreground text-primary-foreground shadow-sm" : "text-muted-foreground bg-muted/60 hover:text-foreground hover:bg-muted"
                       }`}>
                       <Icon className="w-3 h-3 shrink-0" />
                       <span className="whitespace-nowrap">{s.label}</span>
+                      <span className={`${monoFont.className} text-[9px] tabular-nums ${active ? "text-primary-foreground/60" : "text-muted-foreground/50"}`}>{s.ratio}</span>
                     </button>
                   );
                 })}

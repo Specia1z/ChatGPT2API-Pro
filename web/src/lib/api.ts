@@ -55,7 +55,25 @@ export async function api<T = any>(path: string, options: RequestInit = {}): Pro
     }
     throw new Error("登录已过期，请重新登录");
   }
-  const data = await res.json();
+  // 容错解析：响应 body 可能不是 JSON（如被 Cloudflare/Nginx 拦截返回 HTML 错误页，
+  // 或网关 5xx/超时）。直接 res.json() 在 Safari/WebKit 上会抛
+  // "The string did not match the expected pattern" 这种用户看不懂的异常。
+  // 改为先读文本再尝试解析，失败时按状态码给出友好中文提示。
+  const raw = await res.text();
+  let data: any = null;
+  if (raw) {
+    try {
+      data = JSON.parse(raw);
+    } catch {
+      // 非 JSON 响应：多为网关/CDN 错误页
+      const msg = res.ok
+        ? "服务返回异常，请稍后重试"
+        : `服务暂时不可用 (HTTP ${res.status})，请稍后重试`;
+      const err = new Error(msg) as Error & { status?: number; code?: number };
+      err.status = res.status;
+      throw err;
+    }
+  }
   if (!res.ok) {
     const err = new Error(data?.message || `HTTP ${res.status}`) as Error & { status?: number; code?: number };
     err.status = res.status;
