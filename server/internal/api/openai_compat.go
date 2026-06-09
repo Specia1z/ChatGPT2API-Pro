@@ -315,4 +315,23 @@ func verifyImageSig(genID int64, expStr, sig string) bool {
 	return hmac.Equal([]byte(want), []byte(sig))
 }
 
+// ListModelsOpenAI —— GET /v1/models
+// OpenAI 兼容模型列表。OpenAI SDK / LangChain 等客户端连接时会先探测此端点，
+// 缺失会导致客户端报 404 / 连接失败。返回本服务支持的模型（图片生成）。
+func (h *Handler) ListModelsOpenAI(w http.ResponseWriter, r *http.Request) {
+	now := time.Now().Unix()
+	model := func(id string) map[string]any {
+		return map[string]any{"id": id, "object": "model", "created": now, "owned_by": "img2design"}
+	}
+	models := []map[string]any{
+		model("gpt-image-2"),
+	}
+	// 若后台配了 SVG 对话模型，一并列出（/v1/vector 用）
+	if cfg, _ := h.MySQL.GetSettings(); cfg != nil && strings.TrimSpace(cfg.SVGModel) != "" {
+		models = append(models, model(cfg.SVGModel))
+	}
+	writeJSON(w, 200, map[string]any{"object": "list", "data": models})
+}
+
+
 

@@ -261,14 +261,18 @@ function DocsContent() {
             </div>
             <p className="text-sm text-zinc-600 dark:text-zinc-400 leading-relaxed">
               与 OpenAI 官方 Images 接口对齐的<strong className="text-zinc-700 dark:text-zinc-300">同步</strong>接口：一次请求阻塞直到图片生成完成，直接返回结果，无需轮询。
-              可直接用 OpenAI 官方 SDK，只需把 <code className="font-mono text-xs px-1 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800">base_url</code> 指向本站、
+              可直接用 OpenAI 官方 SDK，只需把 <code className="font-mono text-xs px-1 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800">base_url</code> 设为 <code className="font-mono text-xs px-1 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800">{origin}/v1</code>（不带尾斜杠、不可省略 <code className="font-mono text-xs px-1 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800">/v1</code>）、
               <code className="font-mono text-xs px-1 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800">api_key</code> 用你的 sk- 密钥。
+            </p>
+            <p className="text-xs text-amber-600 dark:text-amber-400 flex items-start gap-1.5">
+              <AlertTriangle className="w-3.5 h-3.5 mt-0.5 shrink-0" />
+              <span>本服务<strong>仅支持图片生成</strong>（<code className="font-mono px-1 py-0.5 rounded bg-amber-500/10">client.images.generate()</code>）。不提供 <code className="font-mono px-1 py-0.5 rounded bg-amber-500/10">chat/completions</code>、<code className="font-mono px-1 py-0.5 rounded bg-amber-500/10">embeddings</code> 等其他 OpenAI 端点——调用它们会返回 404。可用端点：<code className="font-mono px-1 py-0.5 rounded bg-amber-500/10">POST /v1/images/generations</code>、<code className="font-mono px-1 py-0.5 rounded bg-amber-500/10">GET /v1/models</code>。</span>
             </p>
             <h3 className="text-[13px] font-semibold text-zinc-700 dark:text-zinc-300 pt-1">请求参数</h3>
             <FieldTable rows={[
               { name: "prompt", type: "string", required: "是", desc: "提示词，最长 2000 字符" },
               { name: "n", type: "int", required: "否", desc: "生成数量，默认 1，范围 1–10（受套餐并发与令牌限制）" },
-              { name: "size", type: "string", required: "否", desc: "支持 OpenAI 像素尺寸（1024x1024 / 1792x1024 / 1024x1792 等）或内部比例（16:9 / 2K / A4 等），默认 1:1" },
+              { name: "size", type: "string", required: "否", desc: "构图比例：1:1 / 16:9 / 9:16 / 3:2 / 2:3 / 4:5 等，或 OpenAI 像素尺寸（1024x1024 / 1792x1024 / 1024x1792，自动映射到最接近比例）。默认 1:1。注：上游按比例出图，分辨率统一约 1.5MP（如 1:1≈1254×1254），不支持 2K/4K 等更高分辨率" },
               { name: "response_format", type: "string", required: "否", desc: "b64_json（默认）返回 base64，或 url 返回图片链接" },
               { name: "model", type: "string", required: "否", desc: "兼容字段，内部固定 gpt-image-2" },
             ]} />

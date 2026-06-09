@@ -80,6 +80,8 @@ mux.Handle("POST /api/user/points/exchange", middleware.RateLimit(userAuth(http.
 
 	// OpenAI 兼容接口（同步返回，标准 /v1 路径，API Key 认证 + IP/uid 双限流）
 	mux.Handle("POST /v1/images/generations", middleware.RateLimit(apiKeyAuth(apiUserRL(http.HandlerFunc(h.CreateImageOpenAI)))))
+	// /v1/models：OpenAI SDK/LangChain 等连接时会先探测，缺失会 404 导致连接失败
+	mux.Handle("GET /v1/models", apiKeyAuth(http.HandlerFunc(h.ListModelsOpenAI)))
 
 	// 注：管理员登录已统一到 /api/auth/login（按 users.role / .env SUPERADMIN_EMAIL 鉴权），
 	// 旧的独立 /api/admin/login 已废弃移除。
