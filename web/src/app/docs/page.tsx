@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { Navbar } from "@/components/navbar";
-import { Copy, Check, KeyRound, Image as ImageIcon, Clock, AlertTriangle, Terminal, Shapes } from "lucide-react";
+import { Copy, Check, KeyRound, Image as ImageIcon, Clock, AlertTriangle, Terminal, Shapes, Wand2 } from "lucide-react";
 
 /* ── 复制按钮 ─────────────────────────────── */
 function CodeBlock({ code, lang = "bash" }: { code: string; lang?: string }) {
@@ -85,6 +85,8 @@ const NAV = [
   { id: "tokens", label: "查询额度" },
   { id: "openai", label: "OpenAI 兼容" },
   { id: "vector", label: "矢量图(SVG)" },
+  { id: "img2text", label: "反推提示词" },
+  { id: "enhance", label: "一键增强" },
   { id: "errors", label: "错误码" },
   { id: "limits", label: "限流与配额" },
 ];
@@ -159,7 +161,7 @@ function DocsContent() {
               { name: "prompt", type: "string", required: "是", desc: "提示词，最长 2000 字符" },
               { name: "size", type: "string", required: "否", desc: `图片比例/尺寸，默认 1:1。可选：${SIZES}` },
               { name: "count", type: "int", required: "否", desc: "生成数量，默认 1，范围 1–10（受套餐并发与令牌限制）" },
-              { name: "ref_images_b64", type: "string[]", required: "否", desc: "参考图（图生图），每项为裸 base64，整体请求体 ≤10MB" },
+              { name: "ref_images_b64", type: "string[]", required: "否", desc: "参考图（图生图），每项为裸 base64。传 1 张=图生图；传多张=多图融合（融图），AI 综合多张参考图生成。整体请求体 ≤10MB" },
               { name: "model", type: "string", required: "否", desc: "模型标识，默认 gpt-image-2" },
             ]} />
             <h3 className="text-[13px] font-semibold text-zinc-700 dark:text-zinc-300 pt-1">请求示例</h3>
@@ -364,6 +366,58 @@ print(resp.data[0].b64_json[:40])`} />
             <div className="rounded-xl border border-amber-300/40 dark:border-amber-500/20 bg-amber-50/60 dark:bg-amber-500/[0.06] p-4 flex items-start gap-2 text-[13px] text-amber-700 dark:text-amber-400">
               <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" />
               <span>同步接口，单次通常耗时 5–30 秒；请把客户端超时设到 <strong>60 秒以上</strong>。若管理员未配置矢量模型，返回 <strong>503</strong>。</span>
+            </div>
+          </Section>
+
+          {/* 反推提示词 */}
+          <Section id="img2text" icon={<ImageIcon className="w-4 h-4" />} title="反推提示词（图生文）">
+            <div className="flex items-center gap-2 text-sm">
+              <span className="font-mono text-[11px] font-bold px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">POST</span>
+              <code className="font-mono text-[13px] text-zinc-700 dark:text-zinc-300">/api/v1/image-to-text</code>
+            </div>
+            <p className="text-sm text-zinc-600 dark:text-zinc-400 leading-relaxed">
+              上传一张图，AI 反推出可直接用于生图的<strong className="text-zinc-700 dark:text-zinc-300">中文提示词</strong>。同步返回。
+            </p>
+            <FieldTable rows={[
+              { name: "image_b64", type: "string", required: "是", desc: "图片的裸 base64（或 dataURL，会自动剥前缀）" },
+            ]} />
+            <h3 className="text-[13px] font-semibold text-zinc-700 dark:text-zinc-300 pt-1">cURL 示例</h3>
+            <CodeBlock code={`curl -X POST ${origin}/api/v1/image-to-text \\
+  -H "Authorization: Bearer sk-你的密钥" \\
+  -H "Content-Type: application/json" \\
+  -d '{ "image_b64": "<裸base64>" }'`} />
+            <h3 className="text-[13px] font-semibold text-zinc-700 dark:text-zinc-300 pt-1">响应</h3>
+            <CodeBlock lang="json" code={`{ "code": 200, "data": { "prompt": "一只橘色的猫坐在窗台上，柔和的午后阳光，浅景深……", "cost": 0 } }`} />
+            <div className="rounded-xl border border-amber-300/40 dark:border-amber-500/20 bg-amber-50/60 dark:bg-amber-500/[0.06] p-4 flex items-start gap-2 text-[13px] text-amber-700 dark:text-amber-400">
+              <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" />
+              <span>需管理员配置支持图像识别的模型，否则返回 <strong>503</strong>。计费按 <code className="font-mono">image_to_text_cost</code>（可为 0=免费）。</span>
+            </div>
+          </Section>
+
+          {/* 一键增强 */}
+          <Section id="enhance" icon={<Wand2 className="w-4 h-4" />} title="一键智能增强">
+            <div className="flex items-center gap-2 text-sm">
+              <span className="font-mono text-[11px] font-bold px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">POST</span>
+              <code className="font-mono text-[13px] text-zinc-700 dark:text-zinc-300">/api/v1/image-enhance</code>
+            </div>
+            <p className="text-sm text-zinc-600 dark:text-zinc-400 leading-relaxed">
+              上传一张图，AI 先<strong className="text-zinc-700 dark:text-zinc-300">看图诊断不足</strong>并生成针对性重构提示词，再据此重新创作出更精美的版本。<strong className="text-zinc-700 dark:text-zinc-300">同步返回增强后的图</strong>。
+            </p>
+            <FieldTable rows={[
+              { name: "image_b64", type: "string", required: "是", desc: "原图的裸 base64（或 dataURL）" },
+              { name: "size", type: "string", required: "否", desc: "输出比例，默认 1:1" },
+              { name: "response_format", type: "string", required: "否", desc: "b64_json（默认）或 url" },
+            ]} />
+            <h3 className="text-[13px] font-semibold text-zinc-700 dark:text-zinc-300 pt-1">cURL 示例</h3>
+            <CodeBlock code={`curl -X POST ${origin}/api/v1/image-enhance \\
+  -H "Authorization: Bearer sk-你的密钥" \\
+  -H "Content-Type: application/json" \\
+  -d '{ "image_b64": "<裸base64>", "response_format": "url" }'`} />
+            <h3 className="text-[13px] font-semibold text-zinc-700 dark:text-zinc-300 pt-1">响应</h3>
+            <CodeBlock lang="json" code={`{ "code": 200, "data": { "prompt": "（AI 诊断生成的重构提示词）", "url": "${origin}/api/images/12345?exp=...&sig=..." } }`} />
+            <div className="rounded-xl border border-amber-300/40 dark:border-amber-500/20 bg-amber-50/60 dark:bg-amber-500/[0.06] p-4 flex items-start gap-2 text-[13px] text-amber-700 dark:text-amber-400">
+              <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" />
+              <span>增强=AI 重新创作，结果会与原图有差异、并非像素级保留（主体与主题尽量保持）。两步串联耗时较长，客户端超时建议 <strong>120 秒以上</strong>。按一次图生图计费（<code className="font-mono">tokens_per_image</code>）。</span>
             </div>
           </Section>
 

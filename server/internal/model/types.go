@@ -245,6 +245,8 @@ type Settings struct {
 	PointsExchangeBonusThreshold int `json:"points_exchange_bonus_threshold"` // 大额兑换赠送的触发阈值（每满 N 个赠送一档；0=用内置默认 50）
 	TokensPerImage      int    `json:"tokens_per_image"` // 每生成 1 张图消耗的令牌数（0=用内置默认 1）
 	PromptPolishCost    int    `json:"prompt_polish_cost"` // 每次提示词润色消耗的令牌数（0=免费）
+	ImageToTextCost     int    `json:"image_to_text_cost"` // 每次图生文（反推提示词）消耗的令牌数（0=免费）
+	ImageEnhancePrompt  string `json:"image_enhance_prompt"` // 一键智能增强使用的提示词（空=用内置默认强提示词）
 	BurstTokenCap       int    `json:"burst_token_cap"` // 突发令牌囤积上限（0=不限），防积分兑换无限囤额度
 	DefaultRateLimitPerMin int `json:"default_rate_limit_per_min"` // API Key 默认每分钟请求上限（套餐未配 rate_limit_per_min 时回退此值；0=用内置兜底 30）
 	ConfigCacheTTLSeconds  int `json:"config_cache_ttl_seconds"`   // 配置(settings/storage)进程内缓存秒数（0=不缓存，写时自动失效）

@@ -20,6 +20,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "@/components/ui/tooltip";
+import { IconTip } from "@/components/ui/icon-tip";
 import { toast } from "sonner";
 
 // 与 /user、/admin/stats 对齐的字体（Outfit 标题 + DM_Mono 数字）
@@ -157,6 +158,8 @@ export default function CreatePage() {
   const inputRef2 = useRef<HTMLInputElement>(null);
   const [loading, setLoading] = useState(false);
   const [polishing, setPolishing] = useState(false);
+  const [describing, setDescribing] = useState(false);
+  const [enhancing, setEnhancing] = useState(false);
   const [batchProgress, setBatchProgress] = useState<{ done: number; total: number } | null>(null);
   const [generations, setGenerations] = useState<any[]>([]);
   const [previewGen, setPreviewGen] = useState<any>(null);
@@ -191,6 +194,73 @@ export default function CreatePage() {
       toast.error(e.message || "优化失败");
     } finally {
       setPolishing(false);
+    }
+  };
+
+  // 图生文（反推提示词）：取第一张参考图，用 AI 反推出中文提示词，填回输入框。
+  const doDescribe = async () => {
+    const img = refImages[0];
+    if (!img || describing) return;
+    // refImages 已是裸 base64（上传时压缩处理）；兼容 dataURL/代理路径
+    const b64 = img.startsWith("data:") ? (img.split(",")[1] || "") : img;
+    if (!b64 || b64.startsWith("/api/") || b64.startsWith("http")) {
+      toast.error("请先上传一张图片");
+      return;
+    }
+    setDescribing(true);
+    try {
+      const r = await api("/api/user/image-to-text", { method: "POST", body: JSON.stringify({ image_b64: b64 }) });
+      const prompt = r.data?.prompt?.trim();
+      if (prompt) {
+        setCurrentInput(prompt);
+        inputRef2.current?.focus();
+        const cost = r.data?.cost || 0;
+        toast.success(cost > 0 ? `已反推提示词（消耗 ${cost} 令牌）` : "已反推提示词");
+      } else {
+        toast.error("反推失败，请重试");
+      }
+    } catch (e: any) {
+      toast.error(e.message || "反推失败");
+    } finally {
+      setDescribing(false);
+    }
+  };
+
+  // 一键智能增强（两步法）：先让 AI 看图诊断不足、生成针对性重构提示词，再据此图生图出增强版。
+  const doEnhance = async () => {
+    const img = refImages[0];
+    if (!img || loading || enhancing) return;
+    const b64 = img.startsWith("data:") ? (img.split(",")[1] || "") : img;
+    if (!b64 || b64.startsWith("/api/") || b64.startsWith("http")) {
+      toast.error("请先上传一张图片");
+      return;
+    }
+    setEnhancing(true);
+    try {
+      // 第一步：AI 看图诊断 → 针对性重构提示词
+      const diag = await api<any>("/api/user/image-enhance", { method: "POST", body: JSON.stringify({ image_b64: b64 }) });
+      const enhancePrompt = diag.data?.prompt?.trim();
+      if (!enhancePrompt) { toast.error("智能诊断失败，请重试"); setEnhancing(false); return; }
+      // 第二步：拿诊断结果 + 原图走图生图
+      setLoading(true);
+      const ids = await submitOne(enhancePrompt, [b64]);
+      if (ids.length === 0) { toast.error("增强提交失败"); setLoading(false); setEnhancing(false); return; }
+      setHsFilter("all");
+      toast.success("AI 已分析并提交智能增强，生成中…");
+      pollUpdate().catch(() => {});
+      const poll = setInterval(async () => {
+        try {
+          const gens = await pollUpdate();
+          if (ids.every(id => { const f = gens.find((g: any) => g.id === id); return f && f.status !== "pending"; })) {
+            clearInterval(poll); setLoading(false);
+          }
+        } catch { clearInterval(poll); setLoading(false); }
+      }, 3000);
+    } catch (e: any) {
+      toast.error(e.message || "增强失败");
+      setLoading(false);
+    } finally {
+      setEnhancing(false);
     }
   };
 
@@ -692,7 +762,7 @@ export default function CreatePage() {
                       <span key={i}
                         className="group inline-flex items-center gap-1 pl-3 pr-1 py-1.5 rounded-lg bg-muted
                           text-xs sm:text-[11px] text-foreground max-w-full">
-                        <span onClick={() => editTag(i)} className="truncate max-w-[200px] sm:max-w-xs cursor-pointer" title="点击修改">{tag}</span>
+                        <IconTip label="点击修改"><span onClick={() => editTag(i)} className="truncate max-w-[200px] sm:max-w-xs cursor-pointer">{tag}</span></IconTip>
                         {/* 份数控制：×N，可增减（1–10） */}
                         <span className="inline-flex items-center gap-0.5 ml-0.5 px-1 rounded-md bg-background/60 shrink-0">
                           <button onClick={e => { e.stopPropagation(); setTagCount(tag, getTagCount(tag) - 1); }}
@@ -729,13 +799,14 @@ export default function CreatePage() {
                   />
                   {/* 工具行：AI 优化 */}
                   <div className="flex items-center justify-end pt-1">
+                    <IconTip label="把输入框里这句话用 AI 扩写成专业提示词">
                     <button onClick={doPolish}
                       disabled={polishing || !currentInput.trim()}
-                      title="把输入框里这句话用 AI 扩写成专业提示词"
                       className="group/p inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-medium text-violet-600 dark:text-violet-400 hover:bg-violet-500/10 disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
                       {polishing ? <Loader2 className="w-3 h-3 animate-spin" /> : <Sparkles className="w-3 h-3" />}
                       {polishing ? "优化中…" : "AI 优化"}
                     </button>
+                    </IconTip>
                   </div>
                 </div>
               </div>
@@ -806,18 +877,21 @@ export default function CreatePage() {
               <div className="flex flex-nowrap overflow-x-auto scrollbar-hide overscroll-x-contain -mx-1 px-1 lg:mx-0 lg:px-0 lg:flex-wrap gap-1.5">
                 {/* Auto：仅有参考图时 */}
                 {refImages.length > 0 && (
-                  <button onClick={() => setSize("auto")} title={refDim ? `跟随参考图 ${refDim.w}×${refDim.h}` : "跟随参考图比例"}
+                  <IconTip label={refDim ? `跟随参考图 ${refDim.w}×${refDim.h}` : "跟随参考图比例"}>
+                  <button onClick={() => setSize("auto")}
                     className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-medium transition-all shrink-0 touch-manipulation ${
                       size === "auto" ? "bg-foreground text-primary-foreground shadow-sm" : "text-muted-foreground bg-muted/60 hover:text-foreground hover:bg-muted"
                     }`}>
                     <Maximize2 className="w-3 h-3" /><span>Auto</span>
                   </button>
+                  </IconTip>
                 )}
                 {SIZE_GROUPS[sizeGroup].items.map(s => {
                   const Icon = s.icon;
                   const active = size === s.id;
                   return (
-                    <button key={`${s.label}-${s.id}`} onClick={() => setSize(s.id)} title={`${s.desc} · ${s.ratio}`}
+                    <IconTip key={`${s.label}-${s.id}`} label={`${s.desc} · ${s.ratio}`}>
+                    <button onClick={() => setSize(s.id)}
                       className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-medium transition-all shrink-0 touch-manipulation ${
                         active ? "bg-foreground text-primary-foreground shadow-sm" : "text-muted-foreground bg-muted/60 hover:text-foreground hover:bg-muted"
                       }`}>
@@ -825,6 +899,7 @@ export default function CreatePage() {
                       <span className="whitespace-nowrap">{s.label}</span>
                       <span className={`${monoFont.className} text-[9px] tabular-nums ${active ? "text-primary-foreground/60" : "text-muted-foreground/50"}`}>{s.ratio}</span>
                     </button>
+                    </IconTip>
                   );
                 })}
               </div>
@@ -832,24 +907,32 @@ export default function CreatePage() {
 
             {/* ── 参考图 / 图生图 ── */}
             <div className="mt-4">
-              <span className={`${heading.className} text-[11px] font-semibold text-foreground tracking-wide block mb-2`}>参考图</span>
+              <span className={`${heading.className} text-[11px] font-semibold text-foreground tracking-wide block mb-2`}>参考图（图生图）</span>
               <div className="flex flex-wrap items-center gap-1.5">
                 <button onClick={() => fileRef.current?.click()}
                   className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-medium transition-all touch-manipulation ${
                     refImages.length > 0 ? "bg-foreground text-primary-foreground" : "text-muted-foreground bg-muted/60 hover:text-foreground hover:bg-muted"
                   }`}>
                   <ImageIcon className="w-3 h-3" />
-                  {refImages.length > 0 ? `已选 ${refImages.length} 张` : (fusionMode ? "添加图片" : "上传")}
+                  {refImages.length > 0 ? `已选 ${refImages.length} 张` : "上传图片"}
                 </button>
-                <button onClick={() => { const next = !fusionMode; setFusionMode(next); setRefImages([]); if (next) fileRef.current?.click(); }}
+                {/* 融图开关：开启后允许上传多张图融合 */}
+                <IconTip label={fusionMode ? "融图已开启：可上传多张图片融合生成" : "开启后可上传多张图片融合"}>
+                <button onClick={() => {
+                    const next = !fusionMode;
+                    setFusionMode(next);
+                    // 关闭融图时若已有多张，只保留第一张
+                    if (!next) setRefImages(prev => prev.slice(0, 1));
+                  }}
                   className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-medium transition-all touch-manipulation ${
                     fusionMode ? "bg-foreground text-primary-foreground" : "text-muted-foreground bg-muted/60 hover:text-foreground hover:bg-muted"
                   }`}>
-                  <ImageIcon className="w-3 h-3" />
-                  {fusionMode ? "融合模式" : "图生图"}
+                  <span className={`inline-block w-1.5 h-1.5 rounded-full ${fusionMode ? "bg-emerald-400" : "bg-muted-foreground/40"}`} />
+                  融图{fusionMode ? "已开" : ""}
                 </button>
-                {refImages.length > 0 && fusionMode && (
-                  <span className="text-[10px] text-muted-foreground font-medium px-1.5 py-0.5 rounded-md bg-muted">融合</span>
+                </IconTip>
+                {fusionMode && refImages.length > 1 && (
+                  <span className="text-[10px] text-muted-foreground font-medium px-1.5 py-0.5 rounded-md bg-muted">融合 {refImages.length} 张</span>
                 )}
               </div>
               {refImages.length > 0 && (
@@ -861,9 +944,34 @@ export default function CreatePage() {
                       <button onClick={() => setRefImages(refImages.filter((_, i) => i !== idx))} className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-foreground text-primary-foreground flex items-center justify-center text-[8px] shadow-sm">×</button>
                     </div>
                   ))}
+                  {/* 反推提示词 / 一键增强：仅单图参考时显示（融图模式下针对单图的操作无意义） */}
+                  {!fusionMode && (
+                    <>
+                      <IconTip label="让 AI 看懂这张图，反推出可直接用于生图的中文提示词并填入输入框">
+                      <button onClick={doDescribe} disabled={describing}
+                        className="inline-flex items-center gap-1 px-2 h-7 rounded-lg text-[11px] font-medium text-cyan-600 dark:text-cyan-400 bg-cyan-500/10 hover:bg-cyan-500/20 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
+                        {describing ? <Loader2 className="w-3 h-3 animate-spin" /> : <Sparkles className="w-3 h-3" />}
+                        {describing ? "反推中…" : "反推提示词"}
+                      </button>
+                      </IconTip>
+                      <IconTip label="AI 智能分析这张图的不足并重新创作出更精美的版本（会自行优化构图/光影/背景/氛围）">
+                      <button onClick={doEnhance} disabled={enhancing || loading}
+                        className="inline-flex items-center gap-1 px-2 h-7 rounded-lg text-[11px] font-medium text-amber-600 dark:text-amber-400 bg-amber-500/10 hover:bg-amber-500/20 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
+                        {enhancing ? <Loader2 className="w-3 h-3 animate-spin" /> : <Wand2 className="w-3 h-3" />}
+                        {enhancing ? "增强中…" : "一键增强"}
+                      </button>
+                      </IconTip>
+                    </>
+                  )}
                 </div>
               )}
-              <input ref={fileRef} type="file" accept="image/*,image/heic,image/heif" multiple className="hidden"
+              {/* 一键增强注意提醒：仅单图参考时显示 */}
+              {!fusionMode && refImages.length > 0 && (
+                <p className="mt-2 text-[10px] leading-relaxed text-muted-foreground/70">
+                  「一键增强」由 AI 重新创作，会自行发挥优化构图、光影、背景与氛围，<span className="text-amber-600/80 dark:text-amber-400/80">结果会与原图有差异、并非像素级保留</span>，主体与主题会尽量保持。多生成几次可挑选满意的。
+                </p>
+              )}
+              <input ref={fileRef} type="file" accept="image/*,image/heic,image/heif" multiple={fusionMode} className="hidden"
                 onChange={async e => {
                   const files = e.target?.files;
                   if (!files || files.length === 0) return;
@@ -897,7 +1005,8 @@ export default function CreatePage() {
                       results.push(raw);
                     }
                   }
-                  setRefImages(prev => [...prev, ...results]);
+                  // 融图模式：追加多张；单图模式：只保留最新一张（替换）
+                  setRefImages(prev => fusionMode ? [...prev, ...results] : results.slice(-1));
                   e.target.value = "";
                   // 压缩生效时给个轻提示（仅当确实显著减小）
                   if (origBytes > 0 && savedBytes > 0 && savedBytes < origBytes * 0.8) {
@@ -1043,7 +1152,9 @@ export default function CreatePage() {
                             <p className="text-[11px] text-white/90 line-clamp-2 mb-2 leading-relaxed">{g.prompt}</p>
                             <div className="flex items-center justify-between">
                               <div className="flex items-center gap-1.5">
-                                {g.size && <span title={sizeTitle(g.size)} className="text-[10px] px-1 py-0.5 rounded bg-white/15 text-white/70 font-mono">{sizeLabel(g.size)}</span>}
+                                {g.size && (sizeTitle(g.size)
+                                  ? <IconTip label={sizeTitle(g.size)}><span className="text-[10px] px-1 py-0.5 rounded bg-white/15 text-white/70 font-mono">{sizeLabel(g.size)}</span></IconTip>
+                                  : <span className="text-[10px] px-1 py-0.5 rounded bg-white/15 text-white/70 font-mono">{sizeLabel(g.size)}</span>)}
                                 <span className="text-[10px] text-white/40">{g.created_at?.slice(5, 16)}</span>
                               </div>
                               <div className="flex items-center gap-0.5">

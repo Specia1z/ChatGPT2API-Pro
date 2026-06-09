@@ -57,6 +57,8 @@ mux.Handle("POST /api/user/change-password", userAuth(http.HandlerFunc(h.ChangeP
 mux.Handle("POST /api/user/points/exchange", middleware.RateLimit(userAuth(http.HandlerFunc(h.ExchangePoints))))
 	mux.Handle("GET /api/user/points/logs", userAuth(http.HandlerFunc(h.GetPointsLogs)))
 	mux.Handle("POST /api/user/prompt/polish", middleware.RateLimit(userAuth(http.HandlerFunc(h.PolishPrompt))))
+	mux.Handle("POST /api/user/image-to-text", middleware.RateLimit(userAuth(http.HandlerFunc(h.ImageToText))))
+	mux.Handle("POST /api/user/image-enhance", middleware.RateLimit(userAuth(http.HandlerFunc(h.ImageEnhanceDiagnose))))
 	mux.Handle("GET /api/user/shop", userAuth(http.HandlerFunc(h.ListShop)))
 	mux.Handle("POST /api/user/shop/redeem", middleware.RateLimit(userAuth(http.HandlerFunc(h.RedeemShop))))
 	mux.Handle("GET /api/user/invite", userAuth(http.HandlerFunc(h.GetInviteInfo)))
@@ -77,6 +79,9 @@ mux.Handle("POST /api/user/points/exchange", middleware.RateLimit(userAuth(http.
 	mux.Handle("GET /api/v1/images/generations", apiKeyAuth(apiUserRL(http.HandlerFunc(h.GetUserGenerations))))
 	mux.Handle("POST /api/v1/vector", middleware.RateLimit(apiKeyAuth(apiUserRL(http.HandlerFunc(h.CreateVectorAPI)))))
 	mux.Handle("GET /api/v1/user/tokens", apiKeyAuth(apiUserRL(http.HandlerFunc(h.GetUserTokens))))
+	// 图像理解/增强（开发者 API）：反推中文提示词 / 一键智能增强（同步出图）
+	mux.Handle("POST /api/v1/image-to-text", middleware.RateLimit(apiKeyAuth(apiUserRL(http.HandlerFunc(h.ImageToText)))))
+	mux.Handle("POST /api/v1/image-enhance", middleware.RateLimit(apiKeyAuth(apiUserRL(http.HandlerFunc(h.ImageEnhanceAPI)))))
 
 	// OpenAI 兼容接口（同步返回，标准 /v1 路径，API Key 认证 + IP/uid 双限流）
 	mux.Handle("POST /v1/images/generations", middleware.RateLimit(apiKeyAuth(apiUserRL(http.HandlerFunc(h.CreateImageOpenAI)))))
@@ -100,6 +105,7 @@ mux.Handle("POST /api/user/points/exchange", middleware.RateLimit(userAuth(http.
 
 	// 用户管理（管理员）
 	mux.Handle("GET /api/admin/generations", adminAuth(http.HandlerFunc(h.GetAllGenerations)))
+	mux.Handle("GET /api/admin/svg-generations", adminAuth(http.HandlerFunc(h.GetAllSVGGenerations)))
 	mux.Handle("DELETE /api/admin/generations", adminAuth(http.HandlerFunc(h.AdminDeleteGeneration)))
 	mux.Handle("GET /api/admin/scheduler/stats", adminAuth(http.HandlerFunc(h.GetSchedulerStats)))
 	mux.Handle("GET /api/admin/scheduler/config", adminAuth(http.HandlerFunc(h.GetSchedulerConfig)))

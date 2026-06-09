@@ -387,6 +387,19 @@ export default function SettingsPage() {
                   <div className="rounded-xl bg-muted/40 p-3.5 text-xs text-muted-foreground leading-relaxed">
                     创作页「AI 优化」每次扣除的令牌数。0 = 免费（适合走量拉新）。该功能调用「AI 矢量生成」配置的同一个模型，需先配置模型。
                   </div>
+                  <div className="space-y-1.5">
+                    <Label>图生文（反推提示词）消耗令牌</Label>
+                    <Input type="number" min={0} value={cfg?.image_to_text_cost ?? 0} onChange={e => update("image_to_text_cost", +e.target.value)} className={inputCls} placeholder="0" />
+                  </div>
+                  <div className="rounded-xl bg-muted/40 p-3.5 text-xs text-muted-foreground leading-relaxed">
+                    创作页「反推提示词」每次扣除的令牌数。0 = 免费。上传参考图后用 AI 反推出中文生图提示词，调用「AI 矢量生成」配置的同一个模型（需该模型支持图像识别）。
+                  </div>
+                  <div className="space-y-1.5 sm:col-span-2">
+                    <Label>一键智能增强 · 附加指令</Label>
+                    <textarea value={cfg?.image_enhance_prompt || ""} onChange={e => update("image_enhance_prompt", e.target.value)} rows={2}
+                      placeholder="可留空。例：统一走电影质感 / 偏暖色调 / 增强日系清新感" className={taCls} />
+                    <p className="text-[10px] text-muted-foreground">「一键增强」采用两步法：AI 先看图诊断不足、生成针对性重构提示词，再图生图出增强版。此处填的内容会作为全局附加指令追加到 AI 诊断结果之后（留空=纯 AI 自主诊断）。按一次图生图计费（tokens_per_image）。</p>
+                  </div>
                 </div>
               </Card>
 

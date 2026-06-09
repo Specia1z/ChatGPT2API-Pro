@@ -184,3 +184,25 @@ func (s *MySQLStore) GetAllGenerations(page, pageSize int) ([]model.Generation, 
 	}
 	return gens, total, nil
 }
+
+// GetAllSVGGenerations 管理员查看所有 AI 矢量(svg)生成记录。svg 文本存在 image_b64 列。
+func (s *MySQLStore) GetAllSVGGenerations(page, pageSize int) ([]model.Generation, int, error) {
+	var total int
+	s.db.QueryRow("SELECT COUNT(*) FROM generations WHERE gen_type='svg'").Scan(&total)
+	rows, err := s.db.Query("SELECT g.id, g.user_id, g.prompt, g.model, COALESCE(g.image_b64,''), g.status, COALESCE(g.error_msg,''), g.created_at, COALESCE(u.email,''), COALESCE(u.name,'') FROM generations g LEFT JOIN users u ON g.user_id=u.id WHERE g.gen_type='svg' ORDER BY g.id DESC LIMIT ? OFFSET ?", pageSize, (page-1)*pageSize)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer rows.Close()
+	var gens []model.Generation
+	for rows.Next() {
+		var g model.Generation
+		rows.Scan(&g.ID, &g.UserID, &g.Prompt, &g.Model, &g.ImageB64, &g.Status, &g.ErrorMsg, &g.CreatedAt, &g.UserEmail, &g.UserName)
+		g.GenType = "svg"
+		gens = append(gens, g)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, 0, err
+	}
+	return gens, total, nil
+}

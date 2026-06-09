@@ -609,3 +609,24 @@ func (h *Handler) GetAllGenerations(w http.ResponseWriter, r *http.Request) {
 
 }
 
+// GET /api/admin/svg-generations — 管理员查看所有 AI 矢量(svg)生成。
+func (h *Handler) GetAllSVGGenerations(w http.ResponseWriter, r *http.Request) {
+	q := r.URL.Query()
+	page, _ := strconv.Atoi(q.Get("page"))
+	pageSize, _ := strconv.Atoi(q.Get("page_size"))
+	if page < 1 {
+		page = 1
+	}
+	if pageSize < 1 || pageSize > 50 {
+		pageSize = 20
+	}
+	gens, total, err := h.MySQL.GetAllSVGGenerations(page, pageSize)
+	if err != nil {
+		writeJSON(w, 500, model.APIResponse{Code: 500, Message: err.Error()})
+		return
+	}
+	writeJSON(w, 200, model.APIResponse{Code: 200, Data: map[string]any{
+		"items": gens, "total": total, "page": page, "page_size": pageSize,
+	}})
+}
+

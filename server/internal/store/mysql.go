@@ -271,6 +271,12 @@ func (s *MySQLStore) autoMigrate() {
 	if !s.columnExists(dbName, "settings", "upload_compress_threshold_kb") {
 		s.db.Exec("ALTER TABLE settings ADD COLUMN upload_compress_threshold_kb INT NOT NULL DEFAULT 0 AFTER upload_format")
 	}
+	if !s.columnExists(dbName, "settings", "image_to_text_cost") {
+		s.db.Exec("ALTER TABLE settings ADD COLUMN image_to_text_cost INT NOT NULL DEFAULT 0 AFTER upload_compress_threshold_kb")
+	}
+	if !s.columnExists(dbName, "settings", "image_enhance_prompt") {
+		s.db.Exec("ALTER TABLE settings ADD COLUMN image_enhance_prompt TEXT AFTER image_to_text_cost")
+	}
 	if !s.columnExists(dbName, "settings", "style_presets") {
 		s.db.Exec("ALTER TABLE settings ADD COLUMN style_presets TEXT AFTER points_exchange_bonus")
 	}
