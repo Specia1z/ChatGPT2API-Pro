@@ -6,7 +6,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
-import { imageProxyUrl } from "@/lib/utils";
+import { imageProxyUrl, formatShort } from "@/lib/utils";
 import { AdminSidebar } from "@/components/admin-sidebar";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
@@ -145,7 +145,7 @@ export default function AdminSharesPage() {
                       <div className="p-2.5 space-y-2">
                         <p className="text-[11px] text-muted-foreground line-clamp-2 leading-relaxed">{g.prompt}</p>
                         <p className="text-[9px] text-muted-foreground/70 truncate">
-                          {g.user_name || g.user_email || `用户#${g.user_id}`} · {g.created_at?.slice(5, 16)}
+                          {g.user_name || g.user_email || `用户#${g.user_id}`} · {formatShort(g.created_at)}
                         </p>
                         <div className="flex items-center gap-1.5">
                           <button disabled={busy === g.id} onClick={() => approve(g)}

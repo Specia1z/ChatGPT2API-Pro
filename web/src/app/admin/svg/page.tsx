@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { Shapes, RefreshCw, X, Trash2, Download, Code2 } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
+import { formatShort, isLocalToday } from "@/lib/utils";
 import { AdminSidebar } from "@/components/admin-sidebar";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
@@ -80,13 +81,12 @@ export default function AdminSVGPage() {
   };
 
   const stats = useMemo(() => {
-    const today = new Date().toISOString().slice(0, 10);
-    const todayCount = gens.filter(g => g.created_at?.slice(0, 10) === today).length;
+    const todayCount = gens.filter(g => isLocalToday(g.created_at)).length;
     const failedCount = gens.filter(g => g.status === "failed").length;
     return { todayCount, failedCount };
   }, [gens]);
 
-  const fmtDate = (s: string) => s ? s.slice(5, 16) : "";
+  const fmtDate = (s: string) => formatShort(s);
 
   if (loading && gens.length === 0) return (
     <div className="h-screen bg-background flex items-center justify-center">

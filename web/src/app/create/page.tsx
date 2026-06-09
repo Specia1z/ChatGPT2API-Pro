@@ -15,7 +15,7 @@ import { useAuth } from "@/lib/auth";
 import { api, BASE } from "@/lib/api";
 import { compressImage, compressOptionsFromSettings } from "@/lib/imageCompress";
 import { Navbar } from "@/components/navbar";
-import { imageProxyUrl } from "@/lib/utils";
+import { imageProxyUrl, formatShort } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -1155,7 +1155,7 @@ export default function CreatePage() {
                                 {g.size && (sizeTitle(g.size)
                                   ? <IconTip label={sizeTitle(g.size)}><span className="text-[10px] px-1 py-0.5 rounded bg-white/15 text-white/70 font-mono">{sizeLabel(g.size)}</span></IconTip>
                                   : <span className="text-[10px] px-1 py-0.5 rounded bg-white/15 text-white/70 font-mono">{sizeLabel(g.size)}</span>)}
-                                <span className="text-[10px] text-white/40">{g.created_at?.slice(5, 16)}</span>
+                                <span className="text-[10px] text-white/40">{formatShort(g.created_at)}</span>
                               </div>
                               <div className="flex items-center gap-0.5">
                                 <Tooltip>
@@ -1310,7 +1310,7 @@ export default function CreatePage() {
                   <p className="text-xs sm:text-sm text-foreground leading-relaxed line-clamp-2 sm:line-clamp-3">{previewGen.prompt}</p>
                   <div className="flex items-center gap-2">
                     {previewGen.size && <span className="text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground font-mono">{sizeLabel(previewGen.size, true)}</span>}
-                    <span className="text-[10px] text-muted-foreground/70">{previewGen.created_at?.slice(5, 16)}</span>
+                    <span className="text-[10px] text-muted-foreground/70">{formatShort(previewGen.created_at)}</span>
                   </div>
                   {/* Action buttons — mobile: icons only, desktop: icon + label */}
                   <div className="flex items-center gap-1 sm:gap-2 pt-2 sm:pt-3 border-t border-border">

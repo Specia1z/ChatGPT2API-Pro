@@ -7,6 +7,7 @@ import {
 import { toast } from "sonner";
 import { api } from "@/lib/api";
 import { imageProxyUrl } from "@/lib/utils";
+import { formatShort, isLocalToday } from "@/lib/utils";
 import { AdminSidebar } from "@/components/admin-sidebar";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
@@ -77,14 +78,13 @@ export default function AdminGenerationsPage() {
 
   /* ── Stats ── */
   const stats = useMemo(() => {
-    const today = new Date().toISOString().slice(0, 10);
-    const todayCount = gens.filter(g => g.created_at?.slice(0, 10) === today).length;
+    const todayCount = gens.filter(g => isLocalToday(g.created_at)).length;
     const failedCount = gens.filter(g => g.status === "failed").length;
     const sharedCount = gens.filter(g => g.shared).length;
     return { todayCount, failedCount, sharedCount };
   }, [gens]);
 
-  const fmtDate = (s: string) => s ? s.slice(5, 16) : "";
+  const fmtDate = (s: string) => formatShort(s);
 
   if (loading && gens.length === 0) return (
     <div className="h-screen bg-background flex items-center justify-center">

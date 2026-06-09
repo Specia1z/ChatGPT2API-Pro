@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { ImageIcon, X, Download, Sparkles, Palette, Copy, Check } from "lucide-react";
 import { Navbar } from "@/components/navbar";
 import { BASE } from "@/lib/api";
-import { imageProxyUrl } from "@/lib/utils";
+import { imageProxyUrl, formatTime } from "@/lib/utils";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 
@@ -270,7 +270,7 @@ export default function GalleryPage() {
                     <div className="text-sm font-medium text-white/90 truncate">
                       {preview.user_name || preview.user_email?.split("@")[0] || "匿名"}
                     </div>
-                    <div className="text-[10px] text-white/40">{preview.created_at?.slice(0, 16)}</div>
+                    <div className="text-[10px] text-white/40">{formatTime(preview.created_at)}</div>
                   </div>
                 </div>
 

@@ -6,6 +6,7 @@ import { Outfit, DM_Mono } from "next/font/google";
 import { Megaphone, Plus, Trash2, Settings2, RefreshCw, Info, AlertTriangle, CheckCircle, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
+import { formatTime } from "@/lib/utils";
 import { AdminSidebar } from "@/components/admin-sidebar";
 import { Button } from "@/components/ui/button";
 import { IconTip } from "@/components/ui/icon-tip";
@@ -157,7 +158,7 @@ export default function AdminAnnouncementsPage() {
                         <p className="text-[11px] text-muted-foreground truncate mt-0.5">
                           {a.title && a.content ? a.content : ""}
                           {(a.start_at || a.end_at) && (
-                            <span className="ml-1 text-muted-foreground/60">· {a.start_at?.slice(0, 16) || "即时"} ~ {a.end_at?.slice(0, 16) || "永久"}</span>
+                            <span className="ml-1 text-muted-foreground/60">· {a.start_at ? formatTime(a.start_at) : "即时"} ~ {a.end_at ? formatTime(a.end_at) : "永久"}</span>
                           )}
                         </p>
                       </div>

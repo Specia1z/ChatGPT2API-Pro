@@ -343,7 +343,7 @@ export default function UserPage() {
                               {k.enabled === false && <Badge variant="destructive" className="h-4 text-[10px]">已禁用</Badge>}
                             </div>
                             <code className={`${monoFont.className} text-xs text-muted-foreground block truncate`}>{k.api_key}</code>
-                            {k.last_used_at && <p className="text-[11px] text-muted-foreground/60">最近使用 {k.last_used_at.slice(0, 16).replace("T", " ")}</p>}
+                            {k.last_used_at && <p className="text-[11px] text-muted-foreground/60">最近使用 {formatLogTime(k.last_used_at)}</p>}
                           </div>
                           <div className="relative flex items-center gap-1 opacity-50 group-hover:opacity-100 transition-opacity">
                             <Button variant="ghost" size="icon-sm" onClick={() => copyKey(k.api_key)} title="复制">

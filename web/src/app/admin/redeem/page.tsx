@@ -9,6 +9,7 @@ import {
   Calendar, Clock, TicketCheck, Search,
 } from "lucide-react";
 import { AnimatePresence } from "framer-motion";
+import { formatTime } from "@/lib/utils";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
 import { AdminSidebar } from "@/components/admin-sidebar";
@@ -449,7 +450,7 @@ export default function RedeemPage() {
                     <div className="text-sm font-medium">{l.user_email || `用户 #${l.user_id}`}</div>
                     <div className="text-[11px] text-muted-foreground mt-0.5">{l.value}</div>
                   </div>
-                  <span className={`${mono.className} text-[11px] text-muted-foreground shrink-0 tabular-nums`}>{l.created_at?.slice(0, 16)}</span>
+                  <span className={`${mono.className} text-[11px] text-muted-foreground shrink-0 tabular-nums`}>{formatTime(l.created_at)}</span>
                 </div>
               ))}
             </div>
