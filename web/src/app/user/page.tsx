@@ -116,7 +116,11 @@ export default function UserPage() {
     refreshProfile(); fetchKeys(); fetchTokens(); fetchCheckin(); fetchCoupons(); fetchUserStats();
     const iv = setInterval(fetchTokens, 15000);
     return () => clearInterval(iv);
-  }, [user, token, authLoading]);
+    // 依赖只用稳定标识 user?.id（而非整个 user 对象）：
+    // refreshProfile() 内部会 login() 写回 user，若依赖整个 user 对象会因新引用导致 effect 反复触发、
+    // 造成 stats/keys/coupons/profile 接口被无限重复请求。用 id 后同一用户不会重触发。
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id, token, authLoading]);
 
   const fetchUserStats = async () => { try { const r = await api("/api/user/stats"); if (r.data) { setUserStats(r.data); } } catch {} };
   const refreshProfile = async () => { try { const r = await api("/api/user/profile"); if (r.data && token) { login(r.data, token); } } catch {} };
