@@ -93,8 +93,18 @@ export default function UserPage() {
     <div className="min-h-screen bg-[#fbfbfd] dark:bg-[#06070d] pb-16 md:pb-0">
       <Navbar />
 
-      <motion.div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8"
-        variants={stagger} initial="hidden" animate="visible">
+      {/* ════ 流体头部：与全站统一（顶部浓、向下淡出） ════ */}
+      <div className="relative">
+        <div className="absolute inset-x-0 top-0 h-[36rem] overflow-hidden pointer-events-none">
+          <div className="absolute top-[-12%] left-[-6%] w-[40vw] h-[40vw] rounded-full blur-[110px] opacity-40 dark:opacity-45 mix-blend-multiply dark:mix-blend-screen bg-[#22d3ee] [will-change:transform]" style={{ animation: "fluidA 18s ease-in-out infinite" }} />
+          <div className="absolute top-[-8%] right-[-4%] w-[36vw] h-[36vw] rounded-full blur-[110px] opacity-35 dark:opacity-40 mix-blend-multiply dark:mix-blend-screen bg-[#6366f1] [will-change:transform]" style={{ animation: "fluidB 20s ease-in-out infinite" }} />
+          <div className="absolute top-[6%] left-1/3 w-[34vw] h-[34vw] rounded-full blur-[110px] opacity-30 dark:opacity-35 mix-blend-multiply dark:mix-blend-screen bg-[#e879f9] [will-change:transform]" style={{ animation: "fluidC 22s ease-in-out infinite" }} />
+          <div className="absolute inset-0 bg-gradient-to-b from-transparent to-[#fbfbfd] dark:to-[#06070d]" />
+        </div>
+        <div className="absolute inset-x-0 top-0 h-[36rem] opacity-[0.04] dark:opacity-[0.06] mix-blend-overlay pointer-events-none" style={{ backgroundImage: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E\")" }} />
+
+        <motion.div className="relative z-10 max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8"
+          variants={stagger} initial="hidden" animate="visible">
 
         {/* ═══ 头部 + 令牌仪表盘 + 倒计时 ═══ */}
         <ProfileHeader
@@ -126,6 +136,7 @@ export default function UserPage() {
           oldPwd={oldPwd} setOldPwd={setOldPwd} newPwd={newPwd} setNewPwd={setNewPwd} changingPwd={changingPwd} onChangePwd={onChangePwd}
         />
       </motion.div>
+      </div>
 
       <ConfirmDialog open={deleteId != null} onOpenChange={(o) => { if (!o) setDeleteId(null); }}
         title="删除 API 密钥" description="删除后使用该密钥的应用将立即失效，此操作不可撤销。"
