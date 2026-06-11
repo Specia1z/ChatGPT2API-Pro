@@ -24,6 +24,8 @@ import (
 
 	"strconv"
 
+	"time"
+
 
 
 	"chatgpt2api-pro/internal/middleware"
@@ -118,6 +120,27 @@ func (h *Handler) DeleteGeneration(w http.ResponseWriter, r *http.Request) {
 
 
 func valOr(v, def int) int { if v <= 0 { return def }; return v }
+
+
+
+// isEphemeralRequest 判断本次请求是否走「不永久落地」策略：
+// 后台开启 api_no_persist 且请求来自 API Key（sk-）认证。网页 token 不受影响。
+func (h *Handler) isEphemeralRequest(r *http.Request, settings *model.Settings) bool {
+	if settings == nil || !settings.APINoPersist {
+		return false
+	}
+	isAPI, _ := r.Context().Value(middleware.IsAPIKey).(bool)
+	return isAPI
+}
+
+// ephemeralTTL 返回短时缓存有效期（后台 api_image_ttl_min，0=默认 30 分钟）。
+func ephemeralTTL(settings *model.Settings) time.Duration {
+	min := 30
+	if settings != nil && settings.APIImageTTLMin > 0 {
+		min = settings.APIImageTTLMin
+	}
+	return time.Duration(min) * time.Minute
+}
 
 
 
@@ -344,6 +367,10 @@ func (h *Handler) CreateGeneration(w http.ResponseWriter, r *http.Request) {
 
 	if len(preview) > 50 { preview = preview[:50] }
 
+	// 「不落地」策略：API Key 来源 + 后台开关。命中则图存 Redis 短时缓存、DB 不存图。
+	ephemeral := h.isEphemeralRequest(r, settings)
+	ephTTL := ephemeralTTL(settings)
+
 	for _, id := range ids {
 
 		go func(genID int64) {
@@ -402,6 +429,19 @@ func (h *Handler) CreateGeneration(w http.ResponseWriter, r *http.Request) {
 
 			// 检查存储配置
 				storageCfg, _ := h.MySQL.GetStorageConfig()
+				if ephemeral {
+					// 不落地：图存 Redis 短时缓存，DB 仅置 completed（不存图）。过期后代理返回空，符合预期。
+					if imgData, decErr := base64.StdEncoding.DecodeString(imageB64); decErr == nil {
+						if cerr := h.Redis.SetEphemeralImage(context.Background(), genID, imgData, ephTTL); cerr == nil {
+							if err := h.MySQL.UpdateGeneration(genID, "", "completed", "", ""); err != nil { log.Printf("[gen %d] update fail: %v", genID, err) }
+							return
+						} else {
+							log.Printf("[gen %d] ephemeral cache fail: %v, fallback to database", genID, cerr)
+						}
+					}
+					if err := h.MySQL.UpdateGeneration(genID, imageB64, "completed", "", ""); err != nil { log.Printf("[gen %d] update fail: %v", genID, err) }
+					return
+				}
 				if storageCfg.Type == "database" {
 					if err := h.MySQL.UpdateGeneration(genID, imageB64, "completed", "", ""); err != nil { log.Printf("[gen %d] update fail: %v", genID, err) }
 				} else {

@@ -17,6 +17,10 @@ const AdminIDKey contextKey = "admin_id"
 const UserIDKey contextKey = "user_id"
 const IsSuperAdminKey contextKey = "is_super_admin"
 
+// IsAPIKey 标记本次请求是否通过 API Key（sk-）认证（而非网页 token）。
+// 供生图 handler 区分来源：API Key 调用可走「不永久落地、短时缓存」策略。
+const IsAPIKey contextKey = "is_api_key"
+
 // superAdminEmail 由 InitAuth 在启动时注入（来自 .env SUPERADMIN_EMAIL，已小写）。
 // 该邮箱用户登录后强制拥有最高权限，不依赖 DB role，是可靠的权限 bootstrap。
 var superAdminEmail string
@@ -171,6 +175,8 @@ func ApiKeyAuth(mysql *store.MySQLStore) func(http.Handler) http.Handler {
 			ctx := context.WithValue(r.Context(), UserIDKey, user.ID)
 			// 把套餐限速带入 context，供 UserRateLimit 取用（0=默认）
 			ctx = context.WithValue(ctx, RateLimitKey, user.RateLimitPerMin)
+			// 标记 API Key 来源，供生图 handler 走「不永久落地」策略
+			ctx = context.WithValue(ctx, IsAPIKey, true)
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}

@@ -215,7 +215,12 @@ func (h *Handler) CreateVectorAPI(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	svg := extractSVG(full)
-	h.MySQL.UpdateSVGGeneration(genID, svg, "completed", "")
+	// 不落地（API Key 来源 + 后台开关）：SVG 源码已在响应里直接返回，DB 不存正文，仅置 completed。
+	if h.isEphemeralRequest(r, settings) {
+		h.MySQL.UpdateSVGGeneration(genID, "", "completed", "")
+	} else {
+		h.MySQL.UpdateSVGGeneration(genID, svg, "completed", "")
+	}
 	writeJSON(w, 200, model.APIResponse{Code: 200, Data: map[string]any{"id": genID, "model": svgModel, "svg": svg}})
 }
 
