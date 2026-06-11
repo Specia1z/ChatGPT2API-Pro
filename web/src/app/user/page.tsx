@@ -15,7 +15,6 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { UpgradeDialog } from "@/components/upgrade-dialog";
 import { InviteCard } from "@/components/invite-card";
 import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "@/components/ui/tooltip";
-import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import {
   Copy, Check, Key, Plus, Trash2, Zap, Gift, Ticket,
@@ -27,6 +26,8 @@ import { Tooltip as RechartsTooltip } from "recharts";
 import { stagger, fadeUp, couponDesc, pointsTypeLabel, formatLogTime } from "./lib/helpers";
 import { useAnimatedNumber, useCountdown } from "./lib/hooks";
 import { useUserData } from "./lib/useUserData";
+import { StatCard, StreakBar } from "./components/StatCard";
+import { ExchangeDialog } from "./components/ExchangeDialog";
 
 const heading = Outfit({ subsets: ["latin"], weight: ["400", "500", "600", "700", "800"], variable: "--font-heading" });
 const monoFont = DM_Mono({ subsets: ["latin"], weight: ["400", "500"], variable: "--font-mono" });
@@ -575,121 +576,17 @@ export default function UserPage() {
         currentPlanName={user.plan_name || ""} currentPlanId={(user as any).plan_id || 0} />
 
       {/* ═══ 积分兑换突发令牌 ═══ */}
-      <Dialog open={exchangeOpen} onOpenChange={setExchangeOpen}>
-        <DialogContent className="sm:max-w-sm">
-          <div className="p-2 space-y-4">
-            <div className="flex items-center gap-3">
-              <div className="size-10 rounded-xl bg-amber-50 dark:bg-amber-500/10 flex items-center justify-center">
-                <Zap className="size-5 text-amber-500" />
-              </div>
-              <div>
-                <h3 className={`${heading.className} text-sm font-semibold`}>兑换突发令牌</h3>
-                <p className="text-xs text-muted-foreground">积分 → 突发令牌（不受上限限制）</p>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-3">
-              <div className="flex-1">
-                <label className="text-xs text-muted-foreground block mb-1.5">兑换数量</label>
-                <div className="flex items-center gap-1">
-                  {[10, 20, 50, 100].map(n => (
-                    <button key={n} onClick={() => setExchangeTokens(n)}
-                      className={`flex-1 py-2 rounded-lg text-xs font-medium transition-all ${
-                        exchangeTokens === n
-                          ? "bg-primary text-primary-foreground shadow-sm"
-                          : "bg-muted text-muted-foreground hover:bg-muted/80"
-                      }`}>
-                      {n}
-                    </button>
-                  ))}
-                </div>
-                <Input type="number" min={1} value={exchangeTokens} onChange={e => setExchangeTokens(Math.max(1, parseInt(e.target.value) || 1))}
-                  className="mt-2 text-center" />
-              </div>
-            </div>
-
-            <div className="rounded-xl bg-muted/50 p-3 space-y-1.5 text-xs">
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">需消耗积分</span>
-                <span className="font-medium tabular-nums">{exchangeTokens * exchangeRate}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">获得突发令牌</span>
-                <span className="font-medium tabular-nums text-amber-600 dark:text-amber-400">
-                  {exchangeTokens}{exchangeBonus > 0 && exchangeTokens >= 50 ? ` + ${exchangeBonus * Math.floor(exchangeTokens / 50)} 奖励` : ""}
-                </span>
-              </div>
-              {exchangeBonus > 0 && (
-                <div className="flex justify-between text-[10px] text-muted-foreground">
-                  <span>兑换 ≥50 额外赠送</span>
-                  <span>每 50 个 +{exchangeBonus}</span>
-                </div>
-              )}
-              <div className="flex justify-between pt-1 border-t border-border">
-                <span className="text-muted-foreground">当前积分</span>
-                <span className="font-medium tabular-nums">{user?.points ?? 0}</span>
-              </div>
-            </div>
-
-            <Button onClick={onExchange} disabled={exchanging || exchangeTokens <= 0 || (user?.points ?? 0) < exchangeTokens * exchangeRate}
-              className="w-full gap-1.5">
-              {exchanging ? <Loader2 className="size-4 animate-spin" /> : <Zap className="size-4" />}
-              {exchanging ? "兑换中..." : "确认兑换"}
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
-    </div>
-  );
-}
-
-/* ── 指标卡 ─────────────────────────────────── */
-
-function StatCard({ icon, label, value, unit }: {
-  icon: React.ReactNode; label: string; value: string; unit: string;
-}) {
-  return (
-    <div className="rounded-2xl border bg-card p-5 space-y-3 hover:shadow-sm transition-shadow">
-      <div className="size-9 rounded-xl bg-muted flex items-center justify-center text-muted-foreground">
-        {icon}
-      </div>
-      <div>
-        <p className="text-xs text-muted-foreground">{label}</p>
-        <p className={`${monoFont.className} text-2xl font-medium tabular-nums mt-0.5`}>
-          {value}<span className="text-sm text-muted-foreground ml-1">{unit}</span>
-        </p>
-      </div>
-    </div>
-  );
-}
-
-/* ── 优惠券描述 ─────────────────────────────── */
-
-function StreakBar({ streak, done }: { streak: number; done: boolean }) {
-  const days = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"];
-  const todayIdx = new Date().getDay() === 0 ? 6 : new Date().getDay() - 1;
-  return (
-    <div className="flex items-center gap-2">
-      {days.map((d, i) => {
-        const isToday = i === todayIdx;
-        const filled = i < todayIdx
-          ? done && i >= todayIdx - (done ? streak - 1 : streak)
-          : isToday && done;
-        return (
-          <motion.div key={i}
-            initial={filled ? { scale: 0.8 } : false}
-            animate={filled ? { scale: 1 } : {}}
-            transition={{ type: "spring", stiffness: 400, damping: 15, delay: i * 0.05 }}
-            className={`flex-1 flex flex-col items-center gap-1.5 py-2.5 rounded-xl text-xs font-medium transition-colors ${
-              filled ? "bg-primary text-primary-foreground shadow-sm"
-              : isToday ? "bg-muted text-foreground ring-1 ring-primary/30"
-              : "bg-muted/50 text-muted-foreground"
-            }`}>
-            {filled ? <Check className="size-4" /> : <span className="size-4 flex items-center justify-center">{isToday && !done ? "●" : "○"}</span>}
-            <span className="text-[10px]">{d}</span>
-          </motion.div>
-        );
-      })}
+      <ExchangeDialog
+        open={exchangeOpen}
+        onOpenChange={setExchangeOpen}
+        exchangeTokens={exchangeTokens}
+        setExchangeTokens={setExchangeTokens}
+        exchangeRate={exchangeRate}
+        exchangeBonus={exchangeBonus}
+        userPoints={user?.points ?? 0}
+        exchanging={exchanging}
+        onExchange={onExchange}
+      />
     </div>
   );
 }
