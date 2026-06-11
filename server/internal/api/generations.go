@@ -564,9 +564,10 @@ func (h *Handler) GetUserGenerations(w http.ResponseWriter, r *http.Request) {
 	// 重写 image_url 为带签名的代理绝对地址：
 	// DB 存的是原始存储地址（S3/OpenList 私有地址，需签名才能访问且会暴露后端 IP）。
 	// 统一改成 /api/images/{id}?exp&sig 代理地址——API 用户拿到可直接访问、隐藏后端；
-	// 网页端用 id 走代理、不读此字段，无影响。仅完成且有图的记录重写。
+	// 网页端用 id 走代理、不读此字段，无影响。
+	// completed 即视为有图（含「不落地」记录：image_b64/url 均空、图在 Redis 短时缓存），统一给代理地址。
 	for i := range gens {
-		if gens[i].Status == "completed" && (gens[i].ImageURL != "" || gens[i].ImageB64 != "") {
+		if gens[i].Status == "completed" {
 			gens[i].ImageURL = absoluteImageURL(r, gens[i].ID)
 			gens[i].ImageB64 = "" // 代理地址已足够，清空大字段省传输（网页端用 id 不用 b64）
 		}
