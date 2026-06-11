@@ -24,6 +24,8 @@ import (
 
 	"strconv"
 
+	"time"
+
 
 
 	"chatgpt2api-pro/internal/middleware"
@@ -118,6 +120,27 @@ func (h *Handler) DeleteGeneration(w http.ResponseWriter, r *http.Request) {
 
 
 func valOr(v, def int) int { if v <= 0 { return def }; return v }
+
+
+
+// isEphemeralRequest 判断本次请求是否走「不永久落地」策略：
+// 后台开启 api_no_persist 且请求来自 API Key（sk-）认证。网页 token 不受影响。
+func (h *Handler) isEphemeralRequest(r *http.Request, settings *model.Settings) bool {
+	if settings == nil || !settings.APINoPersist {
+		return false
+	}
+	isAPI, _ := r.Context().Value(middleware.IsAPIKey).(bool)
+	return isAPI
+}
+
+// ephemeralTTL 返回短时缓存有效期（后台 api_image_ttl_min，0=默认 30 分钟）。
+func ephemeralTTL(settings *model.Settings) time.Duration {
+	min := 30
+	if settings != nil && settings.APIImageTTLMin > 0 {
+		min = settings.APIImageTTLMin
+	}
+	return time.Duration(min) * time.Minute
+}
 
 
 
@@ -344,6 +367,10 @@ func (h *Handler) CreateGeneration(w http.ResponseWriter, r *http.Request) {
 
 	if len(preview) > 50 { preview = preview[:50] }
 
+	// 「不落地」策略：API Key 来源 + 后台开关。命中则图存 Redis 短时缓存、DB 不存图。
+	ephemeral := h.isEphemeralRequest(r, settings)
+	ephTTL := ephemeralTTL(settings)
+
 	for _, id := range ids {
 
 		go func(genID int64) {
@@ -402,6 +429,19 @@ func (h *Handler) CreateGeneration(w http.ResponseWriter, r *http.Request) {
 
 			// 检查存储配置
 				storageCfg, _ := h.MySQL.GetStorageConfig()
+				if ephemeral {
+					// 不落地：图存 Redis 短时缓存，DB 仅置 completed（不存图）。过期后代理返回空，符合预期。
+					if imgData, decErr := base64.StdEncoding.DecodeString(imageB64); decErr == nil {
+						if cerr := h.Redis.SetEphemeralImage(context.Background(), genID, imgData, ephTTL); cerr == nil {
+							if err := h.MySQL.UpdateGeneration(genID, "", "completed", "", ""); err != nil { log.Printf("[gen %d] update fail: %v", genID, err) }
+							return
+						} else {
+							log.Printf("[gen %d] ephemeral cache fail: %v, fallback to database", genID, cerr)
+						}
+					}
+					if err := h.MySQL.UpdateGeneration(genID, imageB64, "completed", "", ""); err != nil { log.Printf("[gen %d] update fail: %v", genID, err) }
+					return
+				}
 				if storageCfg.Type == "database" {
 					if err := h.MySQL.UpdateGeneration(genID, imageB64, "completed", "", ""); err != nil { log.Printf("[gen %d] update fail: %v", genID, err) }
 				} else {
@@ -524,9 +564,10 @@ func (h *Handler) GetUserGenerations(w http.ResponseWriter, r *http.Request) {
 	// 重写 image_url 为带签名的代理绝对地址：
 	// DB 存的是原始存储地址（S3/OpenList 私有地址，需签名才能访问且会暴露后端 IP）。
 	// 统一改成 /api/images/{id}?exp&sig 代理地址——API 用户拿到可直接访问、隐藏后端；
-	// 网页端用 id 走代理、不读此字段，无影响。仅完成且有图的记录重写。
+	// 网页端用 id 走代理、不读此字段，无影响。
+	// completed 即视为有图（含「不落地」记录：image_b64/url 均空、图在 Redis 短时缓存），统一给代理地址。
 	for i := range gens {
-		if gens[i].Status == "completed" && (gens[i].ImageURL != "" || gens[i].ImageB64 != "") {
+		if gens[i].Status == "completed" {
 			gens[i].ImageURL = absoluteImageURL(r, gens[i].ID)
 			gens[i].ImageB64 = "" // 代理地址已足够，清空大字段省传输（网页端用 id 不用 b64）
 		}

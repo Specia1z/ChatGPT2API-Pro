@@ -394,6 +394,20 @@ export default function SettingsPage() {
                   <div className="rounded-xl bg-muted/40 p-3.5 text-xs text-muted-foreground leading-relaxed">
                     创作页「反推提示词」每次扣除的令牌数。0 = 免费。上传参考图后用 AI 反推出中文生图提示词，调用「AI 矢量生成」配置的同一个模型（需该模型支持图像识别）。
                   </div>
+                  <div className="space-y-1.5 sm:col-span-2 flex items-center justify-between rounded-xl bg-muted/40 p-3.5">
+                    <div className="space-y-0.5">
+                      <Label>API 生成不永久落地（省空间）</Label>
+                      <p className="text-[10px] text-muted-foreground leading-relaxed">开启后，通过 API Key（sk-）调用生图/矢量产生的内容<strong>不写磁盘/S3/数据库</strong>，仅在 Redis 短时缓存（带下方 TTL），用户通过有时效的代理地址自取，过期自动清理。网页端创作不受影响、照常永久保存。适合大量 API 调用、用户自行保存的场景。</p>
+                    </div>
+                    <Switch checked={!!cfg?.api_no_persist} onCheckedChange={v => update("api_no_persist", v)} />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label>API 缓存有效期（分钟）</Label>
+                    <Input type="number" min={1} value={cfg?.api_image_ttl_min ?? 30} onChange={e => update("api_image_ttl_min", +e.target.value)} className={inputCls} placeholder="30" />
+                  </div>
+                  <div className="rounded-xl bg-muted/40 p-3.5 text-xs text-muted-foreground leading-relaxed">
+                    「API 生成不永久落地」开启时生效：图片在 Redis 缓存的存活时长。0 = 用内置默认 30 分钟。用户需在此时间内通过返回的代理地址下载，过期后地址失效。建议 30–60 分钟（API 用户通常拿到即存）。
+                  </div>
                   <div className="space-y-1.5 sm:col-span-2">
                     <Label>一键智能增强 · 附加指令</Label>
                     <textarea value={cfg?.image_enhance_prompt || ""} onChange={e => update("image_enhance_prompt", e.target.value)} rows={2}

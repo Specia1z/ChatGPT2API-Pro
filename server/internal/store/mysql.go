@@ -292,6 +292,13 @@ func (s *MySQLStore) autoMigrate() {
 	if !s.columnExists(dbName, "settings", "shop_config") {
 		s.db.Exec("ALTER TABLE settings ADD COLUMN shop_config TEXT AFTER invite_config")
 	}
+	// API Key 生成内容不永久落地（短时缓存 + 代理）：开关 + 缓存时长（分钟）
+	if !s.columnExists(dbName, "settings", "api_no_persist") {
+		s.db.Exec("ALTER TABLE settings ADD COLUMN api_no_persist TINYINT(1) NOT NULL DEFAULT 0 AFTER shop_config")
+	}
+	if !s.columnExists(dbName, "settings", "api_image_ttl_min") {
+		s.db.Exec("ALTER TABLE settings ADD COLUMN api_image_ttl_min INT NOT NULL DEFAULT 30 AFTER api_no_persist")
+	}
 	s.db.Exec(`CREATE TABLE IF NOT EXISTS announcements (
 		id BIGINT AUTO_INCREMENT PRIMARY KEY,
 		title VARCHAR(128) NOT NULL DEFAULT '',

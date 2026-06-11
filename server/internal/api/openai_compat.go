@@ -167,6 +167,10 @@ func (h *Handler) CreateImageOpenAI(w http.ResponseWriter, r *http.Request) {
 
 	storageCfg, _ := h.MySQL.GetStorageConfig()
 
+	// 不落地策略（API Key 来源 + 后台开关）：b64 模式直返不存；url 模式存 Redis 短时缓存
+	ephemeral := h.isEphemeralRequest(r, settings)
+	ephTTL := ephemeralTTL(settings)
+
 	// 同步并发生图：每张独立 goroutine，全部完成后统一返回
 	type genResult struct {
 		b64 string
@@ -211,7 +215,18 @@ func (h *Handler) CreateImageOpenAI(w http.ResponseWriter, r *http.Request) {
 			}
 
 			// 落库（与原生接口存储策略一致）：外部存储成功则存 URL，否则 base64 入库
-			if storageCfg != nil && storageCfg.Type != "database" {
+			if ephemeral {
+					// 不落地：DB 仅置 completed 不存图。url 模式把图存 Redis 短时缓存；b64 模式无需缓存。
+					if respFormat == "url" {
+						if imgData, decErr := base64.StdEncoding.DecodeString(imageB64); decErr == nil {
+							_ = h.Redis.SetEphemeralImage(context.Background(), genID, imgData, ephTTL)
+						}
+					}
+					h.MySQL.UpdateGeneration(genID, "", "completed", "", "")
+					results[idx] = genResult{b64: imageB64, url: absoluteImageURL(r, genID)}
+					return
+				}
+				if storageCfg != nil && storageCfg.Type != "database" {
 				if imgData, decErr := base64.StdEncoding.DecodeString(imageB64); decErr == nil {
 					st := storage.FromConfig(storageCfg)
 					path := storage.ObjectKey(uid, genID)

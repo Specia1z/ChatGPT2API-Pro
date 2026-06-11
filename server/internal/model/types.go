@@ -264,6 +264,8 @@ type Settings struct {
 	EmailConfig string `json:"email_config"` // JSON：SMTP+域名规则
 	InviteConfig string `json:"invite_config"` // JSON：邀请裂变配置
 	ShopConfig string `json:"shop_config"` // JSON：积分商城商品列表（[]ShopItem）
+	APINoPersist bool `json:"api_no_persist"` // 开：API Key 生成的图/SVG 不永久落地，只短时缓存 + 代理地址（省空间）
+	APIImageTTLMin int `json:"api_image_ttl_min"` // API 短时缓存有效期（分钟，0=用内置默认 30）
 }
 
 // ShopItem 积分商城商品（第一期：积分换套餐时长）。存于 settings.shop_config 的 JSON 数组。

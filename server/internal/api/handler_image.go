@@ -111,7 +111,10 @@ func (h *Handler) ServeGenerationImage(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var imgData []byte
-	if gen.ImageURL != "" {
+	// 优先查短时缓存（API Key 生成的「不落地」图片暂存于此，命中即返回）
+	if cached, ok := h.Redis.GetEphemeralImage(r.Context(), id); ok {
+		imgData = cached
+	} else if gen.ImageURL != "" {
 		// S3 存储需要 V4 签名才能访问
 		storageCfg, _ := h.MySQL.GetStorageConfig()
 		if storageCfg.Type == "s3" {
