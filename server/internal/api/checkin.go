@@ -123,6 +123,11 @@ func (h *Handler) CheckinStatus(w http.ResponseWriter, r *http.Request) {
 
 	settings, _ := h.MySQL.GetSettings()
 	done, streak, _ := h.MySQL.GetTodayCheckin(uid)
+	// 今日未签到时 GetTodayCheckin 返回 streak=0，此时取「截至昨天延续中的连续天数」，
+	// 让前端在签到前就能展示历史签到状态（已签则 streak 已含今日）。
+	if !done {
+		streak, _ = h.MySQL.GetLastCheckinStreak(uid)
+	}
 	writeJSON(w, 200, model.APIResponse{Code: 200, Data: map[string]any{
 		"done":   done,
 		"streak": streak,

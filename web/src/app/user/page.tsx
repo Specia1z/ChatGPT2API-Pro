@@ -23,6 +23,7 @@ export default function UserPage() {
   const {
     keys, tokens, checkin, userCoupons, userStats, pointsLogs, pointsLogsLoaded,
     fetchPointsLogs,
+    webhook, webhookLoaded, fetchWebhook, saveWebhook, deleteWebhook,
     doCheckin, createKey, deleteKey, toggleKey, claimCoupon, doRedeem, doExchange, doChangePwd,
   } = useUserData(user, token, authLoading, login);
 
@@ -42,6 +43,7 @@ export default function UserPage() {
   const [oldPwd, setOldPwd] = useState("");
   const [newPwd, setNewPwd] = useState("");
   const [changingPwd, setChangingPwd] = useState(false);
+  const [savingWebhook, setSavingWebhook] = useState(false);
 
   // 包装 hook 操作 + UI 反馈
   const onChangePwd = async () => {
@@ -72,6 +74,18 @@ export default function UserPage() {
   };
   const onCreateKey = async () => { await createKey(newKeyName); setNewKeyName(""); };
   const onDeleteKey = async () => { if (deleteId == null) return; await deleteKey(deleteId); setDeleteId(null); };
+  const onSaveWebhook = async (url: string, secret: string, enabled: boolean) => {
+    setSavingWebhook(true);
+    try { await saveWebhook(url, secret, enabled); }
+    catch (e: any) { toast.error(e.message || "保存失败"); }
+    finally { setSavingWebhook(false); }
+  };
+  const onDeleteWebhook = async () => {
+    setSavingWebhook(true);
+    try { await deleteWebhook(); }
+    catch (e: any) { toast.error(e.message || "删除失败"); }
+    finally { setSavingWebhook(false); }
+  };
   const copyKey = async (k: string) => { await navigator.clipboard.writeText(k); setCopied(k); toast.success("已复制"); setTimeout(() => setCopied(null), 1500); };
 
   const capacity = user?.token_capacity || 50;
@@ -133,6 +147,7 @@ export default function UserPage() {
           redeemCode={redeemCode} setRedeemCode={setRedeemCode} redeeming={redeeming} onRedeem={onRedeem}
           pointsLogs={pointsLogs} pointsLogsLoaded={pointsLogsLoaded} fetchPointsLogs={fetchPointsLogs}
           checkin={checkin} doCheckin={doCheckin} userStats={userStats}
+          webhook={webhook} webhookLoaded={webhookLoaded} fetchWebhook={fetchWebhook} onSaveWebhook={onSaveWebhook} onDeleteWebhook={onDeleteWebhook} savingWebhook={savingWebhook}
           oldPwd={oldPwd} setOldPwd={setOldPwd} newPwd={newPwd} setNewPwd={setNewPwd} changingPwd={changingPwd} onChangePwd={onChangePwd}
         />
       </motion.div>

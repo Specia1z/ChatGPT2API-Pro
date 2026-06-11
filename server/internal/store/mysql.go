@@ -411,6 +411,20 @@ func (s *MySQLStore) autoMigrate() {
 		INDEX idx_api_key (api_key)
 	) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`)
 
+	// 用户 Webhook：每用户一行（user_id 主键），API Key 异步生图完成/失败时回调。
+	// secret 用于对回调体做 HMAC 签名；last_* 记录最近投递结果供前端自查。
+	s.db.Exec(`CREATE TABLE IF NOT EXISTS user_webhooks (
+		user_id BIGINT PRIMARY KEY,
+		url VARCHAR(1024) NOT NULL DEFAULT '',
+		secret VARCHAR(128) NOT NULL DEFAULT '',
+		enabled TINYINT(1) NOT NULL DEFAULT 1,
+		last_status INT NOT NULL DEFAULT 0,
+		last_error VARCHAR(512) NOT NULL DEFAULT '',
+		last_deliver_at DATETIME NULL,
+		created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+		updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+	) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`)
+
 	s.db.Exec(`CREATE TABLE IF NOT EXISTS generations (
 		id BIGINT AUTO_INCREMENT PRIMARY KEY,
 		user_id BIGINT NOT NULL,

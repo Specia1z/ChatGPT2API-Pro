@@ -43,6 +43,11 @@ func NewRouter(mysql *store.MySQLStore, redis *store.RedisStore, cleaner *servic
 	mux.Handle("DELETE /api/user/keys", userAuth(http.HandlerFunc(h.DeleteAPIKey)))
 	mux.Handle("POST /api/user/keys/toggle", userAuth(http.HandlerFunc(h.ToggleAPIKey)))
 
+	// 用户 Webhook（API Key 异步生图完成/失败时回调开发者 URL）
+	mux.Handle("GET /api/user/webhook", userAuth(http.HandlerFunc(h.GetWebhook)))
+	mux.Handle("POST /api/user/webhook", userAuth(http.HandlerFunc(h.SaveWebhook)))
+	mux.Handle("DELETE /api/user/webhook", userAuth(http.HandlerFunc(h.DeleteWebhook)))
+
 	// 生图
 	mux.Handle("POST /api/generations", userAuth(http.HandlerFunc(h.CreateGeneration)))
 	mux.Handle("POST /api/vector", userAuth(http.HandlerFunc(h.CreateVector)))

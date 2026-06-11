@@ -285,6 +285,12 @@ func (h *Handler) CreateImageOpenAI(w http.ResponseWriter, r *http.Request) {
 // absoluteImageURL 用请求的 scheme+host 拼出图片的可访问绝对地址，并附带 HMAC 签名，
 // 使 OpenAI url 模式返回的链接可被无登录态的客户端直接访问（带 24h 过期）。
 func absoluteImageURL(r *http.Request, genID int64) string {
+	return signedImageURLWithBase(requestBaseURL(r), genID)
+}
+
+// requestBaseURL 从请求提取 scheme://host（识别反代的 X-Forwarded-* 头）。
+// 抽出以便异步 goroutine 在脱离 *http.Request 后仍能拼出可访问的图片地址（如 webhook 投递）。
+func requestBaseURL(r *http.Request) string {
 	scheme := "https"
 	if r.TLS == nil && r.Header.Get("X-Forwarded-Proto") == "" {
 		scheme = "http"
@@ -296,9 +302,14 @@ func absoluteImageURL(r *http.Request, genID int64) string {
 	if xf := r.Header.Get("X-Forwarded-Host"); xf != "" {
 		host = xf
 	}
+	return scheme + "://" + host
+}
+
+// signedImageURLWithBase 用预先算好的 base（scheme://host）拼出带签名的图片代理地址。
+func signedImageURLWithBase(base string, genID int64) string {
 	exp := time.Now().Add(24 * time.Hour).Unix()
 	sig := signImageURL(genID, exp)
-	return fmt.Sprintf("%s://%s/api/images/%d?exp=%d&sig=%s", scheme, host, genID, exp, sig)
+	return fmt.Sprintf("%s/api/images/%d?exp=%d&sig=%s", base, genID, exp, sig)
 }
 
 // imageURLSecret 返回图片签名密钥（复用 JWT_SECRET 环境变量，与登录态密钥同源）。
