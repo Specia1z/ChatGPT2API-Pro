@@ -13,6 +13,8 @@ export function useUserData(user: any, token: string | null, authLoading: boolea
   const [userStats, setUserStats] = useState<any>(null);
   const [pointsLogs, setPointsLogs] = useState<any[]>([]);
   const [pointsLogsLoaded, setPointsLogsLoaded] = useState(false);
+  const [webhook, setWebhook] = useState<any>(null);
+  const [webhookLoaded, setWebhookLoaded] = useState(false);
 
   const fetchUserStats = async () => { try { const r = await api("/api/user/stats"); if (r.data) setUserStats(r.data); } catch {} };
   const refreshProfile = async () => { try { const r = await api("/api/user/profile"); if (r.data && token) login(r.data, token); } catch {} };
@@ -21,6 +23,7 @@ export function useUserData(user: any, token: string | null, authLoading: boolea
   const fetchCheckin = async () => { try { const r = await api("/api/user/checkin/status"); setCheckin(r.data); } catch {} };
   const fetchCoupons = async () => { try { const r = await api("/api/user/coupons"); setUserCoupons(r.data || []); } catch {} };
   const fetchPointsLogs = async () => { try { const r = await api("/api/user/points/logs?page=1&page_size=50"); setPointsLogs(r.data?.items || []); } catch {} finally { setPointsLogsLoaded(true); } };
+  const fetchWebhook = async () => { try { const r = await api("/api/user/webhook"); setWebhook(r.data || null); } catch {} finally { setWebhookLoaded(true); } };
 
   useEffect(() => {
     if (authLoading) return;
@@ -48,9 +51,20 @@ export function useUserData(user: any, token: string | null, authLoading: boolea
     const r = await api("/api/user/change-password", { method: "POST", body: JSON.stringify({ old_password: oldPassword, new_password: newPassword }) });
     toast.success(r.message || "密码已修改");
   };
+  const saveWebhook = async (url: string, secret: string, enabled: boolean) => {
+    await api("/api/user/webhook", { method: "POST", body: JSON.stringify({ url: url.trim(), secret, enabled }) });
+    toast.success("Webhook 已保存");
+    fetchWebhook();
+  };
+  const deleteWebhook = async () => {
+    await api("/api/user/webhook", { method: "DELETE" });
+    toast.success("Webhook 已删除");
+    fetchWebhook();
+  };
 
   return {
     keys, tokens, checkin, userCoupons, userStats, pointsLogs, pointsLogsLoaded,
+    webhook, webhookLoaded, fetchWebhook, saveWebhook, deleteWebhook,
     fetchTokens, fetchPointsLogs,
     doCheckin, createKey, deleteKey, toggleKey, claimCoupon, doRedeem, doExchange, doChangePwd,
   };

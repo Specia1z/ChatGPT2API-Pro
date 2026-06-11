@@ -164,6 +164,22 @@ type UserAPIKey struct {
 	CreatedAt  string `json:"created_at"`
 }
 
+// UserWebhook 每用户一个回调配置：API Key 异步生图完成/失败时，后端主动 POST 通知此 URL。
+// Secret 用于对回调体做 HMAC-SHA256 签名，开发者据此验证来源真伪（GET 时抹除，只回显是否已设置）。
+// Last* 字段记录最近一次投递结果，便于用户在前端自查回调是否正常。
+type UserWebhook struct {
+	UserID        int64  `json:"user_id"`
+	URL           string `json:"url"`
+	Secret        string `json:"secret,omitempty"`
+	Enabled       bool   `json:"enabled"`
+	HasSecret     bool   `json:"has_secret"`               // 计算字段：是否已设置 secret（GET 时代替明文）
+	LastStatus    int    `json:"last_status,omitempty"`    // 最近一次投递的 HTTP 状态码（0=未投递/网络错误）
+	LastError     string `json:"last_error,omitempty"`     // 最近一次投递的错误信息（空=成功）
+	LastDeliverAt string `json:"last_deliver_at,omitempty"`// 最近一次投递时间
+	CreatedAt     string `json:"created_at,omitempty"`
+	UpdatedAt     string `json:"updated_at,omitempty"`
+}
+
 type UserRegisterRequest struct {
 	Email            string `json:"email"`
 	Password         string `json:"password"`

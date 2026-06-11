@@ -371,9 +371,45 @@ func (h *Handler) CreateGeneration(w http.ResponseWriter, r *http.Request) {
 	ephemeral := h.isEphemeralRequest(r, settings)
 	ephTTL := ephemeralTTL(settings)
 
+	// Webhook 回调：仅对 API Key 来源的异步生图触发（网页 token 有实时 UI，不需要）。
+	// baseURL 在此（仍持有 *http.Request）预先算好，供 goroutine 脱离 r 后拼图片地址。
+	isAPIKey, _ := r.Context().Value(middleware.IsAPIKey).(bool)
+	baseURL := requestBaseURL(r)
+
+	// fireWebhook 在生成进入终态时投递回调（completed/failed）。仅 API Key 来源触发。
+	fireWebhook := func(genID int64, status, errMsg string) {
+		if !isAPIKey {
+			return
+		}
+		payload := service.WebhookPayload{
+			ID:        genID,
+			Status:    status,
+			Prompt:    req.Prompt,
+			Model:     req.Model,
+			Size:      size,
+			CreatedAt: time.Now().Unix(),
+		}
+		if status == "completed" {
+			payload.Event = "image.completed"
+			payload.ImageURL = signedImageURLWithBase(baseURL, genID)
+		} else {
+			payload.Event = "image.failed"
+			payload.ErrorMsg = errMsg
+		}
+		service.DeliverWebhook(h.MySQL, userID, payload)
+	}
+
 	for _, id := range ids {
 
 		go func(genID int64) {
+
+			// Webhook 终态触发：先注册 = 最后执行，确保能拿到下方（含 panic 分支）设置的最终状态。
+			var fwStatus, fwErr string
+			defer func() {
+				if fwStatus != "" {
+					fireWebhook(genID, fwStatus, fwErr)
+				}
+			}()
 
 			defer func() {
 
@@ -384,6 +420,8 @@ func (h *Handler) CreateGeneration(w http.ResponseWriter, r *http.Request) {
 					if err := h.MySQL.UpdateGeneration(genID, "", "failed", fmt.Sprintf("内部错误: %v", r), ""); err != nil { log.Printf("[gen %d] update fail: %v", genID, err) }
 
 					h.Redis.RefundToken(userID, capacity, refillRate, perImage)
+
+					fwStatus, fwErr = "failed", fmt.Sprintf("内部错误: %v", r)
 
 				}
 
@@ -398,6 +436,8 @@ func (h *Handler) CreateGeneration(w http.ResponseWriter, r *http.Request) {
 				if err := h.MySQL.UpdateGeneration(genID, "", "failed", err.Error(), ""); err != nil { log.Printf("[gen %d] update fail: %v", genID, err) }
 
 				h.Redis.RefundToken(userID, capacity, refillRate, perImage)
+
+				fwStatus, fwErr = "failed", err.Error()
 
 				return
 
@@ -421,11 +461,16 @@ func (h *Handler) CreateGeneration(w http.ResponseWriter, r *http.Request) {
 
 				h.Redis.RefundToken(userID, capacity, refillRate, perImage)
 
+				fwStatus, fwErr = "failed", err.Error()
+
 				return
 
 			}
 
 			log.Printf("[gen %d] 成功, size=%d", genID, len(imageB64))
+
+			// 出图成功：后续无论存缓存/存库/存对象存储（含 fallback）均为 completed 终态，此处统一标记。
+			fwStatus = "completed"
 
 			// 检查存储配置
 				storageCfg, _ := h.MySQL.GetStorageConfig()

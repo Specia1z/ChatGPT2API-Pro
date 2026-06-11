@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { Navbar } from "@/components/navbar";
-import { Copy, Check, KeyRound, Image as ImageIcon, Clock, AlertTriangle, Terminal, Shapes, Wand2 } from "lucide-react";
+import { Copy, Check, KeyRound, Image as ImageIcon, Clock, AlertTriangle, Terminal, Shapes, Wand2, Timer, Webhook } from "lucide-react";
 
 /* ── 复制按钮 ─────────────────────────────── */
 function CodeBlock({ code, lang = "bash" }: { code: string; lang?: string }) {
@@ -87,6 +87,8 @@ const NAV = [
   { id: "vector", label: "矢量图(SVG)" },
   { id: "img2text", label: "反推提示词" },
   { id: "enhance", label: "一键增强" },
+  { id: "webhook", label: "Webhook 回调" },
+  { id: "retention", label: "图片留存" },
   { id: "errors", label: "错误码" },
   { id: "limits", label: "限流与配额" },
 ];
@@ -244,7 +246,7 @@ function DocsContent() {
 }`} />
             <div className="rounded-xl border border-zinc-900/[0.06] dark:border-white/10 bg-white/50 dark:bg-white/[0.03] backdrop-blur-xl p-4 space-y-2 text-[13px] text-zinc-600 dark:text-white/60">
               <p><strong className="text-zinc-700 dark:text-zinc-300">status</strong> 取值：<code className="font-mono text-xs px-1 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800">pending</code>（排队/生成中）、<code className="font-mono text-xs px-1 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800">completed</code>（成功）、<code className="font-mono text-xs px-1 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800">failed</code>（失败，原因见 <code className="font-mono text-xs px-1 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800">error_msg</code>）。</p>
-              <p><strong className="text-zinc-700 dark:text-zinc-300">图片获取</strong>：<code className="font-mono text-xs px-1 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800">image_url</code> 为带签名的代理地址（形如 <code className="font-mono text-xs px-1 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800">/api/images/&#123;id&#125;?exp=...&amp;sig=...</code>），可直接 GET 下载，链接有效期 24 小时。无论后端用对象存储还是数据库存储，统一通过此地址获取，无需关心底层存储。</p>
+              <p><strong className="text-zinc-700 dark:text-zinc-300">图片获取</strong>：<code className="font-mono text-xs px-1 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800">image_url</code> 为带签名的代理地址（形如 <code className="font-mono text-xs px-1 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800">/api/images/&#123;id&#125;?exp=...&amp;sig=...</code>），可直接 GET 下载，签名有效期 24 小时。无论后端用对象存储还是数据库存储，统一通过此地址获取，无需关心底层存储。<strong className="text-zinc-700 dark:text-zinc-300">注意</strong>：用 API Key 调用时图片不永久保存，实际可取时间约 30 分钟，详见下方<a href="#retention" className="underline decoration-dotted underline-offset-2 hover:text-zinc-900 dark:hover:text-white">「图片留存策略」</a>，请尽快下载。</p>
               <p><strong className="text-zinc-700 dark:text-zinc-300">created_at 时间</strong>：值为<strong className="text-zinc-700 dark:text-zinc-300">北京时间（UTC+8）</strong>。注意其字面格式带 <code className="font-mono text-xs px-1 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800">Z</code> 后缀（如 <code className="font-mono text-xs px-1 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800">2026-06-06T10:30:45Z</code>），但其中的数字即为北京时间墙钟值，<strong className="text-zinc-700 dark:text-zinc-300">不要</strong>再按 UTC 做时区换算（否则会多偏 8 小时）。如需本地时间请直接取字面数字。</p>
               <p className="text-amber-600 dark:text-amber-400 flex items-start gap-1.5"><AlertTriangle className="w-3.5 h-3.5 mt-0.5 shrink-0" /><span>任务若超过 15 分钟仍未完成，将自动标记为 failed（生成超时）。</span></p>
             </div>
@@ -331,8 +333,7 @@ print(resp.data[0].b64_json[:40])`} />
             </p>
             <h3 className="text-[13px] font-semibold text-zinc-700 dark:text-zinc-300 pt-1">response_format: "url"</h3>
             <p className="text-sm text-zinc-600 dark:text-zinc-400 leading-relaxed">
-              返回带签名的<strong className="text-zinc-700 dark:text-zinc-300">临时图片链接</strong>，无需登录态即可直接访问，
-              有效期 <strong className="text-zinc-700 dark:text-zinc-300">24 小时</strong>，过期或篡改后失效。适合不想处理 base64 的场景。
+              返回带签名的<strong className="text-zinc-700 dark:text-zinc-300">临时图片链接</strong>，无需登录态即可直接访问。签名有效期 <strong className="text-zinc-700 dark:text-zinc-300">24 小时</strong>，但图片内容不永久保存、实际可取时间约 <strong className="text-zinc-700 dark:text-zinc-300">30 分钟</strong>（详见 <a href="#retention" className="underline decoration-dotted underline-offset-2 hover:text-zinc-900 dark:hover:text-white">「图片留存策略」</a>），请尽快下载。适合不想处理 base64 的场景；若需更稳妥，改用默认的 <code className="font-mono text-xs px-1 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800">b64_json</code> 模式直接拿字节。
             </p>
             <CodeBlock lang="json" code={`{
   "created": 1733480000,
@@ -437,11 +438,89 @@ print(resp.data[0].b64_json[:40])`} />
             </div>
           </Section>
 
+          {/* Webhook 回调 */}
+          <Section id="webhook" icon={<Webhook className="w-4 h-4" />} title="Webhook 回调">
+            <p className="text-sm text-zinc-600 dark:text-zinc-400 leading-relaxed">
+              配置一个回调地址后，用 API Key 提交的<strong className="text-zinc-700 dark:text-zinc-300">异步生图</strong>任务一旦完成或失败，我们会主动向你的地址发送一条 <code className="font-mono text-xs px-1 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800">POST</code> 通知——<strong className="text-zinc-700 dark:text-zinc-300">无需轮询</strong>，也不会因轮询间隔过长而错过<a href="#retention" className="underline decoration-dotted underline-offset-2 hover:text-zinc-900 dark:hover:text-white">图片缓存窗口</a>。在「用户中心 → Webhook」里设置。
+            </p>
+            <div className="rounded-xl border border-zinc-900/[0.06] dark:border-white/10 bg-white/50 dark:bg-white/[0.03] backdrop-blur-xl p-4 space-y-2 text-[13px] text-zinc-600 dark:text-white/60">
+              <p><strong className="text-zinc-700 dark:text-zinc-300">适用范围</strong>：仅 <code className="font-mono text-xs px-1 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800">POST /api/v1/images/generations</code>（异步、API Key 调用）。同步接口（<code className="font-mono text-xs px-1 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800">/v1</code>、矢量、一键增强）当场返回结果，不触发回调。</p>
+              <p><strong className="text-zinc-700 dark:text-zinc-300">触发时机</strong>：每个任务进入终态时各发一次——成功（<code className="font-mono text-xs px-1 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800">image.completed</code>）或失败（<code className="font-mono text-xs px-1 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800">image.failed</code>）。count&gt;1 时每张图各回调一次。</p>
+            </div>
+            <h3 className="text-[13px] font-semibold text-zinc-700 dark:text-zinc-300 pt-1">回调请求头</h3>
+            <FieldTable rows={[
+              { name: "X-Webhook-Event", type: "string", required: "—", desc: "事件类型：image.completed / image.failed" },
+              { name: "X-Webhook-ID", type: "string", required: "—", desc: "对应的生成任务 ID" },
+              { name: "X-Webhook-Attempt", type: "string", required: "—", desc: "投递尝试次数（1=首次，最多重试至 3）" },
+              { name: "X-Webhook-Signature", type: "string", required: "—", desc: "设了签名密钥时存在：sha256=<对请求体原文做 HMAC-SHA256 的 hex>" },
+            ]} />
+            <h3 className="text-[13px] font-semibold text-zinc-700 dark:text-zinc-300 pt-1">回调请求体（成功）</h3>
+            <CodeBlock lang="json" code={`{
+  "event": "image.completed",
+  "id": 12345,
+  "status": "completed",
+  "prompt": "A serene mountain landscape at sunset",
+  "model": "gpt-image-2",
+  "size": "16:9",
+  "image_url": "${origin}/api/images/12345?exp=...&sig=...",
+  "created_at": 1733480000
+}`} />
+            <h3 className="text-[13px] font-semibold text-zinc-700 dark:text-zinc-300 pt-1">回调请求体（失败）</h3>
+            <CodeBlock lang="json" code={`{
+  "event": "image.failed",
+  "id": 12346,
+  "status": "failed",
+  "prompt": "...",
+  "model": "gpt-image-2",
+  "size": "16:9",
+  "error_msg": "生成超时",
+  "created_at": 1733480000
+}`} />
+            <h3 className="text-[13px] font-semibold text-zinc-700 dark:text-zinc-300 pt-1">验证签名（Python 示例）</h3>
+            <CodeBlock lang="python" code={`import hmac, hashlib
+
+def verify(body: bytes, signature: str, secret: str) -> bool:
+    # body 为收到的原始请求体字节（验签前不要反序列化再重新编码）
+    mac = hmac.new(secret.encode(), body, hashlib.sha256).hexdigest()
+    expected = "sha256=" + mac
+    return hmac.compare_digest(expected, signature)
+
+# Flask 示例
+# sig = request.headers.get("X-Webhook-Signature", "")
+# if not verify(request.get_data(), sig, "你的密钥"): abort(401)`} />
+            <div className="rounded-xl border border-zinc-900/[0.06] dark:border-white/10 bg-white/50 dark:bg-white/[0.03] backdrop-blur-xl p-4 space-y-2 text-[13px] text-zinc-600 dark:text-white/60">
+              <p><strong className="text-zinc-700 dark:text-zinc-300">响应约定</strong>：你的端点请在 <strong className="text-zinc-700 dark:text-zinc-300">10 秒</strong>内返回 <code className="font-mono text-xs px-1 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800">2xx</code> 表示已收到。返回 4xx 视为永久失败不再重试；5xx 或网络错误会重试，共投递最多 3 次（间隔约 0/2/5 秒）。</p>
+              <p><strong className="text-zinc-700 dark:text-zinc-300">尽快下载</strong>：收到 <code className="font-mono text-xs px-1 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800">image.completed</code> 后请立即用 <code className="font-mono text-xs px-1 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800">image_url</code> 下载，图片留存时间有限（见下方「图片留存策略」）。</p>
+              <p><strong className="text-zinc-700 dark:text-zinc-300">安全</strong>：回调地址必须是公网 http/https，不接受内网/环回地址。强烈建议设置签名密钥并校验，以防伪造请求。最近一次投递结果会显示在用户中心，便于排查。</p>
+            </div>
+          </Section>
+
+          {/* 图片留存 */}
+          <Section id="retention" icon={<Timer className="w-4 h-4" />} title="图片留存策略（重要）">
+            <div className="rounded-xl border border-amber-300/40 dark:border-amber-500/20 bg-amber-50/60 dark:bg-amber-500/[0.06] p-4 flex items-start gap-2 text-[13px] text-amber-700 dark:text-amber-400">
+              <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" />
+              <span>通过 <strong>API Key（sk-）</strong> 生成的图片<strong>不会永久保存</strong>。请在生成后<strong>尽快下载到你自己的存储</strong>，过期后将无法再取回。</span>
+            </div>
+            <p className="text-sm text-zinc-600 dark:text-zinc-400 leading-relaxed">
+              为节省存储、保护你的数据，凡是用 API Key 生成的图片（含原生 <code className="font-mono text-xs px-1 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800">/api/v1</code> 异步接口、OpenAI 兼容 <code className="font-mono text-xs px-1 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800">/v1</code> 的 <code className="font-mono text-xs px-1 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800">url</code> 模式、一键增强的 <code className="font-mono text-xs px-1 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800">url</code> 模式），图片内容<strong className="text-zinc-700 dark:text-zinc-300">只在服务端临时缓存一段时间</strong>，到期自动清除，<strong className="text-zinc-700 dark:text-zinc-300">不写入数据库或对象存储</strong>。生成记录（提示词、状态、时间）仍会保留，但<strong className="text-zinc-700 dark:text-zinc-300">图片本身取不到</strong>。
+            </p>
+            <div className="rounded-xl border border-zinc-900/[0.06] dark:border-white/10 bg-white/50 dark:bg-white/[0.03] backdrop-blur-xl p-4 space-y-2.5 text-[13px] text-zinc-600 dark:text-white/60">
+              <p><strong className="text-zinc-700 dark:text-zinc-300">缓存时长</strong>：默认 <strong className="text-zinc-700 dark:text-zinc-300">30 分钟</strong>（由站点管理员配置，可能不同）。从生成完成起计时，到期后再访问代理地址会返回 <code className="font-mono text-xs px-1 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800">404</code>。</p>
+              <p><strong className="text-zinc-700 dark:text-zinc-300">注意区分两个时间</strong>：链接里的签名（<code className="font-mono text-xs px-1 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800">exp/sig</code>）有效期为 24 小时，但这只是<strong className="text-zinc-700 dark:text-zinc-300">签名本身</strong>的防篡改时效；<strong className="text-zinc-700 dark:text-zinc-300">图片内容</strong>的实际可取时间以上面的缓存时长（约 30 分钟）为准。两者以<strong className="text-zinc-700 dark:text-zinc-300">较短的</strong>为准——即图片大约 30 分钟后就取不到，即便签名链接还没到 24 小时。</p>
+              <p><strong className="text-zinc-700 dark:text-zinc-300">b64 模式不受影响</strong>：OpenAI 兼容接口用 <code className="font-mono text-xs px-1 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800">response_format: "b64_json"</code>（默认）时，图片字节直接在响应体里返回，不经缓存，最稳妥。批量集成建议优先用 b64 模式。</p>
+              <p><strong className="text-zinc-700 dark:text-zinc-300">网页端不受影响</strong>：在网站「创作中心」里手动生成的图片仍按站点存储策略永久保存，本策略仅针对 API Key 调用。</p>
+            </div>
+            <p className="text-xs text-zinc-500 dark:text-zinc-500">
+              一句话：<strong className="text-zinc-700 dark:text-zinc-300">拿到结果立刻下载落库到自己这边</strong>，不要把本服务的图片地址当作长期可访问的图床。
+            </p>
+          </Section>
+
           {/* 错误码 */}
           <Section id="errors" icon={<AlertTriangle className="w-4 h-4" />} title="错误码">
             <FieldTable rows={[
               { name: "400", type: "Bad Request", required: "—", desc: "参数错误：prompt 为空/超长、含违规词、并发超限、参考图过大等" },
               { name: "401", type: "Unauthorized", required: "—", desc: "缺少 API Key、格式非 sk-、密钥无效或已禁用、订阅过期" },
+              { name: "404", type: "Not Found", required: "—", desc: "图片不存在或已过期：API Key 生成的图片不永久保存，缓存到期（约 30 分钟）后取图返回 404，详见「图片留存策略」" },
               { name: "413", type: "Payload Too Large", required: "—", desc: "请求体超过 10MB（参考图过大）" },
               { name: "429", type: "Too Many Requests", required: "—", desc: "触发 IP 限流、令牌不足或系统并发已满" },
               { name: "500", type: "Server Error", required: "—", desc: "服务端异常" },

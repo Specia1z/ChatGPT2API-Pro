@@ -1,14 +1,15 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import {
   Key, Plus, Copy, Check, Power, Trash2, ArrowUpRight, Ticket, Gift, Coins, Loader2,
-  RefreshCw, BarChart3, CalendarDays, Activity, TrendingUp, Battery,
+  RefreshCw, BarChart3, CalendarDays, Activity, TrendingUp, Battery, Webhook, AlertTriangle, CheckCircle2, Eye, EyeOff,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsList, TabsTab, TabsPanel } from "@/components/ui/tabs";
+import { Tabs, TabsList, TabsTab, TabsIndicator, TabsPanel } from "@/components/ui/tabs";
 import { Area, AreaChart, ResponsiveContainer, XAxis, YAxis, Tooltip as RechartsTooltip } from "recharts";
 import { fadeUp, couponDesc, pointsTypeLabel, formatLogTime } from "../lib/helpers";
 import { StreakBar } from "./StatCard";
@@ -26,6 +27,8 @@ type Props = {
   pointsLogs: any[]; pointsLogsLoaded: boolean; fetchPointsLogs: () => void;
   checkin: any; doCheckin: () => void;
   userStats: any;
+  webhook: any; webhookLoaded: boolean; fetchWebhook: () => void;
+  onSaveWebhook: (url: string, secret: string, enabled: boolean) => void; onDeleteWebhook: () => void; savingWebhook: boolean;
   oldPwd: string; setOldPwd: (v: string) => void; newPwd: string; setNewPwd: (v: string) => void; changingPwd: boolean; onChangePwd: () => void;
 };
 
@@ -35,14 +38,38 @@ export function AccountTabs(p: Props) {
     claimCode, setClaimCode, claiming, onClaimCoupon, userCoupons,
     redeemCode, setRedeemCode, redeeming, onRedeem,
     pointsLogs, pointsLogsLoaded, fetchPointsLogs, checkin, doCheckin, userStats,
+    webhook, webhookLoaded, fetchWebhook, onSaveWebhook, onDeleteWebhook, savingWebhook,
     oldPwd, setOldPwd, newPwd, setNewPwd, changingPwd, onChangePwd,
   } = p;
 
+  // Webhook 表单本地态：从拉取到的配置初始化（secret 不回显，留空=不修改）
+  const [whUrl, setWhUrl] = useState("");
+  const [whSecret, setWhSecret] = useState("");
+  const [whEnabled, setWhEnabled] = useState(true);
+  const [whSecretShown, setWhSecretShown] = useState(false); // 刚生成时明文展示，便于复制保存
+  useEffect(() => {
+    if (webhook) {
+      setWhUrl(webhook.url || "");
+      setWhEnabled(webhook.enabled !== false);
+    }
+  }, [webhook]);
+
+  // 生成一个高强度随机密钥（32 字节 → 64 位 hex），用浏览器 crypto，避免可预测
+  const genWebhookSecret = () => {
+    const bytes = new Uint8Array(32);
+    crypto.getRandomValues(bytes);
+    const hex = Array.from(bytes, b => b.toString(16).padStart(2, "0")).join("");
+    setWhSecret(hex);
+    setWhSecretShown(true); // 生成后明文显示，提醒用户复制（保存后将无法再查看）
+  };
+
   return (
     <motion.div variants={fadeUp}>
-      <Tabs defaultValue="keys" className="gap-5" onValueChange={(v) => { if (v === "points" && !pointsLogsLoaded) fetchPointsLogs(); }}>
+      <Tabs defaultValue="keys" className="gap-5" onValueChange={(v) => { if (v === "points" && !pointsLogsLoaded) fetchPointsLogs(); if (v === "webhook" && !webhookLoaded) fetchWebhook(); }}>
         <TabsList className="max-w-full overflow-x-auto scrollbar-hide flex-nowrap">
+          <TabsIndicator />
           <TabsTab value="keys">API 密钥</TabsTab>
+          <TabsTab value="webhook">Webhook</TabsTab>
           <TabsTab value="rewards">优惠与兑换</TabsTab>
           <TabsTab value="points">积分明细</TabsTab>
           <TabsTab value="invite">邀请好友</TabsTab>
@@ -108,6 +135,102 @@ export function AccountTabs(p: Props) {
                   ))}
                 </div>
               )}
+            </div>
+          </div>
+        </TabsPanel>
+
+        {/* ── Webhook ── */}
+        <TabsPanel value="webhook">
+          <div className={`${CARD} overflow-hidden`}>
+            <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-900/[0.06] dark:border-white/10">
+              <div className="flex items-center gap-2">
+                <Webhook className="size-4 text-zinc-500 dark:text-white/55" />
+                <span className="text-sm font-semibold text-zinc-900 dark:text-white">Webhook 回调</span>
+                {webhook?.url && (whEnabled
+                  ? <Badge variant="outline" className="ml-1 text-emerald-600 dark:text-emerald-400">已启用</Badge>
+                  : <Badge variant="outline" className="ml-1">已停用</Badge>)}
+              </div>
+              <a href="/docs#webhook" target="_blank" rel="noreferrer"
+                className="flex items-center gap-1 text-xs text-zinc-500 dark:text-white/55 hover:text-zinc-900 dark:hover:text-white transition-colors">
+                <ArrowUpRight className="size-3.5" /> 接口文档
+              </a>
+            </div>
+            <div className="p-6 space-y-5">
+              <p className="text-xs text-zinc-500 dark:text-white/55 leading-relaxed">
+                用 API Key 提交的<strong className="text-zinc-700 dark:text-white/75">异步生图</strong>任务完成或失败时，我们会向你的地址发送一条 POST 通知，省去轮询。仅对 <code className="font-mono px-1 py-0.5 rounded bg-zinc-900/[0.05] dark:bg-white/[0.08]">/api/v1/images/generations</code> 生效。
+              </p>
+
+              {/* 回调地址 */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-zinc-600 dark:text-white/60">回调地址</label>
+                <Input value={whUrl} onChange={e => setWhUrl(e.target.value)}
+                  placeholder="https://your-server.com/webhook" type="url" />
+                <p className="text-[11px] text-zinc-400 dark:text-white/40">必须是公网 https/http 地址，不支持内网/localhost。</p>
+              </div>
+
+              {/* 签名密钥 */}
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-medium text-zinc-600 dark:text-white/60">签名密钥（可选）</label>
+                  <button type="button" onClick={genWebhookSecret}
+                    className="flex items-center gap-1 text-[11px] text-zinc-500 dark:text-white/55 hover:text-zinc-900 dark:hover:text-white transition-colors">
+                    <RefreshCw className="size-3" /> 随机生成
+                  </button>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Input value={whSecret} onChange={e => setWhSecret(e.target.value)}
+                    placeholder={webhook?.has_secret ? "已设置（留空保持不变）" : "用于验证回调来源真伪"}
+                    type={whSecretShown ? "text" : "password"} className="flex-1 font-mono" />
+                  {whSecret && (
+                    <Button variant="ghost" size="icon-sm" type="button" title={whSecretShown ? "隐藏" : "显示"}
+                      onClick={() => setWhSecretShown(v => !v)}>
+                      {whSecretShown ? <EyeOff /> : <Eye />}
+                    </Button>
+                  )}
+                  {whSecret && (
+                    <Button variant="ghost" size="icon-sm" type="button" title="复制"
+                      onClick={() => copyKey(whSecret)}>
+                      {copied === whSecret ? <Check className="text-emerald-500" /> : <Copy />}
+                    </Button>
+                  )}
+                </div>
+                <p className="text-[11px] text-zinc-400 dark:text-white/40">设置后，回调请求头 <code className="font-mono">X-Webhook-Signature</code> 会带 HMAC-SHA256 签名（sha256=...），你可用此密钥校验请求体。{whSecretShown && whSecret && <span className="text-amber-500 dark:text-amber-400"> 请复制保存，保存后将无法再查看。</span>}</p>
+              </div>
+
+              {/* 启用开关 */}
+              <label className="flex items-center gap-2.5 cursor-pointer select-none">
+                <input type="checkbox" checked={whEnabled} onChange={e => setWhEnabled(e.target.checked)}
+                  className="size-4 rounded border-zinc-300 dark:border-white/20 accent-zinc-900 dark:accent-white" />
+                <span className="text-sm text-zinc-700 dark:text-white/75">启用回调通知</span>
+              </label>
+
+              {/* 最近投递结果 */}
+              {webhook?.last_deliver_at && (
+                <div className={`${SUBCARD} p-3.5 flex items-start gap-2.5`}>
+                  {webhook.last_error
+                    ? <AlertTriangle className="size-4 text-amber-500 mt-0.5 shrink-0" />
+                    : <CheckCircle2 className="size-4 text-emerald-500 mt-0.5 shrink-0" />}
+                  <div className="min-w-0 text-xs space-y-0.5">
+                    <p className="text-zinc-700 dark:text-white/75 font-medium">
+                      最近投递：{webhook.last_error ? `失败` : `成功`}
+                      {webhook.last_status ? ` (HTTP ${webhook.last_status})` : ""}
+                    </p>
+                    {webhook.last_error && <p className="text-zinc-500 dark:text-white/50 break-all">{webhook.last_error}</p>}
+                    <p className="text-zinc-400 dark:text-white/40">{formatLogTime(webhook.last_deliver_at)}</p>
+                  </div>
+                </div>
+              )}
+
+              <div className="flex items-center gap-2 pt-1">
+                <Button onClick={() => onSaveWebhook(whUrl, whSecret, whEnabled)} disabled={savingWebhook || !whUrl.trim()} className="gap-1">
+                  {savingWebhook ? <Loader2 className="animate-spin" /> : <Check />} 保存
+                </Button>
+                {webhook?.url && (
+                  <Button variant="ghost" onClick={onDeleteWebhook} disabled={savingWebhook} className="gap-1 hover:text-red-500">
+                    <Trash2 /> 删除
+                  </Button>
+                )}
+              </div>
             </div>
           </div>
         </TabsPanel>
@@ -219,6 +342,13 @@ export function AccountTabs(p: Props) {
               </Button>
             </div>
             <StreakBar streak={checkin?.streak || 0} done={!!checkin?.done} />
+            {/* 图例：颜色含义说明 */}
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-[11px] text-zinc-500 dark:text-white/50">
+              <span className="flex items-center gap-1.5"><span className="size-2.5 rounded bg-emerald-500" /> 今日已签</span>
+              <span className="flex items-center gap-1.5"><span className="size-2.5 rounded bg-emerald-500/15 ring-1 ring-emerald-500/40" /> 今日待签</span>
+              <span className="flex items-center gap-1.5"><span className="size-2.5 rounded bg-zinc-900 dark:bg-white" /> 往日已签</span>
+              <span className="flex items-center gap-1.5"><span className="size-2.5 rounded bg-zinc-900/[0.06] dark:bg-white/10" /> 未签到</span>
+            </div>
             {checkin && (checkin.base > 0 || checkin.bonus > 0) && (
               <p className="text-xs text-zinc-500 dark:text-white/50">基础 +{checkin.base || 0} 积分 · 连续奖励 +{checkin.bonus || 0} 积分/天</p>
             )}
