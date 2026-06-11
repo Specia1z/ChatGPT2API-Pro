@@ -3,35 +3,17 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
-import { Outfit, DM_Mono } from "next/font/google";
 import { useAuth } from "@/lib/auth";
 import { Navbar } from "@/components/navbar";
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Progress } from "@/components/ui/progress";
-import { Tabs, TabsList, TabsTab, TabsPanel } from "@/components/ui/tabs";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { UpgradeDialog } from "@/components/upgrade-dialog";
-import { InviteCard } from "@/components/invite-card";
-import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "@/components/ui/tooltip";
 import { toast } from "sonner";
-import {
-  Copy, Check, Key, Plus, Trash2, Zap, Gift, Ticket,
-  RefreshCw, Coins, Battery, Layers, Timer, Crown, ArrowUpRight, LogOut,
-  BarChart3, TrendingUp, CalendarDays, Activity, Loader2, Power,
-} from "lucide-react";
-import { Area, AreaChart, ResponsiveContainer, XAxis, YAxis } from "recharts";
-import { Tooltip as RechartsTooltip } from "recharts";
-import { stagger, fadeUp, couponDesc, pointsTypeLabel, formatLogTime } from "./lib/helpers";
+import { stagger } from "./lib/helpers";
 import { useAnimatedNumber, useCountdown } from "./lib/hooks";
 import { useUserData } from "./lib/useUserData";
-import { StatCard, StreakBar } from "./components/StatCard";
 import { ExchangeDialog } from "./components/ExchangeDialog";
 import { ProfileHeader } from "./components/ProfileHeader";
-
-const heading = Outfit({ subsets: ["latin"], weight: ["400", "500", "600", "700", "800"], variable: "--font-heading" });
-const monoFont = DM_Mono({ subsets: ["latin"], weight: ["400", "500"], variable: "--font-mono" });
+import { AccountTabs } from "./components/AccountTabs";
 
 /* ── 主页面 ─────────────────────────────────── */
 
@@ -108,7 +90,7 @@ export default function UserPage() {
   if (!user) return null;
 
   return (
-    <div className={`${heading.variable} ${monoFont.variable} min-h-screen bg-background pb-16 md:pb-0`}>
+    <div className="min-h-screen bg-[#fbfbfd] dark:bg-[#06070d] pb-16 md:pb-0">
       <Navbar />
 
       <motion.div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8"
@@ -133,344 +115,16 @@ export default function UserPage() {
         />
 
         {/* ═══ 功能区 Tabs ═══ */}
-        <motion.div variants={fadeUp}>
-          <Tabs defaultValue="keys" className="gap-5" onValueChange={(v) => { if (v === "points" && !pointsLogsLoaded) fetchPointsLogs(); }}>
-            <TabsList className="max-w-full overflow-x-auto scrollbar-hide flex-nowrap">
-              <TabsTab value="keys">API 密钥</TabsTab>
-              <TabsTab value="rewards">优惠与兑换</TabsTab>
-              <TabsTab value="points">积分明细</TabsTab>
-              <TabsTab value="invite">邀请好友</TabsTab>
-              <TabsTab value="checkin">每日签到</TabsTab>
-              <TabsTab value="stats">用量统计</TabsTab>
-              <TabsTab value="account">账号设置</TabsTab>
-            </TabsList>
-
-            {/* ── API 密钥 ── */}
-            <TabsPanel value="keys">
-              <div className="rounded-2xl border bg-card overflow-hidden">
-                <div className="flex items-center justify-between px-6 py-4 border-b">
-                  <div className="flex items-center gap-2">
-                    <Key className="size-4 text-muted-foreground" />
-                    <span className={`${heading.className} text-sm font-semibold`}>API 密钥</span>
-                    <Badge variant="outline" className="ml-1">{keys.length}</Badge>
-                  </div>
-                  <a href="/docs" target="_blank" rel="noreferrer"
-                    className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors">
-                    <ArrowUpRight className="size-3.5" /> 接口文档
-                  </a>
-                </div>
-                <div className="p-6 space-y-4">
-                  <div className="flex items-center gap-2">
-                    <Input value={newKeyName} onChange={e => setNewKeyName(e.target.value)}
-                      placeholder="密钥名称（可选）" className="flex-1"
-                      onKeyDown={e => e.key === "Enter" && onCreateKey()} />
-                    <Button onClick={onCreateKey} className="gap-1 shrink-0"><Plus /> 创建</Button>
-                  </div>
-                  {keys.length === 0 ? (
-                    <div className="py-12 text-center">
-                      <div className="size-14 rounded-2xl bg-muted flex items-center justify-center mx-auto mb-3">
-                        <Key className="size-6 text-muted-foreground/50" />
-                      </div>
-                      <p className="text-sm text-muted-foreground">暂无 API 密钥</p>
-                      <p className="text-xs text-muted-foreground/60 mt-1">创建密钥后可在外部应用中调用生图接口</p>
-                    </div>
-                  ) : (
-                    <div className="space-y-2">
-                      {keys.map((k: any) => (
-                        <div key={k.id} className="group relative flex items-center justify-between gap-3 p-4 rounded-xl border bg-background hover:bg-muted/30 transition-all duration-200 hover:shadow-sm">
-                          {/* hover 微光 */}
-                          <div className="absolute inset-0 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none overflow-hidden">
-                            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-primary/[0.03] to-transparent translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-700" />
-                          </div>
-                          <div className="relative min-w-0 flex-1 space-y-1">
-                            <div className="flex items-center gap-2">
-                              <p className="text-sm font-medium truncate">{k.name}</p>
-                              {k.enabled === false && <Badge variant="destructive" className="h-4 text-[10px]">已禁用</Badge>}
-                            </div>
-                            <code className={`${monoFont.className} text-xs text-muted-foreground block truncate`}>{k.api_key}</code>
-                            {k.last_used_at && <p className="text-[11px] text-muted-foreground/60">最近使用 {formatLogTime(k.last_used_at)}</p>}
-                          </div>
-                          <div className="relative flex items-center gap-1 opacity-50 group-hover:opacity-100 transition-opacity">
-                            <Button variant="ghost" size="icon-sm" onClick={() => copyKey(k.api_key)} title="复制">
-                              {copied === k.api_key ? <Check className="text-foreground" /> : <Copy />}
-                            </Button>
-                            <Button variant="ghost" size="icon-sm" onClick={() => toggleKey(k)} title={k.enabled === false ? "启用" : "禁用"}
-                              className={k.enabled === false ? "text-emerald-500 hover:text-emerald-600" : "hover:text-amber-500"}>
-                              <Power />
-                            </Button>
-                            <Button variant="ghost" size="icon-sm" className="hover:text-destructive" onClick={() => setDeleteId(k.id)} title="删除">
-                              <Trash2 />
-                            </Button>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </div>
-            </TabsPanel>
-
-            {/* ── 优惠与兑换 ── */}
-            <TabsPanel value="rewards">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="rounded-2xl border bg-card p-6 space-y-4">
-                  <div className="flex items-center gap-2">
-                    <div className="size-8 rounded-lg bg-muted flex items-center justify-center">
-                      <Ticket className="size-4 text-muted-foreground" />
-                    </div>
-                    <span className={`${heading.className} text-sm font-semibold`}>领取优惠券</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Input value={claimCode} onChange={e => setClaimCode(e.target.value)} placeholder="输入优惠券码" className="flex-1" onKeyDown={e => e.key === "Enter" && onClaimCoupon()} />
-                    <Button onClick={onClaimCoupon} disabled={claiming} className="shrink-0">{claiming ? "…" : "领取"}</Button>
-                  </div>
-                  {userCoupons.length > 0 ? (
-                    <div className="space-y-2 max-h-48 overflow-y-auto scrollbar-thin">
-                      {userCoupons.map((c: any) => (
-                        <div key={c.id} className="flex items-center justify-between gap-2 p-3 rounded-lg border bg-background">
-                          <div className="min-w-0">
-                            <p className={`${monoFont.className} text-sm font-medium truncate`}>{c.code}</p>
-                            <p className="text-xs text-muted-foreground mt-0.5">{couponDesc(c)}</p>
-                          </div>
-                          <Badge variant={c.status === "used" ? "secondary" : c.status === "expired" ? "destructive" : "outline"}>
-                            {c.status === "used" ? "已使用" : c.status === "expired" ? "已过期" : "可用"}
-                          </Badge>
-                        </div>
-                      ))}
-                    </div>
-                  ) : <p className="text-xs text-muted-foreground text-center py-4">暂无优惠券</p>}
-                </div>
-
-                <div className="rounded-2xl border bg-card p-6 space-y-4">
-                  <div className="flex items-center gap-2">
-                    <div className="size-8 rounded-lg bg-muted flex items-center justify-center">
-                      <Gift className="size-4 text-muted-foreground" />
-                    </div>
-                    <span className={`${heading.className} text-sm font-semibold`}>兑换码</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Input value={redeemCode} onChange={e => setRedeemCode(e.target.value)} placeholder="输入兑换码" className="flex-1" onKeyDown={e => e.key === "Enter" && onRedeem()} />
-                    <Button onClick={onRedeem} disabled={redeeming} className="shrink-0">{redeeming ? "…" : "兑换"}</Button>
-                  </div>
-                  <p className="text-xs text-muted-foreground leading-relaxed">兑换套餐时长或积分，成功后即时到账。</p>
-                </div>
-              </div>
-            </TabsPanel>
-
-            {/* ── 积分明细 ── */}
-            <TabsPanel value="points">
-              <div className="rounded-2xl border bg-card p-6 space-y-4">
-                <div className="flex items-center gap-2">
-                  <div className="size-8 rounded-lg bg-muted flex items-center justify-center">
-                    <Coins className="size-4 text-muted-foreground" />
-                  </div>
-                  <span className={`${heading.className} text-sm font-semibold`}>积分流水</span>
-                  <Badge variant="outline" className="ml-auto gap-1">
-                    <Coins className="size-3" /> {user?.points ?? 0}
-                  </Badge>
-                </div>
-                {!pointsLogsLoaded ? (
-                  <div className="flex justify-center py-8"><Loader2 className="size-5 animate-spin text-muted-foreground" /></div>
-                ) : pointsLogs.length > 0 ? (
-                  <div className="space-y-1.5 max-h-96 overflow-y-auto scrollbar-thin">
-                    {pointsLogs.map((l: any) => (
-                      <div key={l.id} className="flex items-center justify-between gap-3 px-3 py-2.5 rounded-lg border bg-background">
-                        <div className="min-w-0">
-                          <p className="text-sm font-medium truncate">{l.remark || pointsTypeLabel(l.type)}</p>
-                          <p className="text-xs text-muted-foreground mt-0.5">{pointsTypeLabel(l.type)} · {formatLogTime(l.created_at)}</p>
-                        </div>
-                        <div className="text-right shrink-0">
-                          <p className={`${monoFont.className} text-sm font-semibold tabular-nums ${l.change >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-destructive"}`}>
-                            {l.change >= 0 ? "+" : ""}{l.change}
-                          </p>
-                          <p className={`${monoFont.className} text-xs text-muted-foreground tabular-nums`}>余额 {l.balance}</p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                ) : <p className="text-xs text-muted-foreground text-center py-8">暂无积分记录</p>}
-              </div>
-            </TabsPanel>
-
-            {/* ── 邀请好友 ── */}
-            <TabsPanel value="invite">
-              <InviteCard />
-            </TabsPanel>
-
-            {/* ── 每日签到 ── */}
-            <TabsPanel value="checkin">
-              <div className="rounded-2xl border bg-card p-6 space-y-5">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                  <div className="flex items-center gap-3">
-                    <div className="size-10 rounded-xl bg-muted flex items-center justify-center">
-                      <RefreshCw className={`size-5 text-muted-foreground ${checkin?.done ? "" : "animate-spin"}`} style={{ animationDuration: "3s" }} />
-                    </div>
-                    <div>
-                      <p className={`${heading.className} text-sm font-semibold`}>每日签到</p>
-                      <p className="text-xs text-muted-foreground">
-                        {checkin?.enabled === false ? "签到功能暂未开放" : `已连续签到 ${checkin?.streak || 0} 天`}
-                      </p>
-                    </div>
-                  </div>
-                  <Button disabled={!checkin || checkin.done || checkin.enabled === false} onClick={doCheckin}>
-                    {checkin?.done ? "今日已签到 ✓" : "立即签到"}
-                  </Button>
-                </div>
-
-                <StreakBar streak={checkin?.streak || 0} done={!!checkin?.done} />
-
-                {checkin && (checkin.base > 0 || checkin.bonus > 0) && (
-                  <p className="text-xs text-muted-foreground">基础 +{checkin.base || 0} 积分 · 连续奖励 +{checkin.bonus || 0} 积分/天</p>
-                )}
-              </div>
-            </TabsPanel>
-
-            {/* ── 用量统计 ── */}
-            <TabsPanel value="stats">
-              {userStats ? (
-                <div className="space-y-4">
-                  {/* 概览指标 */}
-                  <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-                    <div className="rounded-xl border bg-card p-4 space-y-1.5">
-                      <div className="flex items-center gap-1.5 text-muted-foreground">
-                        <BarChart3 className="size-3.5" />
-                        <span className="text-[11px]">累计生成</span>
-                      </div>
-                      <p className={`${monoFont.className} text-xl font-semibold tabular-nums`}>{userStats.stats?.total_generations ?? 0}</p>
-                      <p className="text-[10px] text-muted-foreground">成功 {userStats.stats?.total_success ?? 0} · 失败 {userStats.stats?.total_failed ?? 0}</p>
-                    </div>
-                    <div className="rounded-xl border bg-card p-4 space-y-1.5">
-                      <div className="flex items-center gap-1.5 text-muted-foreground">
-                        <CalendarDays className="size-3.5" />
-                        <span className="text-[11px]">今日</span>
-                      </div>
-                      <p className={`${monoFont.className} text-xl font-semibold tabular-nums`}>{userStats.stats?.today_generations ?? 0}</p>
-                      <p className="text-[10px] text-muted-foreground">张图片</p>
-                    </div>
-                    <div className="rounded-xl border bg-card p-4 space-y-1.5">
-                      <div className="flex items-center gap-1.5 text-muted-foreground">
-                        <Activity className="size-3.5" />
-                        <span className="text-[11px]">本周</span>
-                      </div>
-                      <p className={`${monoFont.className} text-xl font-semibold tabular-nums`}>{userStats.stats?.week_generations ?? 0}</p>
-                      <p className="text-[10px] text-muted-foreground">张图片</p>
-                    </div>
-                    <div className="rounded-xl border bg-card p-4 space-y-1.5">
-                      <div className="flex items-center gap-1.5 text-muted-foreground">
-                        <TrendingUp className="size-3.5" />
-                        <span className="text-[11px]">今日成功率</span>
-                      </div>
-                      <p className={`${monoFont.className} text-xl font-semibold tabular-nums`}>
-                        {userStats.success_rate?.toFixed?.(1) ?? 100}%
-                      </p>
-                      <p className="text-[10px] text-muted-foreground">
-                        {userStats.stats?.today_generations > 0 ? "今日可用" : "今日暂无生成"}
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* 趋势图 */}
-                  <div className="rounded-xl border bg-card p-5 space-y-3">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <div className="size-7 rounded-lg bg-muted flex items-center justify-center">
-                          <TrendingUp className="size-3.5 text-muted-foreground" />
-                        </div>
-                        <span className={`${heading.className} text-sm font-semibold`}>近 7 天趋势</span>
-                      </div>
-                      <span className="text-[10px] text-muted-foreground">{userStats.trends?.length ?? 0} 天</span>
-                    </div>
-                    <div className="h-48">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <AreaChart data={userStats.trends || []} margin={{ top: 8, right: 8, bottom: 0, left: -16 }}>
-                          <defs>
-                            <linearGradient id="trendGrad" x1="0" y1="0" x2="0" y2="1">
-                              <stop offset="0%" stopColor="hsl(263 70% 60%)" stopOpacity={0.3} />
-                              <stop offset="100%" stopColor="hsl(263 70% 60%)" stopOpacity={0} />
-                            </linearGradient>
-                          </defs>
-                          <XAxis dataKey="date" tick={{ fontSize: 10, fill: "hsl(240 5% 64.9%)" }} axisLine={false} tickLine={false} />
-                          <YAxis allowDecimals={false} tick={{ fontSize: 10, fill: "hsl(240 5% 64.9%)" }} axisLine={false} tickLine={false} />
-                          <RechartsTooltip
-                            contentStyle={{ fontSize: 11, borderRadius: 8, border: "1px solid hsl(240 5% 84%)", background: "hsl(0 0% 100%)" }}
-                            labelStyle={{ fontWeight: 600 }}
-                            formatter={(val: any) => [`${val} 张`, "生成数"]} />
-                          <Area type="monotone" dataKey="value" stroke="hsl(263 70% 60%)" strokeWidth={2}
-                            fill="url(#trendGrad)" animationDuration={800} />
-                        </AreaChart>
-                      </ResponsiveContainer>
-                    </div>
-                  </div>
-
-                  {/* 令牌状态 */}
-                  <div className="rounded-xl border bg-card p-5 space-y-3">
-                    <div className="flex items-center gap-2">
-                      <div className="size-7 rounded-lg bg-muted flex items-center justify-center">
-                        <Battery className="size-3.5 text-muted-foreground" />
-                      </div>
-                      <span className={`${heading.className} text-sm font-semibold`}>配额状态</span>
-                    </div>
-                    <div className="flex flex-col sm:flex-row sm:items-center gap-4">
-                      <div className="flex-1 space-y-1.5">
-                        <div className="flex justify-between text-xs text-muted-foreground">
-                          <span>当前令牌</span>
-                          <span className={`${monoFont.className} tabular-nums`}>{userStats.tokens?.toFixed?.(2) ?? 0} / {userStats.capacity ?? 50}</span>
-                        </div>
-                        <div className="h-2 rounded-full bg-muted overflow-hidden">
-                          <div className="h-full rounded-full bg-primary transition-all duration-500"
-                            style={{ width: `${Math.min((userStats.tokens ?? 0) / (userStats.capacity ?? 50) * 100, 100)}%` }} />
-                        </div>
-                      </div>
-                      <div className="flex items-center justify-between sm:justify-end gap-6 sm:gap-4 shrink-0">
-                        <div className="text-left sm:text-right">
-                          <p className={`${monoFont.className} text-lg font-semibold tabular-nums`}>{userStats.refill ?? 3}</p>
-                          <p className="text-[10px] text-muted-foreground">/小时恢复</p>
-                        </div>
-                        <div className="text-right">
-                          <p className={`${monoFont.className} text-lg font-semibold tabular-nums truncate max-w-[120px]`}>{userStats.plan_name || "免费版"}</p>
-                          <p className="text-[10px] text-muted-foreground">{userStats.plan_name && userStats.plan_name !== "免费版" ? "当前套餐" : ""}</p>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              ) : (
-                <div className="flex flex-col items-center py-16 text-muted-foreground">
-                  <BarChart3 className="size-10 mb-3 opacity-30" />
-                  <p className="text-sm">加载中…</p>
-                </div>
-              )}
-            </TabsPanel>
-
-            {/* ── 账号设置 ── */}
-            <TabsPanel value="account">
-              <div className="rounded-2xl border bg-card p-6 space-y-5">
-                <div className="flex items-center gap-3">
-                  <div className="size-10 rounded-xl bg-muted flex items-center justify-center">
-                    <Key className="size-5 text-muted-foreground" />
-                  </div>
-                  <div>
-                    <p className={`${heading.className} text-sm font-semibold`}>修改密码</p>
-                    <p className="text-xs text-muted-foreground">设置新的登录密码</p>
-                  </div>
-                </div>
-                <div className="space-y-4 max-w-sm">
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-medium text-muted-foreground">当前密码</label>
-                    <Input type="password" value={oldPwd} onChange={e => setOldPwd(e.target.value)} placeholder="输入当前密码" />
-                  </div>
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-medium text-muted-foreground">新密码</label>
-                    <Input type="password" value={newPwd} onChange={e => setNewPwd(e.target.value)} placeholder="至少 6 位" />
-                  </div>
-                  <Button onClick={onChangePwd} disabled={changingPwd || !oldPwd || !newPwd || newPwd.length < 6}>
-                    {changingPwd ? "修改中..." : "修改密码"}
-                  </Button>
-                </div>
-              </div>
-            </TabsPanel>
-          </Tabs>
-        </motion.div>
+        <AccountTabs
+          user={user}
+          keys={keys} copied={copied} newKeyName={newKeyName} setNewKeyName={setNewKeyName}
+          onCreateKey={onCreateKey} copyKey={copyKey} toggleKey={toggleKey} setDeleteId={setDeleteId}
+          claimCode={claimCode} setClaimCode={setClaimCode} claiming={claiming} onClaimCoupon={onClaimCoupon} userCoupons={userCoupons}
+          redeemCode={redeemCode} setRedeemCode={setRedeemCode} redeeming={redeeming} onRedeem={onRedeem}
+          pointsLogs={pointsLogs} pointsLogsLoaded={pointsLogsLoaded} fetchPointsLogs={fetchPointsLogs}
+          checkin={checkin} doCheckin={doCheckin} userStats={userStats}
+          oldPwd={oldPwd} setOldPwd={setOldPwd} newPwd={newPwd} setNewPwd={setNewPwd} changingPwd={changingPwd} onChangePwd={onChangePwd}
+        />
       </motion.div>
 
       <ConfirmDialog open={deleteId != null} onOpenChange={(o) => { if (!o) setDeleteId(null); }}
