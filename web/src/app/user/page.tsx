@@ -28,6 +28,7 @@ import { useAnimatedNumber, useCountdown } from "./lib/hooks";
 import { useUserData } from "./lib/useUserData";
 import { StatCard, StreakBar } from "./components/StatCard";
 import { ExchangeDialog } from "./components/ExchangeDialog";
+import { ProfileHeader } from "./components/ProfileHeader";
 
 const heading = Outfit({ subsets: ["latin"], weight: ["400", "500", "600", "700", "800"], variable: "--font-heading" });
 const monoFont = DM_Mono({ subsets: ["latin"], weight: ["400", "500"], variable: "--font-mono" });
@@ -113,117 +114,23 @@ export default function UserPage() {
       <motion.div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8"
         variants={stagger} initial="hidden" animate="visible">
 
-        {/* ═══ 欢迎头部 ═══ */}
-        <motion.div variants={fadeUp} className="relative overflow-hidden rounded-2xl border bg-card p-6 sm:p-8">
-          <div className="relative flex flex-col sm:flex-row sm:items-center sm:justify-between gap-6">
-            <div className="flex items-center gap-5">
-              {/* 头像 */}
-              <div className="relative size-16 sm:size-20 rounded-full bg-muted flex items-center justify-center ring-1 ring-border">
-                <span className={`${heading.className} text-2xl sm:text-3xl font-bold text-foreground`}>
-                  {(user.name || user.email)[0].toUpperCase()}
-                </span>
-              </div>
-              <div className="space-y-2">
-                <h1 className={`${heading.className} text-2xl sm:text-3xl font-bold tracking-tight`}>
-                  欢迎回来，{user.name || "用户"}
-                </h1>
-                <p className="text-sm text-muted-foreground">{user.email}</p>
-                <div className="flex flex-wrap items-center gap-2.5 pt-0.5">
-                  <Badge variant={isPro ? "default" : "secondary"} className="gap-1">
-                    {isPro && <Crown className="size-3" />} {user.plan_name || "免费版"}
-                  </Badge>
-                  {user?.subscription_expires_at ? (
-                    <Badge variant="secondary" className="text-[11px] gap-1">
-                      {(user.created_at || "").slice(0, 10)} ~ {user.subscription_expires_at.slice(0, 10)}
-                    </Badge>
-                  ) : user?.plan_name && user.plan_name !== "免费版" ? (
-                    <Badge variant="secondary" className="text-[11px]">永久</Badge>
-                  ) : null}
-                  <Badge variant="default" className="text-[11px] gap-1">
-                    <Coins className="size-3" /> {user.points || 0} 积分
-                  </Badge>
-                </div>
-              </div>
-            </div>
-            <div className="flex items-center gap-2 self-start sm:self-center">
-              <Button onClick={() => setUpgradeOpen(true)} className="gap-1.5">
-                {isPro ? "管理订阅" : "升级套餐"} <ArrowUpRight className="size-3.5" />
-              </Button>
-              <Button variant="outline" onClick={() => setLogoutOpen(true)} className="gap-1.5" aria-label="退出登录">
-                <LogOut className="size-3.5" /> <span className="hidden sm:inline">退出</span>
-              </Button>
-            </div>
-          </div>
-        </motion.div>
-
-        {/* ═══ 令牌仪表盘 ═══ */}
-        <motion.div variants={fadeUp} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          {/* 令牌主卡 — 跨两列 */}
-          <div className="sm:col-span-2 rounded-2xl border bg-card p-6 space-y-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <div className="size-9 rounded-xl bg-primary/10 flex items-center justify-center">
-                  <Battery className="size-5 text-primary" />
-                </div>
-                <div>
-                  <p className={`${heading.className} text-sm font-semibold`}>令牌余额</p>
-                  <p className="text-xs text-muted-foreground">每小时恢复 {refill} 个</p>
-                </div>
-              </div>
-              <span className={`${monoFont.className} text-2xl font-medium tabular-nums ${pct < 0.15 ? "text-destructive animate-pulse" : "text-foreground"}`}>
-                {animatedTokens.toFixed(2)}
-              </span>
-            </div>
-            <div className="space-y-1.5">
-              <Progress value={pct * 100} className="h-2.5 rounded-full" />
-              <div className="flex items-center justify-between text-xs text-muted-foreground">
-                <span>已用 {(capacity - displayTokens).toFixed(2)}</span>
-                <span className={`${monoFont.className} tabular-nums`}>{displayTokens.toFixed(2)} / {capacity}</span>
-              </div>
-              {/* 突发令牌条 */}
-              {burst > 0 && (
-                <div className="flex items-center gap-2 text-xs">
-                  <div className="flex-1 h-1.5 rounded-full bg-muted overflow-hidden">
-                    <div className="h-full rounded-full bg-amber-500" style={{ width: `${Math.min(burst / capacity * 100, 100)}%` }} />
-                  </div>
-                  <TooltipProvider>
-                    <Tooltip>
-                      <TooltipTrigger className="text-amber-600 dark:text-amber-400 font-medium tabular-nums">突发 +{burst.toFixed(1)}</TooltipTrigger>
-                      <TooltipContent side="top">优先消耗突发令牌，用完后再消耗额度</TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
-                </div>
-              )}
-              {burst > 0 && <p className="text-[10px] text-muted-foreground/60 -mt-0.5">优先使用突发令牌，额度不受影响</p>}
-              {exchangeRate > 0 && (
-                <div className="pt-2 flex items-center justify-between border-t border-border mt-3">
-                  <span className="text-xs text-muted-foreground">
-                    <Coins className="size-3 inline -mt-px mr-1" />
-                    {user?.points ?? 0} 积分
-                  </span>
-                  <button onClick={() => setExchangeOpen(true)}
-                    className="text-xs font-medium text-primary hover:text-primary/80 transition-colors flex items-center gap-1">
-                    兑换突发 <Zap className="size-3" />
-                  </button>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* 指标卡 */}
-          <StatCard icon={<Zap className="size-4" />} label="恢复速率" value={`${refill}`} unit="/小时" />
-          <StatCard icon={<Layers className="size-4" />} label="并发任务" value={`${concurrency}`} unit="并发" />
-        </motion.div>
-
-        {/* 下个令牌倒计时 */}
-        {cd?.nextHMS && (
-          <motion.div variants={fadeUp} className="flex items-center gap-2 px-1">
-            <Timer className="size-3.5 text-muted-foreground" />
-            <span className={`${monoFont.className} text-xs text-muted-foreground`}>
-              下个令牌恢复: <span className="text-foreground font-medium">{cd.nextHMS}</span>
-            </span>
-          </motion.div>
-        )}
+        {/* ═══ 头部 + 令牌仪表盘 + 倒计时 ═══ */}
+        <ProfileHeader
+          user={user}
+          isPro={isPro}
+          refill={refill}
+          concurrency={concurrency}
+          capacity={capacity}
+          displayTokens={displayTokens}
+          animatedTokens={animatedTokens}
+          pct={pct}
+          burst={burst}
+          exchangeRate={exchangeRate}
+          cdNextHMS={cd?.nextHMS ?? null}
+          onUpgrade={() => setUpgradeOpen(true)}
+          onLogout={() => setLogoutOpen(true)}
+          onExchange={() => setExchangeOpen(true)}
+        />
 
         {/* ═══ 功能区 Tabs ═══ */}
         <motion.div variants={fadeUp}>
