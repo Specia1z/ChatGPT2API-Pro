@@ -224,12 +224,12 @@
 }
 
 /* 通用入场：上移淡入。配合内联 animation-delay 实现逐级浮现。
-   注意：类名不用 animate- 前缀，避免与 Tailwind v4 的 animate-* 命名空间冲突。 */
+   用 Tailwind v4 的 @utility 指令声明，确保不被 tree-shake 摇掉（裸 .class 会被丢弃）。 */
 @keyframes fadeUp {
   0%   { opacity: 0; transform: translateY(24px); }
   100% { opacity: 1; transform: translateY(0); }
 }
-.fade-up-anim {
+@utility fade-up-anim {
   opacity: 0;
   animation: fadeUp 0.7s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
