@@ -1,10 +1,9 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 import { Outfit, DM_Mono } from "next/font/google";
-import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { Navbar } from "@/components/navbar";
 import { Input } from "@/components/ui/input";
@@ -27,6 +26,7 @@ import { Area, AreaChart, ResponsiveContainer, XAxis, YAxis } from "recharts";
 import { Tooltip as RechartsTooltip } from "recharts";
 import { stagger, fadeUp, couponDesc, pointsTypeLabel, formatLogTime } from "./lib/helpers";
 import { useAnimatedNumber, useCountdown } from "./lib/hooks";
+import { useUserData } from "./lib/useUserData";
 
 const heading = Outfit({ subsets: ["latin"], weight: ["400", "500", "600", "700", "800"], variable: "--font-heading" });
 const monoFont = DM_Mono({ subsets: ["latin"], weight: ["400", "500"], variable: "--font-mono" });
@@ -36,81 +36,59 @@ const monoFont = DM_Mono({ subsets: ["latin"], weight: ["400", "500"], variable:
 export default function UserPage() {
   const { user, token, loading: authLoading, logout, login } = useAuth();
   const router = useRouter();
-  const [keys, setKeys] = useState<any[]>([]);
+  const {
+    keys, tokens, checkin, userCoupons, userStats, pointsLogs, pointsLogsLoaded,
+    fetchPointsLogs,
+    doCheckin, createKey, deleteKey, toggleKey, claimCoupon, doRedeem, doExchange, doChangePwd,
+  } = useUserData(user, token, authLoading, login);
+
+  // UI 局部状态
   const [copied, setCopied] = useState<string | null>(null);
-  const [tokens, setTokens] = useState<number | null>(null);
   const [logoutOpen, setLogoutOpen] = useState(false);
-  const [checkin, setCheckin] = useState<any>(null);
   const [newKeyName, setNewKeyName] = useState("");
   const [claimCode, setClaimCode] = useState("");
   const [claiming, setClaiming] = useState(false);
   const [redeemCode, setRedeemCode] = useState("");
   const [redeeming, setRedeeming] = useState(false);
-  const [userCoupons, setUserCoupons] = useState<any[]>([]);
   const [upgradeOpen, setUpgradeOpen] = useState(false);
   const [deleteId, setDeleteId] = useState<number | null>(null);
-  const [userStats, setUserStats] = useState<any>(null);
   const [exchangeOpen, setExchangeOpen] = useState(false);
   const [exchangeTokens, setExchangeTokens] = useState(10);
   const [exchanging, setExchanging] = useState(false);
-  const [pointsLogs, setPointsLogs] = useState<any[]>([]);
-  const [pointsLogsLoaded, setPointsLogsLoaded] = useState(false);
   const [oldPwd, setOldPwd] = useState("");
   const [newPwd, setNewPwd] = useState("");
   const [changingPwd, setChangingPwd] = useState(false);
-  const doChangePwd = async () => {
+
+  // 包装 hook 操作 + UI 反馈
+  const onChangePwd = async () => {
     if (!oldPwd || newPwd.length < 6) return;
     setChangingPwd(true);
-    try {
-      const r = await api("/api/user/change-password", { method: "POST", body: JSON.stringify({ old_password: oldPwd, new_password: newPwd }) });
-      toast.success(r.message || "密码已修改");
-      setOldPwd(""); setNewPwd("");
-    } catch (e: any) { toast.error(e.message || "修改失败"); }
-    setChangingPwd(false);
+    try { await doChangePwd(oldPwd, newPwd); setOldPwd(""); setNewPwd(""); }
+    catch (e: any) { toast.error(e.message || "修改失败"); }
+    finally { setChangingPwd(false); }
   };
-
-  useEffect(() => {
-    if (authLoading) return;
-    if (!user || !token) { router.push("/login"); return; }
-    refreshProfile(); fetchKeys(); fetchTokens(); fetchCheckin(); fetchCoupons(); fetchUserStats();
-    const iv = setInterval(fetchTokens, 15000);
-    return () => clearInterval(iv);
-    // 依赖只用稳定标识 user?.id（而非整个 user 对象）：
-    // refreshProfile() 内部会 login() 写回 user，若依赖整个 user 对象会因新引用导致 effect 反复触发、
-    // 造成 stats/keys/coupons/profile 接口被无限重复请求。用 id 后同一用户不会重触发。
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.id, token, authLoading]);
-
-  const fetchUserStats = async () => { try { const r = await api("/api/user/stats"); if (r.data) { setUserStats(r.data); } } catch {} };
-  const refreshProfile = async () => { try { const r = await api("/api/user/profile"); if (r.data && token) { login(r.data, token); } } catch {} };
-  const fetchKeys = async () => { try { const r = await api("/api/user/keys"); setKeys(r.data || []); } catch {} };
-  const fetchTokens = async () => { try { const r = await api("/api/user/tokens"); if (r.data?.tokens !== undefined) setTokens(r.data.tokens); } catch {} };
-  const fetchCheckin = async () => { try { const r = await api("/api/user/checkin/status"); setCheckin(r.data); } catch {} };
-  const fetchCoupons = async () => { try { const r = await api("/api/user/coupons"); setUserCoupons(r.data || []); } catch {} };
-  const fetchPointsLogs = async () => { try { const r = await api("/api/user/points/logs?page=1&page_size=50"); setPointsLogs(r.data?.items || []); } catch {} finally { setPointsLogsLoaded(true); } };
-
-  const doExchange = async () => {
+  const onExchange = async () => {
     if (exchangeTokens <= 0) return;
     setExchanging(true);
-    try {
-      const r = await api("/api/user/points/exchange", { method: "POST", body: JSON.stringify({ tokens: exchangeTokens }) });
-      toast.success(`兑换成功！+${r.data.tokens_added} 突发令牌`);
-      setExchangeOpen(false);
-      fetchUserStats(); fetchTokens();
-    } catch (e: any) {
-      toast.error(e.message || "兑换失败");
-    } finally {
-      setExchanging(false);
-    }
+    try { await doExchange(exchangeTokens); setExchangeOpen(false); }
+    catch (e: any) { toast.error(e.message || "兑换失败"); }
+    finally { setExchanging(false); }
   };
-
-  const doCheckin = async () => { try { const r = await api("/api/user/checkin", { method: "POST" }); toast.success(r.message || "签到成功"); fetchCheckin(); fetchTokens(); } catch (e: any) { toast.error(e.message); } };
-  const claimCoupon = async () => { if (!claimCode.trim()) return; setClaiming(true); try { await api("/api/user/coupons/claim", { method: "POST", body: JSON.stringify({ code: claimCode.trim() }) }); toast.success("优惠券领取成功"); setClaimCode(""); fetchCoupons(); } catch (e: any) { toast.error(e.message); } finally { setClaiming(false); } };
-  const doRedeem = async () => { if (!redeemCode.trim()) return; setRedeeming(true); try { const r = await api("/api/user/redeem", { method: "POST", body: JSON.stringify({ code: redeemCode.trim() }) }); toast.success(`兑换成功: ${r.data?.value ?? ""}`); setRedeemCode(""); fetchTokens(); } catch (e: any) { toast.error(e.message); } finally { setRedeeming(false); } };
-  const createKey = async () => { try { await api("/api/user/keys", { method: "POST", body: JSON.stringify({ name: newKeyName || "API Key" }) }); setNewKeyName(""); toast.success("密钥已创建"); fetchKeys(); } catch (e: any) { toast.error(e.message); } };
-  const deleteKey = async () => { if (deleteId == null) return; try { await api("/api/user/keys", { method: "DELETE", body: JSON.stringify({ id: deleteId }) }); toast.success("密钥已删除"); fetchKeys(); } catch (e: any) { toast.error(e.message); } finally { setDeleteId(null); } };
+  const onClaimCoupon = async () => {
+    if (!claimCode.trim()) return;
+    setClaiming(true);
+    try { await claimCoupon(claimCode); setClaimCode(""); } catch {}
+    finally { setClaiming(false); }
+  };
+  const onRedeem = async () => {
+    if (!redeemCode.trim()) return;
+    setRedeeming(true);
+    try { await doRedeem(redeemCode); setRedeemCode(""); } catch {}
+    finally { setRedeeming(false); }
+  };
+  const onCreateKey = async () => { await createKey(newKeyName); setNewKeyName(""); };
+  const onDeleteKey = async () => { if (deleteId == null) return; await deleteKey(deleteId); setDeleteId(null); };
   const copyKey = async (k: string) => { await navigator.clipboard.writeText(k); setCopied(k); toast.success("已复制"); setTimeout(() => setCopied(null), 1500); };
-  const toggleKey = async (k: any) => { try { const next = !(k.enabled !== false); await api("/api/user/keys/toggle", { method: "POST", body: JSON.stringify({ id: k.id, enabled: next }) }); toast.success(next ? "已启用" : "已禁用"); fetchKeys(); } catch (e: any) { toast.error(e.message); } };
 
   const capacity = user?.token_capacity || 50;
   const refill = user?.token_refill_per_hour || 3;
@@ -277,8 +255,8 @@ export default function UserPage() {
                   <div className="flex items-center gap-2">
                     <Input value={newKeyName} onChange={e => setNewKeyName(e.target.value)}
                       placeholder="密钥名称（可选）" className="flex-1"
-                      onKeyDown={e => e.key === "Enter" && createKey()} />
-                    <Button onClick={createKey} className="gap-1 shrink-0"><Plus /> 创建</Button>
+                      onKeyDown={e => e.key === "Enter" && onCreateKey()} />
+                    <Button onClick={onCreateKey} className="gap-1 shrink-0"><Plus /> 创建</Button>
                   </div>
                   {keys.length === 0 ? (
                     <div className="py-12 text-center">
@@ -335,8 +313,8 @@ export default function UserPage() {
                     <span className={`${heading.className} text-sm font-semibold`}>领取优惠券</span>
                   </div>
                   <div className="flex items-center gap-2">
-                    <Input value={claimCode} onChange={e => setClaimCode(e.target.value)} placeholder="输入优惠券码" className="flex-1" onKeyDown={e => e.key === "Enter" && claimCoupon()} />
-                    <Button onClick={claimCoupon} disabled={claiming} className="shrink-0">{claiming ? "…" : "领取"}</Button>
+                    <Input value={claimCode} onChange={e => setClaimCode(e.target.value)} placeholder="输入优惠券码" className="flex-1" onKeyDown={e => e.key === "Enter" && onClaimCoupon()} />
+                    <Button onClick={onClaimCoupon} disabled={claiming} className="shrink-0">{claiming ? "…" : "领取"}</Button>
                   </div>
                   {userCoupons.length > 0 ? (
                     <div className="space-y-2 max-h-48 overflow-y-auto scrollbar-thin">
@@ -363,8 +341,8 @@ export default function UserPage() {
                     <span className={`${heading.className} text-sm font-semibold`}>兑换码</span>
                   </div>
                   <div className="flex items-center gap-2">
-                    <Input value={redeemCode} onChange={e => setRedeemCode(e.target.value)} placeholder="输入兑换码" className="flex-1" onKeyDown={e => e.key === "Enter" && doRedeem()} />
-                    <Button onClick={doRedeem} disabled={redeeming} className="shrink-0">{redeeming ? "…" : "兑换"}</Button>
+                    <Input value={redeemCode} onChange={e => setRedeemCode(e.target.value)} placeholder="输入兑换码" className="flex-1" onKeyDown={e => e.key === "Enter" && onRedeem()} />
+                    <Button onClick={onRedeem} disabled={redeeming} className="shrink-0">{redeeming ? "…" : "兑换"}</Button>
                   </div>
                   <p className="text-xs text-muted-foreground leading-relaxed">兑换套餐时长或积分，成功后即时到账。</p>
                 </div>
@@ -577,7 +555,7 @@ export default function UserPage() {
                     <label className="text-xs font-medium text-muted-foreground">新密码</label>
                     <Input type="password" value={newPwd} onChange={e => setNewPwd(e.target.value)} placeholder="至少 6 位" />
                   </div>
-                  <Button onClick={doChangePwd} disabled={changingPwd || !oldPwd || !newPwd || newPwd.length < 6}>
+                  <Button onClick={onChangePwd} disabled={changingPwd || !oldPwd || !newPwd || newPwd.length < 6}>
                     {changingPwd ? "修改中..." : "修改密码"}
                   </Button>
                 </div>
@@ -589,7 +567,7 @@ export default function UserPage() {
 
       <ConfirmDialog open={deleteId != null} onOpenChange={(o) => { if (!o) setDeleteId(null); }}
         title="删除 API 密钥" description="删除后使用该密钥的应用将立即失效，此操作不可撤销。"
-        confirmLabel="删除" variant="destructive" onConfirm={deleteKey} />
+        confirmLabel="删除" variant="destructive" onConfirm={onDeleteKey} />
       <ConfirmDialog open={logoutOpen} onOpenChange={setLogoutOpen}
         title="退出登录" description="确定要退出当前账号吗？"
         confirmLabel="退出登录" onConfirm={() => { logout(); router.push("/"); }} />
@@ -653,7 +631,7 @@ export default function UserPage() {
               </div>
             </div>
 
-            <Button onClick={doExchange} disabled={exchanging || exchangeTokens <= 0 || (user?.points ?? 0) < exchangeTokens * exchangeRate}
+            <Button onClick={onExchange} disabled={exchanging || exchangeTokens <= 0 || (user?.points ?? 0) < exchangeTokens * exchangeRate}
               className="w-full gap-1.5">
               {exchanging ? <Loader2 className="size-4 animate-spin" /> : <Zap className="size-4" />}
               {exchanging ? "兑换中..." : "确认兑换"}
