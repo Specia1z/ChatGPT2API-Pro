@@ -273,8 +273,9 @@ export function AccountTabs(p: Props) {
                       <XAxis dataKey="date" tick={{ fontSize: 10, fill: "hsl(240 5% 64.9%)" }} axisLine={false} tickLine={false} />
                       <YAxis allowDecimals={false} tick={{ fontSize: 10, fill: "hsl(240 5% 64.9%)" }} axisLine={false} tickLine={false} />
                       <RechartsTooltip
-                        contentStyle={{ fontSize: 11, borderRadius: 8, border: "1px solid hsl(240 5% 84%)", background: "hsl(0 0% 100%)" }}
-                        labelStyle={{ fontWeight: 600 }}
+                        contentStyle={{ fontSize: 11, borderRadius: 8, border: "1px solid var(--border)", background: "var(--popover)", color: "var(--popover-foreground)" }}
+                        itemStyle={{ color: "var(--popover-foreground)" }}
+                        labelStyle={{ fontWeight: 600, color: "var(--popover-foreground)" }}
                         formatter={(val: any) => [`${val} 张`, "生成数"]} />
                       <Area type="monotone" dataKey="value" className="text-zinc-900 dark:text-white" stroke="currentColor" strokeWidth={2}
                         fill="url(#trendGrad)" animationDuration={800} />
