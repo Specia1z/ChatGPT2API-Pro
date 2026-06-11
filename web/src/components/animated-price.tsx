@@ -2,10 +2,9 @@
 
 import { useState, useEffect, useRef } from "react";
 
-export function AnimatedPrice({ value, className }: { value: number; className?: string }) {
+export function AnimatedPrice({ value, className, prefix = "¥" }: { value: number; className?: string; prefix?: string }) {
   const [display, setDisplay] = useState("0");
   const prevRef = useRef(0);
-  const isDecimal = value !== Math.floor(value);
 
   useEffect(() => {
     const start = prevRef.current;
@@ -29,5 +28,5 @@ export function AnimatedPrice({ value, className }: { value: number; className?:
     prevRef.current = end;
   }, [value]);
 
-  return <span className={className}>¥{display}</span>;
+  return <span className={className}>{prefix}{display}</span>;
 }

@@ -33,7 +33,8 @@ func (h *Handler) ListShop(w http.ResponseWriter, r *http.Request) {
 	items := parseShopItems(settings.ShopConfig)
 	type shopView struct {
 		model.ShopItem
-		PlanName string `json:"plan_name"`
+		PlanName string      `json:"plan_name"`
+		Plan     *model.Plan `json:"plan,omitempty"` // 关联套餐的完整内容（额度/并发/速率/特性），供前端展示
 	}
 	var out []shopView
 	for _, it := range items {
@@ -41,12 +42,14 @@ func (h *Handler) ListShop(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 		name := ""
+		var plan *model.Plan
 		if it.PlanID > 0 {
 			if p, _ := h.MySQL.GetPlanByID(it.PlanID); p != nil {
 				name = p.Name
+				plan = p
 			}
 		}
-		out = append(out, shopView{ShopItem: it, PlanName: name})
+		out = append(out, shopView{ShopItem: it, PlanName: name, Plan: plan})
 	}
 	if out == nil {
 		out = []shopView{}
