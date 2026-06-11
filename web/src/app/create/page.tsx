@@ -1,37 +1,19 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
-import { motion, AnimatePresence } from "framer-motion";
-import { Outfit, DM_Mono } from "next/font/google";
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
-import * as LucideIcons from "lucide-react";
-const {
-  ImageIcon, Loader2, Wand2, X, Download, Trash2,
-  CheckCircle, AlertCircle, Clock, Filter, Share2,
-  Square, Monitor, Smartphone, Camera,
-  Zap, Palette, Sparkles, Maximize2,
-} = LucideIcons;
 import { useAuth } from "@/lib/auth";
 import { api, BASE } from "@/lib/api";
-import { compressImage, compressOptionsFromSettings } from "@/lib/imageCompress";
 import { Navbar } from "@/components/navbar";
-import { imageProxyUrl, formatShort } from "@/lib/utils";
-import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { imageProxyUrl } from "@/lib/utils";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
-import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "@/components/ui/tooltip";
-import { IconTip } from "@/components/ui/icon-tip";
+import { TooltipProvider } from "@/components/ui/tooltip";
 import { toast } from "sonner";
-import { SIZE_GROUPS, FILTER_TABS, stagger, fadeUp } from "./lib/constants";
-import { resolveIcon, refImageSrc, sizeLabel, sizeTitle, autoDim, shareState, type StylePreset } from "./lib/helpers";
+import { autoDim, resolveIcon, type StylePreset } from "./lib/helpers";
 import { useGenerations } from "./lib/useGenerations";
 import { PreviewDialog } from "./components/PreviewDialog";
 import { GalleryGrid } from "./components/GalleryGrid";
 import { PromptStudio } from "./components/PromptStudio";
-
-// 与 /user、/admin/stats 对齐的字体（Outfit 标题 + DM_Mono 数字）
-const heading = Outfit({ subsets: ["latin"], weight: ["400", "500", "600", "700", "800"], variable: "--font-heading" });
-const monoFont = DM_Mono({ subsets: ["latin"], weight: ["400", "500"], variable: "--font-mono" });
 
 export default function CreatePage() {
   const { user, loading: authLoading } = useAuth();
@@ -194,7 +176,6 @@ export default function CreatePage() {
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const [settings, setSettings] = useState<any>(null);
   const [mounted, setMounted] = useState(false);
-  const proxyUrl = mounted && generations.length > 0 ? imageProxyUrl(generations[0]) : "(not mounted)";
 
   useEffect(() => { setMounted(true); }, []);
 
@@ -454,7 +435,7 @@ export default function CreatePage() {
 
   return (
     <TooltipProvider>
-      <div className={`${heading.variable} ${monoFont.variable} min-h-screen bg-background pb-16 md:pb-0`}>
+      <div className="min-h-screen bg-[#fbfbfd] dark:bg-[#06070d] pb-16 md:pb-0">
         <Navbar />
 
         {/* 桌面端左右分栏；移动/平板(<lg)回落为上下单列 */}
