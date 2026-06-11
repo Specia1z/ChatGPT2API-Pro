@@ -112,41 +112,45 @@ export default function GalleryPage() {
   };
 
   if (loading && items.length === 0) return (
-    <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950 flex items-center justify-center">
-      <div className="w-8 h-8 border-2 border-zinc-300 dark:border-zinc-700 border-t-zinc-900 dark:border-t-zinc-100 rounded-full animate-spin" />
+    <div className="min-h-screen bg-[#fbfbfd] dark:bg-[#06070d] flex items-center justify-center">
+      <div className="w-8 h-8 border-2 border-zinc-300 dark:border-white/20 border-t-zinc-900 dark:border-t-white rounded-full animate-spin" />
     </div>
   );
 
   return (
-    <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950 pb-16 md:pb-0">
+    <div className="min-h-screen bg-[#fbfbfd] dark:bg-[#06070d] pb-16 md:pb-0">
       <Navbar />
 
-      {/* Hero — editorial header with diamond */}
-      <div className="border-b border-zinc-200/60 dark:border-zinc-800/60 bg-zinc-50 dark:bg-zinc-900">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-16">
-          <div className="flex items-center gap-3 mb-5">
-            <div className="shrink-0 w-10 h-10 rounded-xl bg-gradient-to-br from-cyan-400 via-violet-500 to-fuchsia-500 flex items-center justify-center shadow-[0_6px_20px_-6px_rgba(99,102,241,0.6)]">
-              <span className="text-lg font-bold text-white">✦</span>
-            </div>
-            <div className="h-px flex-1 bg-gradient-to-r from-zinc-300 to-transparent dark:from-zinc-700" />
-          </div>
-          <div className="max-w-2xl">
-            <div className="inline-flex items-center gap-1.5 rounded-full border border-cyan-500/20 bg-cyan-500/[0.06] px-3 py-1 text-[11px] font-medium text-cyan-700 dark:text-cyan-300 mb-4 tracking-[0.12em] uppercase">
-              <Sparkles className="w-3 h-3" />
-              灵感广场
-            </div>
-            <h1 className="text-3xl sm:text-4xl font-bold tracking-tight text-zinc-900 dark:text-white mb-3 font-[family-name:var(--font-display)]">
-              {settings?.site_title || "探索社区创作"}
-            </h1>
-            <p className="text-sm text-zinc-500 dark:text-zinc-400 leading-relaxed">
-              浏览其他创作者分享的作品，获取灵感
-              {total > 0 && (
-                <span className="ml-2 text-zinc-400">
-                  · 共 <span className="font-semibold text-cyan-600 dark:text-cyan-400 tabular-nums">{total}</span> 张
-                </span>
-              )}
-            </p>
-          </div>
+      {/* ════ 连续流体舞台：头部浓、向下渐弱，与主页同一套视觉语言 ════ */}
+      <div className="relative overflow-hidden">
+        <div className="absolute inset-0 overflow-hidden pointer-events-none">
+          <div className="absolute top-[-10%] left-[-6%] w-[44vw] h-[44vw] rounded-full blur-[110px] opacity-45 dark:opacity-50 mix-blend-multiply dark:mix-blend-screen bg-[#22d3ee] [will-change:transform]" style={{ animation: "fluidA 18s ease-in-out infinite" }} />
+          <div className="absolute top-[-6%] right-[-4%] w-[40vw] h-[40vw] rounded-full blur-[110px] opacity-40 dark:opacity-45 mix-blend-multiply dark:mix-blend-screen bg-[#e879f9] [will-change:transform]" style={{ animation: "fluidC 20s ease-in-out infinite" }} />
+          <div className="absolute top-[8%] left-1/3 w-[38vw] h-[38vw] rounded-full blur-[110px] opacity-35 dark:opacity-40 mix-blend-multiply dark:mix-blend-screen bg-[#6366f1] [will-change:transform]" style={{ animation: "fluidB 22s ease-in-out infinite" }} />
+          {/* 向下淡出到底色，让流体只笼罩头部 */}
+          <div className="absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-[#fbfbfd] dark:to-[#06070d]" style={{ backgroundSize: "100% 200%" }} />
+          <div className="absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-b from-transparent to-[#fbfbfd] dark:to-[#06070d]" />
+        </div>
+        {/* 胶片颗粒 */}
+        <div className="absolute inset-0 opacity-[0.04] dark:opacity-[0.06] mix-blend-overlay pointer-events-none" style={{ backgroundImage: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E\")" }} />
+
+        {/* Hero 头部 — 居中无衬线，与主页统一 */}
+        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-16 sm:pt-20 pb-10 text-center">
+          <span style={{ animationDelay: "0.05s" }} className="fade-up-anim inline-flex items-center gap-2 rounded-full border border-zinc-900/10 dark:border-white/15 bg-white/50 dark:bg-white/[0.06] px-4 py-1.5 backdrop-blur-md text-[11px] font-medium text-zinc-600 dark:text-white/70 tracking-[0.14em] uppercase mb-6">
+            <Sparkles className="w-3 h-3" />
+            灵感广场
+          </span>
+          <h1 style={{ animationDelay: "0.15s" }} className="fade-up-anim text-4xl sm:text-5xl md:text-[3.5rem] font-bold tracking-[-0.03em] leading-[1.05] text-zinc-900 dark:text-white mb-4 [text-wrap:balance]">
+            探索社区创作
+          </h1>
+          <p style={{ animationDelay: "0.25s" }} className="fade-up-anim text-base sm:text-lg text-zinc-500 dark:text-white/55 leading-relaxed max-w-xl mx-auto">
+            浏览其他创作者分享的作品，获取灵感
+            {total > 0 && (
+              <span className="block mt-1 text-sm text-zinc-400 dark:text-white/40">
+                共 <span className="font-semibold text-zinc-600 dark:text-white/70 tabular-nums">{total}</span> 张精选作品
+              </span>
+            )}
+          </p>
         </div>
       </div>
 
@@ -154,12 +158,11 @@ export default function GalleryPage() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {items.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-32 text-zinc-400">
-            <div className="relative w-16 h-16 rounded-2xl bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center mb-4 overflow-hidden">
-              <Palette className="w-8 h-8 text-zinc-300 dark:text-zinc-600" />
-              <div className="absolute inset-0 rounded-2xl border border-zinc-200 dark:border-zinc-700" />
+            <div className="relative w-16 h-16 rounded-2xl bg-white/60 dark:bg-white/[0.04] backdrop-blur-xl border border-zinc-900/[0.06] dark:border-white/10 flex items-center justify-center mb-4 overflow-hidden">
+              <Palette className="w-8 h-8 text-zinc-300 dark:text-white/30" />
             </div>
-            <p className="text-sm font-medium text-zinc-500 dark:text-zinc-400">暂无分享作品</p>
-            <p className="text-xs text-zinc-400 mt-1">去创作中心生成图片并分享到这里</p>
+            <p className="text-sm font-medium text-zinc-500 dark:text-white/55">暂无分享作品</p>
+            <p className="text-xs text-zinc-400 dark:text-white/35 mt-1">去创作中心生成图片并分享到这里</p>
           </div>
         ) : (
           <>
@@ -168,13 +171,10 @@ export default function GalleryPage() {
                 return (
                   <div
                     key={item.id}
-                    className="group relative break-inside-avoid rounded-xl overflow-hidden bg-white dark:bg-zinc-900 border border-zinc-200/60 dark:border-zinc-800/60 hover:shadow-xl dark:hover:shadow-zinc-900/50 transition-all duration-300 cursor-pointer"
+                    className="group relative break-inside-avoid rounded-2xl overflow-hidden bg-white/60 dark:bg-white/[0.03] backdrop-blur-xl border border-zinc-900/[0.06] dark:border-white/10 hover:bg-white/80 dark:hover:bg-white/[0.06] hover:-translate-y-1 hover:shadow-[0_20px_50px_-20px_rgba(0,0,0,0.25)] transition-all duration-300 cursor-pointer"
                     style={{ animation: `galleryCardIn 0.5s ease-out ${Math.min(i, 8) * 50}ms both` }}
                     onClick={() => { setCopied(false); setPreview(item); }}
                   >
-                    {/* Top accent bar — hover 变光谱渐变 */}
-                    <div className="h-[2px] w-full bg-zinc-200 dark:bg-zinc-800 transition-all group-hover:bg-gradient-to-r group-hover:from-cyan-400 group-hover:via-violet-500 group-hover:to-fuchsia-500" />
-
                     {/* Image */}
                     <div className="relative">
                       <img
@@ -187,8 +187,8 @@ export default function GalleryPage() {
                         }`}
                       />
                       {!loadedImages.has(item.id) && (
-                        <div className="absolute inset-0 bg-zinc-100 dark:bg-zinc-800 animate-pulse flex items-center justify-center">
-                          <ImageIcon className="w-5 h-5 text-zinc-300 dark:text-zinc-600" />
+                        <div className="absolute inset-0 bg-zinc-100 dark:bg-white/5 animate-pulse flex items-center justify-center">
+                          <ImageIcon className="w-5 h-5 text-zinc-300 dark:text-white/30" />
                         </div>
                       )}
                       {/* 常驻信息标签：比例 + 真实分辨率（移动端常驻，桌面 hover 浮现） */}
@@ -209,15 +209,15 @@ export default function GalleryPage() {
                     </div>
 
                     {/* Info */}
-                    <div className="p-3 space-y-2">
-                      <p className="text-xs text-zinc-600 dark:text-zinc-400 line-clamp-2 leading-relaxed">
+                    <div className="p-3.5 space-y-2.5">
+                      <p className="text-xs text-zinc-600 dark:text-white/65 line-clamp-2 leading-relaxed">
                         {item.prompt}
                       </p>
                       <div className="flex items-center gap-1.5 min-w-0">
-                        <div className="w-5 h-5 rounded text-[9px] font-bold flex items-center justify-center shrink-0 bg-gradient-to-br from-cyan-400 to-violet-500 text-white">
+                        <div className="w-5 h-5 rounded-full text-[9px] font-bold flex items-center justify-center shrink-0 bg-gradient-to-br from-cyan-400 to-violet-500 text-white">
                           {(item.user_name || item.user_email || "?")[0]?.toUpperCase()}
                         </div>
-                        <span className="text-[11px] text-zinc-500 truncate">
+                        <span className="text-[11px] text-zinc-500 dark:text-white/45 truncate">
                           {item.user_name || item.user_email?.split("@")[0] || "匿名"}
                         </span>
                       </div>
@@ -229,9 +229,9 @@ export default function GalleryPage() {
 
             {/* Sentinel */}
             <div ref={sentinelRef} className="h-10 flex items-center justify-center mt-6">
-              {loading && <div className="w-4 h-4 border-2 border-zinc-300 dark:border-zinc-700 border-t-zinc-900 dark:border-t-zinc-100 rounded-full animate-spin" />}
+              {loading && <div className="w-4 h-4 border-2 border-zinc-300 dark:border-white/20 border-t-zinc-900 dark:border-t-white rounded-full animate-spin" />}
               {items.length >= total && total > 0 && (
-                <span className="text-[10px] text-zinc-400">已加载全部 {total} 张作品</span>
+                <span className="text-[10px] text-zinc-400 dark:text-white/35">已加载全部 {total} 张作品</span>
               )}
             </div>
           </>
@@ -301,7 +301,7 @@ export default function GalleryPage() {
 
                 {/* 下载 */}
                 <button onClick={() => download(imageProxyUrl(preview))}
-                  className="shrink-0 flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl text-white text-sm font-medium transition-all bg-[linear-gradient(110deg,#0891b2,#6366f1)] hover:brightness-110 hover:shadow-[0_8px_24px_-6px_rgba(34,211,238,0.6)]">
+                  className="shrink-0 flex items-center justify-center gap-1.5 px-3 py-3 rounded-full text-sm font-semibold transition-all bg-white text-zinc-900 hover:bg-zinc-100 shadow-lg shadow-black/20">
                   <Download className="w-4 h-4" /> 下载原图
                 </button>
               </div>

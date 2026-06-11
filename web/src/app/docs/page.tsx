@@ -30,25 +30,25 @@ function CodeBlock({ code, lang = "bash" }: { code: string; lang?: string }) {
 /* ── 字段表 ─────────────────────────────────── */
 function FieldTable({ rows }: { rows: { name: string; type: string; required: string; desc: string }[] }) {
   return (
-    <div className="overflow-x-auto scrollbar-thin rounded-xl border border-zinc-200 dark:border-zinc-800">
+    <div className="overflow-x-auto scrollbar-thin rounded-xl border border-zinc-900/[0.06] dark:border-white/10 bg-white/50 dark:bg-white/[0.03] backdrop-blur-xl">
       <table className="w-full text-sm border-collapse min-w-[520px]">
         <thead>
-          <tr className="bg-zinc-50 dark:bg-zinc-900/60 text-left">
-            <th className="px-4 py-2.5 text-[11px] font-semibold text-zinc-500 uppercase tracking-wider">字段</th>
-            <th className="px-4 py-2.5 text-[11px] font-semibold text-zinc-500 uppercase tracking-wider">类型</th>
-            <th className="px-4 py-2.5 text-[11px] font-semibold text-zinc-500 uppercase tracking-wider">必填</th>
-            <th className="px-4 py-2.5 text-[11px] font-semibold text-zinc-500 uppercase tracking-wider">说明</th>
+          <tr className="bg-zinc-900/[0.03] dark:bg-white/[0.04] text-left">
+            <th className="px-4 py-2.5 text-[11px] font-semibold text-zinc-500 dark:text-white/45 uppercase tracking-wider">字段</th>
+            <th className="px-4 py-2.5 text-[11px] font-semibold text-zinc-500 dark:text-white/45 uppercase tracking-wider">类型</th>
+            <th className="px-4 py-2.5 text-[11px] font-semibold text-zinc-500 dark:text-white/45 uppercase tracking-wider">必填</th>
+            <th className="px-4 py-2.5 text-[11px] font-semibold text-zinc-500 dark:text-white/45 uppercase tracking-wider">说明</th>
           </tr>
         </thead>
-        <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800">
+        <tbody className="divide-y divide-zinc-900/[0.05] dark:divide-white/[0.07]">
           {rows.map((r) => (
-            <tr key={r.name} className="hover:bg-zinc-50/60 dark:hover:bg-zinc-900/30">
-              <td className="px-4 py-2.5 font-mono text-[12.5px] text-zinc-900 dark:text-zinc-100 whitespace-nowrap">{r.name}</td>
-              <td className="px-4 py-2.5 font-mono text-[12px] text-zinc-500">{r.type}</td>
+            <tr key={r.name} className="hover:bg-zinc-900/[0.02] dark:hover:bg-white/[0.03]">
+              <td className="px-4 py-2.5 font-mono text-[12.5px] text-zinc-900 dark:text-white whitespace-nowrap">{r.name}</td>
+              <td className="px-4 py-2.5 font-mono text-[12px] text-zinc-500 dark:text-white/45">{r.type}</td>
               <td className="px-4 py-2.5">
-                <span className={`text-[11px] px-1.5 py-0.5 rounded ${r.required === "是" ? "bg-rose-500/10 text-rose-600 dark:text-rose-400" : "bg-zinc-200/60 dark:bg-zinc-800 text-zinc-500"}`}>{r.required}</span>
+                <span className={`text-[11px] px-1.5 py-0.5 rounded ${r.required === "是" ? "bg-rose-500/10 text-rose-600 dark:text-rose-400" : "bg-zinc-900/[0.06] dark:bg-white/[0.08] text-zinc-500 dark:text-white/50"}`}>{r.required}</span>
               </td>
-              <td className="px-4 py-2.5 text-[12.5px] text-zinc-600 dark:text-zinc-400">{r.desc}</td>
+              <td className="px-4 py-2.5 text-[12.5px] text-zinc-600 dark:text-white/60">{r.desc}</td>
             </tr>
           ))}
         </tbody>
@@ -62,7 +62,7 @@ function Section({ id, icon, title, children }: { id: string; icon: React.ReactN
   return (
     <section id={id} className="scroll-mt-20 space-y-4">
       <div className="flex items-center gap-2.5">
-        <div className="w-8 h-8 rounded-lg bg-zinc-200 dark:bg-zinc-800 flex items-center justify-center text-zinc-700 dark:text-zinc-200 shrink-0">
+        <div className="w-8 h-8 rounded-xl bg-zinc-900 dark:bg-white flex items-center justify-center text-white dark:text-zinc-900 shrink-0">
           {icon}
         </div>
         <h2 className="text-lg font-bold tracking-tight text-zinc-900 dark:text-white">{title}</h2>
@@ -98,32 +98,47 @@ function DocsContent() {
     if (typeof window !== "undefined") setOrigin(window.location.origin);
   }, []);
   return (
-    <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950 pb-16 md:pb-0">
+    <div className="min-h-screen bg-[#fbfbfd] dark:bg-[#06070d] pb-16 md:pb-0">
       <Navbar />
 
-      {/* Hero */}
-      <div className="border-b border-zinc-200/60 dark:border-zinc-800/60 bg-white dark:bg-zinc-900">
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-10 sm:py-14">
-          <div className="inline-flex items-center gap-1.5 rounded-full border border-zinc-200 dark:border-zinc-800 px-3 py-1 text-[11px] font-medium text-zinc-500 mb-4 tracking-wide">
-            <Terminal className="w-3 h-3" /> API 文档
-          </div>
-          <h1 className="text-3xl sm:text-4xl font-bold tracking-tight text-zinc-900 dark:text-white mb-3">
+      {/* ════ 流体头部：与全站统一 ════ */}
+      <div className="relative overflow-hidden">
+        <div className="absolute inset-0 overflow-hidden pointer-events-none">
+          <div className="absolute top-[-10%] left-[-6%] w-[42vw] h-[42vw] rounded-full blur-[110px] opacity-40 dark:opacity-45 mix-blend-multiply dark:mix-blend-screen bg-[#22d3ee] [will-change:transform]" style={{ animation: "fluidA 18s ease-in-out infinite" }} />
+          <div className="absolute top-[-6%] right-[-4%] w-[38vw] h-[38vw] rounded-full blur-[110px] opacity-35 dark:opacity-40 mix-blend-multiply dark:mix-blend-screen bg-[#6366f1] [will-change:transform]" style={{ animation: "fluidB 20s ease-in-out infinite" }} />
+          <div className="absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-b from-transparent to-[#fbfbfd] dark:to-[#06070d]" />
+        </div>
+        <div className="absolute inset-0 opacity-[0.04] dark:opacity-[0.06] mix-blend-overlay pointer-events-none" style={{ backgroundImage: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E\")" }} />
+
+        <div className="relative max-w-3xl mx-auto px-6 pt-16 sm:pt-20 pb-10 text-center">
+          <span style={{ animationDelay: "0.05s" }} className="fade-up-anim inline-flex items-center gap-2 rounded-full border border-zinc-900/10 dark:border-white/15 bg-white/50 dark:bg-white/[0.06] px-4 py-1.5 backdrop-blur-md text-[11px] font-medium text-zinc-600 dark:text-white/70 tracking-[0.14em] uppercase mb-6">
+            <Terminal className="w-3 h-3" /> API Docs
+          </span>
+          <h1 style={{ animationDelay: "0.15s" }} className="fade-up-anim text-4xl sm:text-5xl md:text-[3.5rem] font-bold tracking-[-0.03em] leading-[1.05] text-zinc-900 dark:text-white mb-4 [text-wrap:balance]">
             生图 API 接入指南
           </h1>
-          <p className="text-sm text-zinc-500 dark:text-zinc-400 leading-relaxed max-w-2xl">
-            用你在「用户中心 → API 密钥」创建的 <code className="font-mono text-xs px-1 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300">sk-</code> 密钥，
-            即可在自己的程序里调用生图接口。接口为<strong className="text-zinc-700 dark:text-zinc-300">异步</strong>设计：提交后返回任务 ID，再轮询查询结果。
+          <p style={{ animationDelay: "0.25s" }} className="fade-up-anim text-base sm:text-lg text-zinc-500 dark:text-white/55 leading-relaxed max-w-2xl mx-auto">
+            用你在「用户中心 → API 密钥」创建的 <code className="font-mono text-sm px-1.5 py-0.5 rounded bg-zinc-900/[0.06] dark:bg-white/10 text-zinc-700 dark:text-white/80">sk-</code> 密钥，
+            即可在自己的程序里调用生图接口。接口为<strong className="text-zinc-700 dark:text-white/80">异步</strong>设计：提交后返回任务 ID，再轮询查询结果。
           </p>
         </div>
       </div>
 
-      <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8 flex gap-8">
+      <div className="relative max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8 flex gap-8">
         {/* 侧边导航（桌面端） */}
-        <aside className="hidden lg:block w-44 shrink-0">
-          <nav className="sticky top-20 space-y-1">
+        <aside style={{ animationDelay: "0.3s" }} className="fade-up-anim hidden lg:block w-44 shrink-0">
+          <nav className="sticky top-20 space-y-1 rounded-2xl border border-zinc-900/[0.06] dark:border-white/10 bg-white/60 dark:bg-white/[0.03] backdrop-blur-xl p-2">
             {NAV.map((n) => (
               <a key={n.id} href={`#${n.id}`}
-                className="block px-3 py-1.5 rounded-lg text-[13px] text-zinc-500 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors">
+                onClick={(e) => {
+                  e.preventDefault();
+                  const el = document.getElementById(n.id);
+                  if (el) {
+                    el.scrollIntoView({ behavior: "smooth", block: "start" });
+                    history.replaceState(null, "", `#${n.id}`);
+                  }
+                }}
+                className="block px-3 py-1.5 rounded-lg text-[13px] text-zinc-500 dark:text-white/55 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-900/[0.04] dark:hover:bg-white/[0.06] transition-colors">
                 {n.label}
               </a>
             ))}
@@ -131,7 +146,7 @@ function DocsContent() {
         </aside>
 
         {/* 正文 */}
-        <div className="flex-1 min-w-0 space-y-12">
+        <div style={{ animationDelay: "0.38s" }} className="fade-up-anim flex-1 min-w-0 space-y-12">
 
           {/* 认证 */}
           <Section id="auth" icon={<KeyRound className="w-4 h-4" />} title="认证">
@@ -227,7 +242,7 @@ function DocsContent() {
     "page_size": 20
   }
 }`} />
-            <div className="rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900/40 p-4 space-y-2 text-[13px] text-zinc-600 dark:text-zinc-400">
+            <div className="rounded-xl border border-zinc-900/[0.06] dark:border-white/10 bg-white/50 dark:bg-white/[0.03] backdrop-blur-xl p-4 space-y-2 text-[13px] text-zinc-600 dark:text-white/60">
               <p><strong className="text-zinc-700 dark:text-zinc-300">status</strong> 取值：<code className="font-mono text-xs px-1 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800">pending</code>（排队/生成中）、<code className="font-mono text-xs px-1 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800">completed</code>（成功）、<code className="font-mono text-xs px-1 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800">failed</code>（失败，原因见 <code className="font-mono text-xs px-1 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800">error_msg</code>）。</p>
               <p><strong className="text-zinc-700 dark:text-zinc-300">图片获取</strong>：<code className="font-mono text-xs px-1 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800">image_url</code> 为带签名的代理地址（形如 <code className="font-mono text-xs px-1 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800">/api/images/&#123;id&#125;?exp=...&amp;sig=...</code>），可直接 GET 下载，链接有效期 24 小时。无论后端用对象存储还是数据库存储，统一通过此地址获取，无需关心底层存储。</p>
               <p><strong className="text-zinc-700 dark:text-zinc-300">created_at 时间</strong>：值为<strong className="text-zinc-700 dark:text-zinc-300">北京时间（UTC+8）</strong>。注意其字面格式带 <code className="font-mono text-xs px-1 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800">Z</code> 后缀（如 <code className="font-mono text-xs px-1 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800">2026-06-06T10:30:45Z</code>），但其中的数字即为北京时间墙钟值，<strong className="text-zinc-700 dark:text-zinc-300">不要</strong>再按 UTC 做时区换算（否则会多偏 8 小时）。如需本地时间请直接取字面数字。</p>
