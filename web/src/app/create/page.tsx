@@ -33,6 +33,10 @@ export default function CreatePage() {
   const [refDim, setRefDim] = useState<{ w: number; h: number } | null>(null); // 首张参考图真实尺寸（Auto 用）
   const [fusionMode, setFusionMode] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<number | null>(null);
+  // 异常图片：status=completed 但浏览器 <img> 加载失败（URL 失效/对象被清/裂图）。
+  // 服务端认为成功，只有前端渲染时才暴露，故由 GalleryGrid 的 onError 上报收集到此。
+  const [brokenIds, setBrokenIds] = useState<Set<number>>(new Set());
+  const [clearBrokenOpen, setClearBrokenOpen] = useState(false);
   const [size, setSize] = useState("1:1");
   const [sizeGroup, setSizeGroup] = useState(0); // 当前展开的尺寸分组索引
   const [styles, setStyles] = useState<StylePreset[]>([]);
@@ -353,6 +357,30 @@ export default function CreatePage() {
     setGenerations(prev => prev.filter(g => g.status !== "failed"));
   };
 
+  // 标记一张图为「加载异常」（GalleryGrid 的 <img onError> 调用）。
+  // 只收 completed 项——pending 还没出图、failed 本就有专门的「清除失败」。
+  const markBroken = (id: number) => {
+    setBrokenIds(prev => prev.has(id) ? prev : new Set(prev).add(id));
+  };
+
+  // 图片重新加载成功时撤销异常标记（处理瞬时网络失败后恢复的情况，避免误删）。
+  const unmarkBroken = (id: number) => {
+    setBrokenIds(prev => { if (!prev.has(id)) return prev; const next = new Set(prev); next.delete(id); return next; });
+  };
+
+  // 批量清除异常图片：删 brokenIds 里仍存在的记录（复用单删接口循环）。
+  const clearBroken = async () => {
+    const ids = generations.filter(g => brokenIds.has(g.id)).map(g => g.id);
+    for (const id of ids) {
+      await api("/api/generations", { method: "DELETE", body: JSON.stringify({ id }) }).catch(() => {});
+      colAssignRef.current.delete(id);
+    }
+    setGenerations(prev => prev.filter(g => !brokenIds.has(g.id)));
+    setBrokenIds(new Set());
+    setClearBrokenOpen(false);
+    if (ids.length) toast.success(`已清除 ${ids.length} 张异常图片`);
+  };
+
   const editGen = async (e: React.MouseEvent, g: any) => {
     e.stopPropagation();
     setCurrentInput(g.prompt); setTags([""]); setTagCounts({}); setActiveStyle(null);
@@ -427,6 +455,9 @@ export default function CreatePage() {
     failed: generations.filter(g => g.status === "failed").length,
   };
 
+  // 当前列表里仍存在的异常图片数（brokenIds 可能含已被删除的旧 id，需与现有列表取交集）
+  const brokenCount = generations.reduce((n, g) => n + (brokenIds.has(g.id) ? 1 : 0), 0);
+
   const lineCount = tags.filter(Boolean).length;
   // 总张数 = 各提示词份数之和（含尚未提交的当前输入，按 1 份计）
   const totalImages = tags.filter(Boolean).reduce((sum, t) => sum + getTagCount(t), 0) + (currentInput.trim() ? 1 : 0);
@@ -469,6 +500,11 @@ export default function CreatePage() {
           setHsFilter={setHsFilter}
           counts={counts}
           clearFailed={clearFailed}
+          brokenIds={brokenIds}
+          brokenCount={brokenCount}
+          markBroken={markBroken}
+          unmarkBroken={unmarkBroken}
+          onClearBroken={() => setClearBrokenOpen(true)}
           hasMore={hasMore}
           loadingMore={loadingMore}
           galleryRef={galleryRef}
@@ -500,6 +536,17 @@ export default function CreatePage() {
             setDeleteTarget(null);
             setPreviewGen(null);
           }}
+        />
+
+        {/* ═══ Clear Broken Confirm ═══ */}
+        <ConfirmDialog
+          open={clearBrokenOpen}
+          onOpenChange={setClearBrokenOpen}
+          title="清除异常图片"
+          description={`检测到 ${brokenCount} 张无法正常显示的图片（裂图 / 加载失败 / 已失效），确认全部删除？此操作不可撤销。`}
+          confirmLabel="全部清除"
+          variant="destructive"
+          onConfirm={clearBroken}
         />
 
         {/* ═══ Preview Dialog ═══ */}

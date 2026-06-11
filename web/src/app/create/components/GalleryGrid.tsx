@@ -1,7 +1,7 @@
 "use client";
 
 import { motion, AnimatePresence } from "framer-motion";
-import { Loader2, Trash2, Palette, Clock, Share2, Image as ImageIcon, Download, AlertCircle } from "lucide-react";
+import { Loader2, Trash2, Palette, Clock, Share2, Image as ImageIcon, Download, AlertCircle, ImageOff } from "lucide-react";
 import { imageProxyUrl, formatShort } from "@/lib/utils";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import { IconTip } from "@/components/ui/icon-tip";
@@ -22,6 +22,11 @@ type Props = {
   setHsFilter: (k: "all" | "completed" | "failed" | "pending") => void;
   counts: Counts;
   clearFailed: () => void;
+  brokenIds: Set<number>;
+  brokenCount: number;
+  markBroken: (id: number) => void;
+  unmarkBroken: (id: number) => void;
+  onClearBroken: () => void;
   hasMore: boolean;
   loadingMore: boolean;
   galleryRef: (node: HTMLDivElement | null) => void;
@@ -38,7 +43,7 @@ type Props = {
 export function GalleryGrid(p: Props) {
   const {
     buckets, filtered, generations, total, revealedIds, setRevealedIds, mounted,
-    hsFilter, setHsFilter, counts, clearFailed, hasMore, loadingMore,
+    hsFilter, setHsFilter, counts, clearFailed, brokenIds, brokenCount, markBroken, unmarkBroken, onClearBroken, hasMore, loadingMore,
     galleryRef, sentinelRef, setPreviewGen, toggleShare, editGen, downloadImg, setDeleteTarget, retryGen,
   } = p;
 
@@ -72,6 +77,12 @@ export function GalleryGrid(p: Props) {
                 <Trash2 className="w-3 h-3" /> 清除失败
               </button>
             )}
+            {brokenCount > 0 && (
+              <button onClick={onClearBroken}
+                className="flex items-center gap-1 px-2 py-1.5 rounded-lg text-[10px] font-medium text-amber-500 hover:bg-amber-50 dark:hover:bg-amber-500/10 transition-all whitespace-nowrap">
+                <ImageOff className="w-3 h-3" /> 清除异常 {brokenCount}
+              </button>
+            )}
           </div>
         )}
       </div>
@@ -97,6 +108,7 @@ export function GalleryGrid(p: Props) {
               <AnimatePresence>
               {col.map((g) => {
                 const isRev = revealedIds.has(String(g.id));
+                const isBroken = brokenIds.has(g.id);
                 return (
                   <motion.div
                     key={g.id}
@@ -112,12 +124,13 @@ export function GalleryGrid(p: Props) {
                   <>
                     {mounted ? (
                       <img src={imageProxyUrl(g)} alt={g.prompt} className="w-full h-auto"
-                        onLoad={() => setRevealedIds(prev => { if (prev.has(String(g.id))) return prev; return new Set(prev).add(String(g.id)); })} />
+                        onLoad={() => { unmarkBroken(g.id); setRevealedIds(prev => { if (prev.has(String(g.id))) return prev; return new Set(prev).add(String(g.id)); }); }}
+                        onError={() => markBroken(g.id)} />
                     ) : (
                       <div className="w-full aspect-square bg-zinc-100 dark:bg-white/5" />
                     )}
-                    {/* Loading shimmer — 显影效果 */}
-                    {!isRev && (
+                    {/* Loading shimmer — 显影效果（异常图不转圈，改下方失败覆盖层） */}
+                    {!isRev && !isBroken && (
                       <div className="absolute inset-0 overflow-hidden">
                         <div className="absolute inset-0 bg-zinc-100 dark:bg-white/5" />
                         <div className="absolute inset-0 bg-gradient-to-r from-transparent via-zinc-900/10 dark:via-white/10 to-transparent animate-[shimmer_2.5s_ease-in-out_infinite]"
@@ -127,8 +140,21 @@ export function GalleryGrid(p: Props) {
                         </div>
                       </div>
                     )}
+                    {/* 异常覆盖层：图片加载失败（裂图/URL 失效/对象被清） */}
+                    {isBroken && (
+                      <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-zinc-100 dark:bg-white/[0.04] backdrop-blur-sm">
+                        <div className="w-10 h-10 rounded-full bg-amber-50 dark:bg-amber-500/10 flex items-center justify-center">
+                          <ImageOff className="w-5 h-5 text-amber-500" />
+                        </div>
+                        <span className="text-[10px] text-zinc-500 dark:text-white/55 font-medium">图片无法显示</span>
+                        <button onClick={e => { e.stopPropagation(); setDeleteTarget(g.id); }}
+                          className="px-2.5 py-1 rounded-lg text-[10px] font-medium bg-zinc-900/[0.05] dark:bg-white/[0.08] text-zinc-500 dark:text-white/55 hover:text-red-500 transition-colors">
+                          删除
+                        </button>
+                      </div>
+                    )}
                     {/* 扫光渐出遮罩 */}
-                    <div className={`absolute inset-0 bg-zinc-100 dark:bg-white/5 transition-opacity duration-700 pointer-events-none ${isRev ? "opacity-0" : "opacity-100"}`} />
+                    <div className={`absolute inset-0 bg-zinc-100 dark:bg-white/5 transition-opacity duration-700 pointer-events-none ${isRev || isBroken ? "opacity-0" : "opacity-100"}`} />
                     {/* 分享状态角标 — 仅移动端常驻 */}
                     {isRev && shareState(g).active && (
                       <span className={`sm:hidden absolute top-1.5 right-1.5 flex items-center justify-center w-5 h-5 rounded-full shadow-sm pointer-events-none ${shareState(g).key === "pending" ? "bg-amber-500/90" : "bg-emerald-500/90"}`}>
