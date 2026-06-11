@@ -37,6 +37,37 @@ func IsSuperAdminEmail(email string) bool {
 // 由 ApiKeyAuth 从已查出的用户套餐写入，供 UserRateLimit 取用，避免限流中间件二次查库。
 const RateLimitKey contextKey = "rate_limit_per_min"
 
+// APICallInfoKey 携带 *APICallInfo holder 指针。
+// 关键：holder 由最外层 apiLogger 创建并塞入「父」context，apiKeyAuth/handler 拿到的虽是「子」
+// context，但继承的是同一个指针——内层通过指针原地写字段，最外层事后能读到。
+// 这是 context value 父子隔离下，让外层读到内层数据的唯一可靠方式。
+const APICallInfoKey contextKey = "api_call_info"
+
+// APICallInfo 一次 API 调用的可变采集信息（指针塞 context，各层原地填充）。
+type APICallInfo struct {
+	UserID     int64
+	APIKeyID   int64
+	TokensCost int
+	Count      int
+}
+
+// apiCallInfo 从 context 取 holder 指针；无则返回 nil（非 API Key 采集路由）。
+func apiCallInfo(r *http.Request) *APICallInfo {
+	if info, ok := r.Context().Value(APICallInfoKey).(*APICallInfo); ok {
+		return info
+	}
+	return nil
+}
+
+// SetAPICallCost 供 handler 回填本次令牌消耗与图片数（下单时的毛额，不计事后退款）。
+// 非采集路由（holder 不存在）时安全空操作。
+func SetAPICallCost(r *http.Request, tokens, count int) {
+	if info := apiCallInfo(r); info != nil {
+		info.TokensCost = tokens
+		info.Count = count
+	}
+}
+
 // allowedOrigins 启动时从环境变量 ALLOWED_ORIGINS（逗号分隔）读取，叠加默认的本地开发来源。
 // 同源部署（Nginx 统一入口）下浏览器不发跨域请求，本配置仅用于跨域直连/调试场景。
 var allowedOrigins = func() map[string]bool {
@@ -172,6 +203,12 @@ func ApiKeyAuth(mysql *store.MySQLStore) func(http.Handler) http.Handler {
 			}
 			// 更新最后使用时间
 			mysql.UpdateAPIKeyLastUsed(key)
+			// 把命中的用户与 Key id 回填到最外层 apiLogger 创建的 holder（若存在）。
+			// 走 holder 指针而非 context value：apiLogger 在更外层，读不到此处派生的子 context。
+			if info, ok := r.Context().Value(APICallInfoKey).(*APICallInfo); ok && info != nil {
+				info.UserID = user.ID
+				info.APIKeyID = user.APIKeyID
+			}
 			ctx := context.WithValue(r.Context(), UserIDKey, user.ID)
 			// 把套餐限速带入 context，供 UserRateLimit 取用（0=默认）
 			ctx = context.WithValue(ctx, RateLimitKey, user.RateLimitPerMin)

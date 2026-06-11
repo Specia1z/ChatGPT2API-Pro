@@ -3,8 +3,10 @@ package main
 import (
 	"log"
 	"net/http"
+	"time"
 
 	"chatgpt2api-pro/internal/api"
+	"chatgpt2api-pro/internal/apilog"
 	"chatgpt2api-pro/internal/config"
 	"chatgpt2api-pro/internal/middleware"
 	"chatgpt2api-pro/internal/service"
@@ -42,7 +44,13 @@ func main() {
 	}
 
 	cleaner := service.NewStorageCleaner(mysql)
-	router := api.NewRouter(mysql, redis, cleaner)
+
+	// API 调用日志异步 writer：请求路径非阻塞投递，后台批量落库
+	apiLogWriter := apilog.NewWriter(apilog.Config{}, mysql.BatchInsertAPICallLogs)
+	apiLogWriter.Start()
+	defer apiLogWriter.Stop()
+
+	router := api.NewRouter(mysql, redis, cleaner, apiLogWriter)
 	// 全局中间件链：安全头 + QPS 采集，包裹整个路由
 	handler := middleware.SecurityHeaders(middleware.MetricsCount(router))
 
@@ -54,6 +62,28 @@ func main() {
 	if settings.StorageCleanupDays > 0 {
 		cleaner.Start()
 	}
+
+	// API 调用日志保留期清理（每日一轮，按 settings.api_log_retention_days，0=默认 30）
+	go func() {
+		runCleanup := func() {
+			cfg, _ := mysql.GetSettings()
+			days := 30
+			if cfg != nil && cfg.APILogRetentionDays > 0 {
+				days = cfg.APILogRetentionDays
+			}
+			if n, err := mysql.DeleteAPICallLogsBefore(days); err != nil {
+				log.Printf("[apilog] retention cleanup fail: %v", err)
+			} else if n > 0 {
+				log.Printf("[apilog] retention cleanup: 删除 %d 条 (保留 %d 天)", n, days)
+			}
+		}
+		runCleanup()
+		ticker := time.NewTicker(24 * time.Hour)
+		defer ticker.Stop()
+		for range ticker.C {
+			runCleanup()
+		}
+	}()
 
 	// 待支付订单超时关闭（每分钟检查，阈值由 settings.order_timeout_minutes 控制）
 	service.NewOrderExpirer(mysql).Start()

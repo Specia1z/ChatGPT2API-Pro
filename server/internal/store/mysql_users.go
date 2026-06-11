@@ -383,8 +383,8 @@ func (s *MySQLStore) UpdateAPIKeyLastUsed(apiKey string) {
 
 func (s *MySQLStore) GetUserByAPIKey(apiKey string) (*model.User, error) {
 	var u model.User
-	err := s.db.QueryRow(`SELECT u.id, u.email, u.password_hash, COALESCE(u.name,''), u.points, u.status, u.plan_id, u.subscription_expires_at, u.cooldown_until, COALESCE(NULLIF(p2.concurrency,0),NULLIF(st.free_concurrency,0),1), COALESCE(NULLIF(p2.token_capacity,0),NULLIF(st.free_token_capacity,0),50), COALESCE(NULLIF(p2.token_refill_per_hour,0),NULLIF(st.free_token_refill_per_hour,0),3), COALESCE(p2.rate_limit_per_min,0), COALESCE(p2.name,''), u.created_at FROM users u JOIN user_api_keys k ON u.id=k.user_id LEFT JOIN plans p2 ON u.plan_id=p2.id LEFT JOIN settings st ON st.id=1 WHERE k.api_key=? AND k.enabled=1 AND u.status=1 AND (u.subscription_expires_at IS NULL OR u.subscription_expires_at > NOW())`,
-		apiKey).Scan(&u.ID, &u.Email, &u.PasswordHash, &u.Name, &u.Points, &u.Status, &u.PlanID, &u.SubscriptionExpiresAt, &u.CooldownUntil, &u.PlanConcurrency, &u.TokenCapacity, &u.TokenRefillPerHour, &u.RateLimitPerMin, &u.PlanName, &u.CreatedAt)
+	err := s.db.QueryRow(`SELECT u.id, k.id, u.email, u.password_hash, COALESCE(u.name,''), u.points, u.status, u.plan_id, u.subscription_expires_at, u.cooldown_until, COALESCE(NULLIF(p2.concurrency,0),NULLIF(st.free_concurrency,0),1), COALESCE(NULLIF(p2.token_capacity,0),NULLIF(st.free_token_capacity,0),50), COALESCE(NULLIF(p2.token_refill_per_hour,0),NULLIF(st.free_token_refill_per_hour,0),3), COALESCE(p2.rate_limit_per_min,0), COALESCE(p2.name,''), u.created_at FROM users u JOIN user_api_keys k ON u.id=k.user_id LEFT JOIN plans p2 ON u.plan_id=p2.id LEFT JOIN settings st ON st.id=1 WHERE k.api_key=? AND k.enabled=1 AND u.status=1 AND (u.subscription_expires_at IS NULL OR u.subscription_expires_at > NOW())`,
+		apiKey).Scan(&u.ID, &u.APIKeyID, &u.Email, &u.PasswordHash, &u.Name, &u.Points, &u.Status, &u.PlanID, &u.SubscriptionExpiresAt, &u.CooldownUntil, &u.PlanConcurrency, &u.TokenCapacity, &u.TokenRefillPerHour, &u.RateLimitPerMin, &u.PlanName, &u.CreatedAt)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}

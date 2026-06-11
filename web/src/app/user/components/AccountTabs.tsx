@@ -92,6 +92,21 @@ export function AccountTabs(p: Props) {
                 <ArrowUpRight className="size-3.5" /> 接口文档
               </a>
             </div>
+            <div className="px-6 pt-4">
+              <a href="/user/api-usage"
+                className="flex items-center justify-between gap-2 px-4 py-3 rounded-xl border border-indigo-500/20 bg-indigo-500/[0.04] dark:bg-indigo-400/[0.06] hover:bg-indigo-500/[0.08] dark:hover:bg-indigo-400/[0.1] transition-colors group">
+                <div className="flex items-center gap-2.5">
+                  <div className="size-8 rounded-lg bg-indigo-500/10 flex items-center justify-center">
+                    <BarChart3 className="size-4 text-indigo-500 dark:text-indigo-400" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-zinc-900 dark:text-white">API 用量仪表盘</p>
+                    <p className="text-[11px] text-zinc-400 dark:text-white/40">调用量 · 令牌消耗 · 限流 · 明细</p>
+                  </div>
+                </div>
+                <ArrowUpRight className="size-4 text-zinc-400 dark:text-white/40 group-hover:text-indigo-500 dark:group-hover:text-indigo-400 transition-colors" />
+              </a>
+            </div>
             <div className="p-6 space-y-4">
               <div className="flex items-center gap-2">
                 <Input value={newKeyName} onChange={e => setNewKeyName(e.target.value)}

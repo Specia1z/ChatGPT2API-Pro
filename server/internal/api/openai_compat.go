@@ -164,6 +164,7 @@ func (h *Handler) CreateImageOpenAI(w http.ResponseWriter, r *http.Request) {
 		writeOpenAIError(w, 429, fmt.Sprintf("令牌不足 (剩余%.0f, 需%d个, 等待%ds)", normal+burst, cost, waitSec), "rate_limit_error")
 		return
 	}
+	middleware.SetAPICallCost(r, cost, n)
 
 	storageCfg, _ := h.MySQL.GetStorageConfig()
 

@@ -408,6 +408,13 @@ export default function SettingsPage() {
                   <div className="rounded-xl bg-muted/40 p-3.5 text-xs text-muted-foreground leading-relaxed">
                     「API 生成不永久落地」开启时生效：图片在 Redis 缓存的存活时长。0 = 用内置默认 30 分钟。用户需在此时间内通过返回的代理地址下载，过期后地址失效。建议 30–60 分钟（API 用户通常拿到即存）。
                   </div>
+                  <div className="space-y-1.5">
+                    <Label>API 用量日志保留天数</Label>
+                    <Input type="number" min={0} max={365} value={cfg?.api_log_retention_days ?? 0} onChange={e => update("api_log_retention_days", +e.target.value)} className={inputCls} placeholder="30" />
+                  </div>
+                  <div className="rounded-xl bg-muted/40 p-3.5 text-xs text-muted-foreground leading-relaxed">
+                    开发者「API 用量仪表盘」的调用日志保留多久，超期每日自动清理。0 = 用内置默认 30 天。调用量大时可调小以省空间；想保留更长趋势可调大。仅影响用量统计，不影响生图内容。
+                  </div>
                   <div className="space-y-1.5 sm:col-span-2">
                     <Label>一键智能增强 · 附加指令</Label>
                     <textarea value={cfg?.image_enhance_prompt || ""} onChange={e => update("image_enhance_prompt", e.target.value)} rows={2}

@@ -59,6 +59,7 @@ func (h *Handler) ImageToText(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+	middleware.SetAPICallCost(r, cost, 1)
 
 	svc := service.NewSVGGenService(h.MySQL, h.Redis)
 	prompt, err := svc.DescribePrompt(r.Context(), modelSlug, req.ImageB64, nil)

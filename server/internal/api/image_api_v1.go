@@ -65,6 +65,7 @@ func (h *Handler) ImageEnhanceAPI(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 429, model.APIResponse{Code: 429, Message: fmt.Sprintf("令牌不足（需%d个, 等待%ds）", cost, waitSec)})
 		return
 	}
+	middleware.SetAPICallCost(r, cost, 1)
 	refund := func() { h.Redis.RefundToken(uid, capacity, refillRate, cost) }
 
 	svc := service.NewSVGGenService(h.MySQL, h.Redis)

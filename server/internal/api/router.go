@@ -4,12 +4,13 @@ import (
 	"net/http"
 	"time"
 
+	"chatgpt2api-pro/internal/apilog"
 	"chatgpt2api-pro/internal/middleware"
 	"chatgpt2api-pro/internal/service"
 	"chatgpt2api-pro/internal/store"
 )
 
-func NewRouter(mysql *store.MySQLStore, redis *store.RedisStore, cleaner *service.StorageCleaner) http.Handler {
+func NewRouter(mysql *store.MySQLStore, redis *store.RedisStore, cleaner *service.StorageCleaner, apiLogWriter *apilog.Writer) http.Handler {
 	h := &Handler{MySQL: mysql, Redis: redis, Cleaner: cleaner}
 	// 注册支付网关适配器（第一阶段仅支付宝；新增渠道在此注册即可）
 	registerGateway(&alipayGatewayAdapter{})
@@ -58,6 +59,8 @@ func NewRouter(mysql *store.MySQLStore, redis *store.RedisStore, cleaner *servic
 	mux.Handle("GET /api/user/checkin/status", userAuth(http.HandlerFunc(h.CheckinStatus)))
 	mux.Handle("GET /api/user/tokens", userAuth(http.HandlerFunc(h.GetUserTokens)))
 mux.Handle("GET /api/user/stats", userAuth(http.HandlerFunc(h.GetUserStats)))
+	mux.Handle("GET /api/user/api-usage/summary", userAuth(http.HandlerFunc(h.GetAPIUsageSummary)))
+	mux.Handle("GET /api/user/api-usage/logs", userAuth(http.HandlerFunc(h.GetAPIUsageLogs)))
 mux.Handle("POST /api/user/change-password", userAuth(http.HandlerFunc(h.ChangePassword)))
 mux.Handle("POST /api/user/points/exchange", middleware.RateLimit(userAuth(http.HandlerFunc(h.ExchangePoints))))
 	mux.Handle("GET /api/user/points/logs", userAuth(http.HandlerFunc(h.GetPointsLogs)))
@@ -80,18 +83,23 @@ mux.Handle("POST /api/user/points/exchange", middleware.RateLimit(userAuth(http.
 	// API v1 (API Key 认证)：IP 粗限流 + 按 uid 精确限流（防多 IP 绕过）。
 	// 内置兜底 30/min；后台「默认限速」与套餐 rate_limit_per_min 可逐级覆盖（见 UserRateLimit）。
 	apiUserRL := func(h http.Handler) http.Handler { return middleware.UserRateLimit(redis, 30, time.Minute)(h) }
-	mux.Handle("POST /api/v1/images/generations", middleware.RateLimit(apiKeyAuth(apiUserRL(http.HandlerFunc(h.CreateGeneration)))))
-	mux.Handle("GET /api/v1/images/generations", apiKeyAuth(apiUserRL(http.HandlerFunc(h.GetUserGenerations))))
-	mux.Handle("POST /api/v1/vector", middleware.RateLimit(apiKeyAuth(apiUserRL(http.HandlerFunc(h.CreateVectorAPI)))))
-	mux.Handle("GET /api/v1/user/tokens", apiKeyAuth(apiUserRL(http.HandlerFunc(h.GetUserTokens))))
+	// apiLogged 把采集中间件包在最外层（含限流之前），按 endpoint 标签记录每次调用到 api_call_logs。
+	// 顺序：APILogger(ep)( RateLimit( apiKeyAuth( apiUserRL( handler ))))，故 IP 限流 429 也能记录。
+	apiLogged := func(ep string, h http.Handler) http.Handler {
+		return middleware.APILogger(apiLogWriter, ep)(h)
+	}
+	mux.Handle("POST /api/v1/images/generations", apiLogged("images.generations", middleware.RateLimit(apiKeyAuth(apiUserRL(http.HandlerFunc(h.CreateGeneration))))))
+	mux.Handle("GET /api/v1/images/generations", apiLogged("images.query", apiKeyAuth(apiUserRL(http.HandlerFunc(h.GetUserGenerations)))))
+	mux.Handle("POST /api/v1/vector", apiLogged("vector", middleware.RateLimit(apiKeyAuth(apiUserRL(http.HandlerFunc(h.CreateVectorAPI))))))
+	mux.Handle("GET /api/v1/user/tokens", apiLogged("user.tokens", apiKeyAuth(apiUserRL(http.HandlerFunc(h.GetUserTokens)))))
 	// 图像理解/增强（开发者 API）：反推中文提示词 / 一键智能增强（同步出图）
-	mux.Handle("POST /api/v1/image-to-text", middleware.RateLimit(apiKeyAuth(apiUserRL(http.HandlerFunc(h.ImageToText)))))
-	mux.Handle("POST /api/v1/image-enhance", middleware.RateLimit(apiKeyAuth(apiUserRL(http.HandlerFunc(h.ImageEnhanceAPI)))))
+	mux.Handle("POST /api/v1/image-to-text", apiLogged("image-to-text", middleware.RateLimit(apiKeyAuth(apiUserRL(http.HandlerFunc(h.ImageToText))))))
+	mux.Handle("POST /api/v1/image-enhance", apiLogged("image-enhance", middleware.RateLimit(apiKeyAuth(apiUserRL(http.HandlerFunc(h.ImageEnhanceAPI))))))
 
 	// OpenAI 兼容接口（同步返回，标准 /v1 路径，API Key 认证 + IP/uid 双限流）
-	mux.Handle("POST /v1/images/generations", middleware.RateLimit(apiKeyAuth(apiUserRL(http.HandlerFunc(h.CreateImageOpenAI)))))
+	mux.Handle("POST /v1/images/generations", apiLogged("openai.images", middleware.RateLimit(apiKeyAuth(apiUserRL(http.HandlerFunc(h.CreateImageOpenAI))))))
 	// /v1/models：OpenAI SDK/LangChain 等连接时会先探测，缺失会 404 导致连接失败
-	mux.Handle("GET /v1/models", apiKeyAuth(http.HandlerFunc(h.ListModelsOpenAI)))
+	mux.Handle("GET /v1/models", apiLogged("openai.models", apiKeyAuth(http.HandlerFunc(h.ListModelsOpenAI))))
 
 	// 注：管理员登录已统一到 /api/auth/login（按 users.role / .env SUPERADMIN_EMAIL 鉴权），
 	// 旧的独立 /api/admin/login 已废弃移除。

@@ -151,6 +151,7 @@ type User struct {
 	TokenCapacity        int        `json:"token_capacity"`
 	TokenRefillPerHour   int        `json:"token_refill_per_hour"`
 	RateLimitPerMin      int        `json:"rate_limit_per_min,omitempty"`
+	APIKeyID             int64      `json:"-"` // 本次认证命中的 API Key 行 id（仅请求内用，不返回前端）
 	CreatedAt            string     `json:"created_at"`
 }
 
@@ -282,6 +283,7 @@ type Settings struct {
 	ShopConfig string `json:"shop_config"` // JSON：积分商城商品列表（[]ShopItem）
 	APINoPersist bool `json:"api_no_persist"` // 开：API Key 生成的图/SVG 不永久落地，只短时缓存 + 代理地址（省空间）
 	APIImageTTLMin int `json:"api_image_ttl_min"` // API 短时缓存有效期（分钟，0=用内置默认 30）
+	APILogRetentionDays int `json:"api_log_retention_days"` // API 调用日志保留天数（0=用内置默认 30）
 }
 
 // ShopItem 积分商城商品（第一期：积分换套餐时长）。存于 settings.shop_config 的 JSON 数组。
@@ -672,4 +674,53 @@ type StorageConfig struct {
 	S3AccessKey string `json:"s3_access_key,omitempty"`
 	S3SecretKey string `json:"s3_secret_key,omitempty"`
 	S3UseSSL    bool   `json:"s3_use_ssl,omitempty"`
+}
+
+// --- API 用量仪表盘 DTO ---
+
+// APIUsageSummary API 调用用量概览（GET /api/user/api-usage/summary 返回）。
+type APIUsageSummary struct {
+	TotalCalls   int                  `json:"total_calls"`
+	SuccessCalls int                  `json:"success_calls"`
+	FailedCalls  int                  `json:"failed_calls"`
+	RateLimited  int                  `json:"rate_limited"` // 429 次数
+	TotalTokens  int                  `json:"total_tokens"`
+	ByEndpoint   []APIUsageDimension  `json:"by_endpoint"`
+	ByKey        []APIUsageKeyDim     `json:"by_key"`
+	Trend        []APIUsageTrendPoint `json:"trend"`
+}
+
+// APIUsageDimension 按某维度（端点）聚合的调用量与令牌消耗。
+type APIUsageDimension struct {
+	Name   string `json:"name"`
+	Calls  int    `json:"calls"`
+	Tokens int    `json:"tokens"`
+}
+
+// APIUsageKeyDim 按 API Key 聚合（带 Key 名，未解析的归到 id=0）。
+type APIUsageKeyDim struct {
+	KeyID   int64  `json:"key_id"`
+	KeyName string `json:"key_name"`
+	Calls   int    `json:"calls"`
+	Tokens  int    `json:"tokens"`
+}
+
+// APIUsageTrendPoint 每日调用趋势（成功 vs 失败）。
+type APIUsageTrendPoint struct {
+	Date    string `json:"date"`
+	Success int    `json:"success"`
+	Failed  int    `json:"failed"`
+}
+
+// APICallLog 单条调用明细（GET /api/user/api-usage/logs 返回）。
+type APICallLog struct {
+	ID         int64  `json:"id"`
+	APIKeyID   int64  `json:"api_key_id"`
+	KeyName    string `json:"key_name"`
+	Endpoint   string `json:"endpoint"`
+	StatusCode int    `json:"status_code"`
+	TokensCost int    `json:"tokens_cost"`
+	Count      int    `json:"count"`
+	LatencyMs  int    `json:"latency_ms"`
+	CreatedAt  string `json:"created_at"`
 }

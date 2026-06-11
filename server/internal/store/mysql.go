@@ -601,6 +601,25 @@ func (s *MySQLStore) autoMigrate() {
 		INDEX idx_code (code),
 		INDEX idx_status (status)
 	) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`)
+
+	// API 调用日志：开发者 API 用量仪表盘的数据源。由最外层 apiLogger 中间件异步批量写入，
+	// 定时按保留期清理。api_key_id=0 表示未解析（如限流提前拒绝时尚未认证）。
+	s.db.Exec(`CREATE TABLE IF NOT EXISTS api_call_logs (
+		id BIGINT AUTO_INCREMENT PRIMARY KEY,
+		user_id BIGINT NOT NULL,
+		api_key_id BIGINT NOT NULL DEFAULT 0,
+		endpoint VARCHAR(48) NOT NULL DEFAULT '',
+		status_code INT NOT NULL DEFAULT 0,
+		tokens_cost INT NOT NULL DEFAULT 0,
+		count INT NOT NULL DEFAULT 0,
+		latency_ms INT NOT NULL DEFAULT 0,
+		created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+		INDEX idx_user_created (user_id, created_at),
+		INDEX idx_user_key_created (user_id, api_key_id, created_at)
+	) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`)
+
+	// settings 保留期列（旧库补列；裸 ALTER 重复执行报错被忽略）
+	s.db.Exec("ALTER TABLE settings ADD COLUMN api_log_retention_days INT NOT NULL DEFAULT 0 AFTER api_image_ttl_min")
 }
 
 // currentDBName 返回当前连接的数据库名（用于 information_schema 查询）

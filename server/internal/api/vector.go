@@ -192,6 +192,7 @@ func (h *Handler) CreateVectorAPI(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 429, model.APIResponse{Code: 429, Message: fmt.Sprintf("令牌不足 (剩余%.0f, 需%d个, 等待%ds)", normal+burst, cost, waitSec)})
 		return
 	}
+	middleware.SetAPICallCost(r, cost, 1)
 	genID, err := h.MySQL.CreateSVGGeneration(uid, req.Prompt, svgModel)
 	if err != nil {
 		h.Redis.RefundToken(uid, capacity, refillRate, cost)
