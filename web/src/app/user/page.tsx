@@ -25,52 +25,11 @@ import {
 } from "lucide-react";
 import { Area, AreaChart, ResponsiveContainer, XAxis, YAxis } from "recharts";
 import { Tooltip as RechartsTooltip } from "recharts";
+import { stagger, fadeUp, couponDesc, pointsTypeLabel, formatLogTime } from "./lib/helpers";
+import { useAnimatedNumber, useCountdown } from "./lib/hooks";
 
 const heading = Outfit({ subsets: ["latin"], weight: ["400", "500", "600", "700", "800"], variable: "--font-heading" });
 const monoFont = DM_Mono({ subsets: ["latin"], weight: ["400", "500"], variable: "--font-mono" });
-
-/* ── 动画配置 ─────────────────────────────── */
-const stagger = { hidden: {}, visible: { transition: { staggerChildren: 0.08 } } };
-const fadeUp = { hidden: { opacity: 0, y: 16 }, visible: { opacity: 1, y: 0, transition: { duration: 0.5, ease: [0.25, 0.46, 0.45, 0.94] as const } } };
-const scaleIn = { hidden: { opacity: 0, scale: 0.92 }, visible: { opacity: 1, scale: 1, transition: { duration: 0.4, ease: [0.25, 0.46, 0.45, 0.94] as const } } };
-
-/* ── 缓动数字（两位小数） ─────────────────── */
-function useAnimatedNumber(value: number) {
-  const [display, setDisplay] = useState(0);
-  const cur = useRef(0);
-  const raf = useRef(0);
-  useEffect(() => {
-    const from = cur.current;
-    if (Math.abs(value - from) < 0.5) { cur.current = value; setDisplay(value); return; }
-    const start = performance.now();
-    cancelAnimationFrame(raf.current);
-    const step = (now: number) => {
-      const t = Math.min((now - start) / 900, 1);
-      const e = 1 - Math.pow(1 - t, 3);
-      const v = from + (value - from) * e;
-      cur.current = v; setDisplay(v);
-      if (t < 1) raf.current = requestAnimationFrame(step);
-    };
-    raf.current = requestAnimationFrame(step);
-    return () => cancelAnimationFrame(raf.current);
-  }, [value]);
-  return display;
-}
-
-/* ── 倒计时 ─────────────────────────────────── */
-function formatHMS(s: number) {
-  if (s <= 0) return "00:00";
-  const t = Math.ceil(s), h = Math.floor(t / 3600), m = Math.floor((t % 3600) / 60), sec = t % 60;
-  return h > 0 ? `${h}:${String(m).padStart(2, "0")}:${String(sec).padStart(2, "0")}` : `${String(m).padStart(2, "0")}:${String(sec).padStart(2, "0")}`;
-}
-function useCountdown(tokens: number, cap: number, refill: number) {
-  const [tick, setTick] = useState(0);
-  useEffect(() => { setTick(0); if (refill <= 0) return; const id = setInterval(() => setTick(n => n + 1), 1000); return () => clearInterval(id); }, [tokens, cap, refill]);
-  if (tokens >= cap || refill <= 0) return null;
-  const est = Math.min(tokens + (tick * refill) / 3600, cap);
-  if (est >= cap) return { est, nextHMS: null };
-  return { est, nextHMS: formatHMS(((Math.floor(est) + 1 - est) / refill) * 3600) };
-}
 
 /* ── 主页面 ─────────────────────────────────── */
 
@@ -727,30 +686,6 @@ function StatCard({ icon, label, value, unit }: {
 }
 
 /* ── 优惠券描述 ─────────────────────────────── */
-
-function couponDesc(c: any): string {
-  if (c.discount_type === "percent") return `${c.discount_value} 折优惠`;
-  if (c.discount_type === "fixed") return `立减 ¥${c.discount_value}`;
-  return c.code;
-}
-
-const POINTS_TYPE_LABELS: Record<string, string> = {
-  checkin: "每日签到",
-  invite: "邀请奖励",
-  redeem_code: "兑换码",
-  admin: "管理员调整",
-  exchange_token: "兑换令牌",
-  shop: "积分商城",
-};
-function pointsTypeLabel(t: string): string {
-  return POINTS_TYPE_LABELS[t] || t || "积分变动";
-}
-function formatLogTime(s: string): string {
-  if (!s) return "";
-  // 后端返回的是已带正确墙钟数字的字符串（如 "2026-06-08T11:02:00Z" 或 "2026-06-08 11:02:00"）。
-  // 直接取数字部分展示，不能过 new Date()——那会按浏览器时区再偏移一次（与站内其它时间不一致）。
-  return s.replace("T", " ").slice(0, 16);
-}
 
 function StreakBar({ streak, done }: { streak: number; done: boolean }) {
   const days = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"];
