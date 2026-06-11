@@ -95,12 +95,8 @@ export function PromptStudio(p: Props) {
         {/* Prompt input — hero element */}
         <div className="relative">
           <div
-            className={`absolute -inset-1 rounded-2xl blur-xl transition-all duration-500 ${loading ? "opacity-70" : "opacity-0 group-focus-within:opacity-40"}`}
-            style={{
-              background: "linear-gradient(135deg, #22d3ee, #6366f1 55%, #e879f9) 0% 50% / 200% 100%",
-              animation: loading ? "gradientFlow 3s ease-in-out infinite" : "none",
-              willChange: "transform", transform: "translateZ(0)",
-            }} />
+            className={`absolute -inset-1 rounded-2xl blur-xl transition-all duration-500 bg-zinc-900/10 dark:bg-white/10 ${loading ? "opacity-100 animate-pulse" : "opacity-0 group-focus-within:opacity-100"}`}
+            style={{ willChange: "transform", transform: "translateZ(0)" }} />
           <div className="group relative rounded-2xl border border-zinc-900/[0.08] dark:border-white/10 bg-white/70 dark:bg-white/[0.04] transition-all duration-300 focus-within:border-transparent focus-within:shadow-lg focus-within:ring-2 focus-within:ring-zinc-900/20 dark:focus-within:ring-white/20">
             <div className="px-3.5 py-3.5 space-y-2">
               <div className="flex flex-wrap gap-2">
@@ -336,12 +332,11 @@ export function PromptStudio(p: Props) {
 
         {/* ── 生成按钮 ── */}
         <button onClick={generate} disabled={loading || !currentInput.trim() && tags.filter(Boolean).length === 0}
-          className="group/btn relative w-full mt-5 inline-flex items-center justify-center h-11 rounded-xl text-sm font-semibold text-white overflow-hidden disabled:opacity-40 disabled:cursor-not-allowed shadow-sm hover:shadow-md transition-all gap-2"
-          style={{ background: "linear-gradient(135deg,#22d3ee,#6366f1 40%,#e879f9 70%,#22d3ee) 0% 50% / 250% 100%", animation: loading ? "gradientFlow 2.5s ease-in-out infinite" : "none" }}>
-          <span className="absolute inset-0 bg-white/0 group-hover/btn:bg-white/10 transition-colors" />
+          className={`group/btn relative w-full mt-5 inline-flex items-center justify-center h-11 rounded-full text-sm font-semibold overflow-hidden transition-all gap-2 bg-zinc-900 text-white dark:bg-white dark:text-zinc-900 ${loading || (!currentInput.trim() && tags.filter(Boolean).length === 0) ? "opacity-40 cursor-not-allowed" : "hover:-translate-y-0.5 shadow-[0_10px_40px_-10px_rgba(0,0,0,0.5)] dark:shadow-[0_10px_40px_-10px_rgba(255,255,255,0.4)] hover:shadow-[0_16px_50px_-10px_rgba(0,0,0,0.6)]"}`}>
+          {/* 生成中：底部流动进度光条（中性色） */}
           {loading && (
-            <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-white/40 overflow-hidden">
-              <span className="block h-full w-1/3 bg-white/90 animate-[shimmer_1.6s_ease-in-out_infinite]" style={{ backgroundSize: "200% 100%" }} />
+            <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-white/30 dark:bg-zinc-900/30 overflow-hidden">
+              <span className="block h-full w-1/3 bg-white/90 dark:bg-zinc-900/90 animate-[shimmer_1.6s_ease-in-out_infinite]" style={{ backgroundSize: "200% 100%" }} />
             </span>
           )}
           {loading ? <Loader2 className="relative w-4 h-4 animate-spin" /> : <Sparkles className="relative w-4 h-4" />}

@@ -195,16 +195,15 @@ export function GalleryGrid(p: Props) {
                     </div>
                   </>
                 ) : g.status === "pending" ? (
-                  <div className="ai-creating-border relative flex flex-col items-center justify-center gap-4 py-12 sm:py-16 bg-zinc-100/50 dark:bg-white/5 overflow-hidden">
-                    {/* 光谱柔光呼吸底 */}
-                    <div aria-hidden className="absolute left-1/2 top-1/2 w-32 h-32 rounded-full blur-3xl bg-[radial-gradient(circle,rgba(34,211,238,0.35),rgba(99,102,241,0.2)_50%,transparent_70%)]"
+                  <div className="relative flex flex-col items-center justify-center gap-4 py-12 sm:py-16 bg-zinc-100/50 dark:bg-white/5 overflow-hidden">
+                    {/* 柔光呼吸底（中性） */}
+                    <div aria-hidden className="absolute left-1/2 top-1/2 w-32 h-32 rounded-full blur-3xl bg-[radial-gradient(circle,rgba(0,0,0,0.06),transparent_70%)] dark:bg-[radial-gradient(circle,rgba(255,255,255,0.12),transparent_70%)]"
                       style={{ animation: "aiGlowBreathe 2.8s ease-in-out infinite" }} />
-                    {/* 棱镜光球 */}
+                    {/* 旋转光环 + 中心点（中性黑白） */}
                     <div className="relative w-11 h-11">
-                      <div aria-hidden className="absolute inset-0 rounded-full blur-[1px]"
-                        style={{ background: "conic-gradient(from 0deg,#22d3ee,#6366f1,#e879f9,#fbbf24,#22d3ee)", animation: "aiPrismSpin 2s linear infinite" }} />
-                      <div aria-hidden className="absolute inset-[3px] rounded-full bg-zinc-100/50 dark:bg-[#0b0e16]" />
-                      <div aria-hidden className="absolute inset-1/2 -translate-x-1/2 -translate-y-1/2 w-3 h-3 rounded-full bg-white shadow-[0_0_10px_2px_rgba(34,211,238,0.7)]"
+                      <div aria-hidden className="absolute inset-0 rounded-full border-2 border-zinc-900/10 dark:border-white/10 border-t-zinc-900 dark:border-t-white"
+                        style={{ animation: "aiPrismSpin 1s linear infinite" }} />
+                      <div aria-hidden className="absolute inset-1/2 -translate-x-1/2 -translate-y-1/2 w-2 h-2 rounded-full bg-zinc-900 dark:bg-white"
                         style={{ animation: "aiDotPulse 1.6s ease-in-out infinite" }} />
                     </div>
                     {/* 文案 + 思考三点 */}
@@ -213,7 +212,7 @@ export function GalleryGrid(p: Props) {
                         <span className="text-[11px] text-zinc-500 dark:text-white/55 font-medium tracking-wide">AI 创作中</span>
                         <span className="flex items-center gap-0.5">
                           {[0, 1, 2].map(i => (
-                            <span key={i} className="w-1 h-1 rounded-full bg-gradient-to-r from-cyan-400 to-violet-500"
+                            <span key={i} className="w-1 h-1 rounded-full bg-zinc-400 dark:bg-white/50"
                               style={{ animation: `aiThinkDot 1.4s ease-in-out ${i * 0.2}s infinite` }} />
                           ))}
                         </span>
