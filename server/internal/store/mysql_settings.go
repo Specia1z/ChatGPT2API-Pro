@@ -198,21 +198,27 @@ func mergeCreditConfigSecrets(incoming, existing string) string {
 		return incoming
 	}
 	var oldCC model.CreditConfig
-	if json.Unmarshal([]byte(existing), &oldCC) != nil || oldCC.Key == "" {
+	if json.Unmarshal([]byte(existing), &oldCC) != nil {
 		return incoming
 	}
 	if incoming == "" {
-		return existing // 整段缺失时保留旧配置，避免丢失 key
+		return existing
 	}
 	var newCC model.CreditConfig
 	if json.Unmarshal([]byte(incoming), &newCC) != nil {
 		return incoming
 	}
-	if newCC.Key == "" {
+	if newCC.Key == "" && oldCC.Key != "" {
 		newCC.Key = oldCC.Key
-		if b, err := json.Marshal(newCC); err == nil {
-			return string(b)
-		}
+	}
+	if newCC.LDCClientSecret == "" && oldCC.LDCClientSecret != "" {
+		newCC.LDCClientSecret = oldCC.LDCClientSecret
+	}
+	if newCC.LDCPrivateKey == "" && oldCC.LDCPrivateKey != "" {
+		newCC.LDCPrivateKey = oldCC.LDCPrivateKey
+	}
+	if b, err := json.Marshal(newCC); err == nil {
+		return string(b)
 	}
 	return incoming
 }

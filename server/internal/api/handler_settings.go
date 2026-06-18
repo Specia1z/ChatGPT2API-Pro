@@ -78,6 +78,8 @@ func redactCreditConfig(raw string) string {
 		return ""
 	}
 	cc.Key = ""
+	cc.LDCClientSecret = ""
+	cc.LDCPrivateKey = ""
 	b, err := json.Marshal(cc)
 	if err != nil {
 		return ""
