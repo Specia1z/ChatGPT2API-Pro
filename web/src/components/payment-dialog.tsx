@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import QRCode from "qrcode";
-import { Check, X, Clock, Hash } from "lucide-react";
+import { Check, X, Clock, Hash, Coins } from "lucide-react";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 
 /* ── QR Code Canvas ─────────────────── */
@@ -34,7 +34,7 @@ function ScanLine() {
 /* ── Props ──────────────────────────── */
 
 interface QRStateProps {
-  plan: any; order: any; qrCode: string; polling: boolean; onClose: () => void;
+  plan: any; order: any; qrCode: string; payUrl?: string | null; polling: boolean; onClose: () => void; currencySymbol?: string;
 }
 
 interface PaymentDialogProps {
@@ -43,8 +43,10 @@ interface PaymentDialogProps {
   plan: any;
   order: any;
   qrCode: string | null;
+  payUrl?: string | null;
   polling: boolean;
   paid: boolean;
+  currencySymbol?: string;
 }
 
 /* ── Receipt Dotted Divider ─────────── */
@@ -96,7 +98,7 @@ function LoadingState() {
 /* ── QR Code State ──────────────────── */
 
 function QRState({
-  plan, order, qrCode, polling, onClose,
+  plan, order, qrCode, payUrl, polling, onClose, currencySymbol = "¥",
 }: QRStateProps) {
   const elapsedRef = useRef(0);
   const [elapsed, setElapsed] = useState(0);
@@ -128,9 +130,9 @@ function QRState({
             </div>
             <div>
               <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100 leading-tight">
-                扫码支付
+                {payUrl ? "积分支付" : "扫码支付"}
               </h3>
-              <p className="text-[10px] text-zinc-400 leading-tight">支付宝</p>
+              <p className="text-[10px] text-zinc-400 leading-tight">{payUrl ? "Linux Do 积分" : "支付宝"}</p>
             </div>
           </div>
 
@@ -152,7 +154,7 @@ function QRState({
           <div className="flex items-center justify-between">
             <span className="text-zinc-400">金额</span>
             <span className="font-semibold tabular-nums text-zinc-900 dark:text-zinc-100">
-              ¥{order?.amount || plan?.price_monthly}
+              {currencySymbol}{order?.amount || plan?.price_monthly}
             </span>
           </div>
           {order?.order_no && (
@@ -171,14 +173,30 @@ function QRState({
       {/* ── QR Code panel ── */}
       <div className="px-6 pb-6">
         <div className="relative bg-zinc-50 dark:bg-zinc-900/50 rounded-xl border border-zinc-200 dark:border-zinc-800 p-5 flex flex-col items-center">
-          {/* QR Code */}
-          <div className="relative">
-            <div className="p-2.5 bg-white rounded-xl shadow-sm">
-              <QRCanvas text={qrCode} />
-            </div>
-            {/* Scan line animation while polling */}
-            {polling && <ScanLine />}
-          </div>
+          {payUrl ? (
+            /* Linux Do 积分支付：展示跳转支付页入口（替代二维码） */
+            <>
+              <div className="w-12 h-12 rounded-2xl bg-amber-500/10 flex items-center justify-center mb-3">
+                <Coins className="w-6 h-6 text-amber-500" />
+              </div>
+              <a href={payUrl} target="_blank" rel="noopener noreferrer"
+                className="w-full inline-flex items-center justify-center gap-1.5 rounded-xl bg-amber-500 hover:bg-amber-600 py-2.5 px-4 text-white text-xs font-medium transition-colors">
+                <Coins className="w-3.5 h-3.5" />
+                前往 Linux Do 积分支付页
+              </a>
+            </>
+          ) : (
+            <>
+              {/* QR Code */}
+              <div className="relative">
+                <div className="p-2.5 bg-white rounded-xl shadow-sm">
+                  <QRCanvas text={qrCode} />
+                </div>
+                {/* Scan line animation while polling */}
+                {polling && <ScanLine />}
+              </div>
+            </>
+          )}
 
           {/* Status indicator */}
           <div className="mt-3 flex items-center gap-2">
@@ -211,7 +229,9 @@ function QRState({
 
           {/* Hint */}
           <p className="mt-3 text-[10px] text-zinc-400 dark:text-zinc-500 text-center leading-relaxed max-w-[200px]">
-            打开 <span className="font-medium text-zinc-500 dark:text-zinc-400">支付宝</span> 扫码完成支付
+            {payUrl
+              ? <>在支付页完成 <span className="font-medium text-zinc-500 dark:text-zinc-400">Linux Do 积分</span> 支付</>
+              : <>打开 <span className="font-medium text-zinc-500 dark:text-zinc-400">支付宝</span> 扫码完成支付</>}
           </p>
         </div>
 
@@ -290,7 +310,7 @@ function PaidState({ plan }: { plan: any }) {
 
 /* ── Main Component ─────────────────── */
 
-export function PaymentDialog({ open, onClose, plan, order, qrCode, polling, paid }: PaymentDialogProps) {
+export function PaymentDialog({ open, onClose, plan, order, qrCode, payUrl, polling, paid, currencySymbol = "¥" }: PaymentDialogProps) {
   return (
     <Dialog open={open} onOpenChange={(v) => { if (!v && !polling) onClose(); }}>
       <DialogContent
@@ -299,8 +319,8 @@ export function PaymentDialog({ open, onClose, plan, order, qrCode, polling, pai
       >
         {paid ? (
           <PaidState plan={plan} />
-        ) : qrCode ? (
-          <QRState plan={plan} order={order} qrCode={qrCode} polling={polling} onClose={onClose} />
+        ) : (qrCode || payUrl) ? (
+          <QRState plan={plan} order={order} qrCode={qrCode || ""} payUrl={payUrl} polling={polling} onClose={onClose} currencySymbol={currencySymbol} />
         ) : (
           <LoadingState />
         )}

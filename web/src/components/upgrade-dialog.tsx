@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useMemo } from "react";
 import { Zap, Coins, Clock, Check, ArrowRight, Hash, Gauge } from "lucide-react";
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { BASE } from "@/lib/api";
+import { getCurrencyInfo } from "@/lib/currency";
 import QRCode from "qrcode";
 import { toast } from "sonner";
 
@@ -35,13 +36,18 @@ export function UpgradeDialog({ open, onClose, currentPlanName, currentPlanId, o
   const [upgradeData, setUpgradeData] = useState<any>(null);
   const [order, setOrder] = useState<any>(null);
   const [qrCode, setQrCode] = useState<string | null>(null);
+  const [payUrl, setPayUrl] = useState<string | null>(null);
   const [countdown, setCountdown] = useState(3);
+  const [settings, setSettings] = useState<any>(null);
+  const currency = useMemo(() => getCurrencyInfo(settings), [settings]);
+  const [gateway, setGateway] = useState<string>(""); // alipay | credit
   const pollingRef = useRef(false);
 
   useEffect(() => {
     if (!open) return;
     fetch(`${BASE}/api/plans`).then(r => r.json()).then(d => setPlans(d.data || [])).catch(() => {});
-    setSelected(null); setScreen("select"); setUpgradeData(null); setOrder(null); setQrCode(null);
+    fetch(`${BASE}/api/settings`).then(r => r.json()).then(d => setSettings(d.data || null)).catch(() => {});
+    setSelected(null); setScreen("select"); setUpgradeData(null); setOrder(null); setQrCode(null); setPayUrl(null); setGateway("");
   }, [open]);
 
   useEffect(() => {
@@ -53,6 +59,14 @@ export function UpgradeDialog({ open, onClose, currentPlanName, currentPlanId, o
   useEffect(() => {
     if (screen === "paid" && countdown <= 0) onClose();
   }, [screen, countdown, onClose]);
+
+  // 可用支付渠道（按后台开关动态显示，与定价/订阅页一致）
+  const gateways: { id: string; label: string }[] = [];
+  if (settings?.alipay_enabled) gateways.push({ id: "alipay", label: "支付宝" });
+  try {
+    const cc = JSON.parse(settings?.credit_config || "{}");
+    if (cc?.enabled) gateways.push({ id: "credit", label: "Linux Do 积分" });
+  } catch {}
 
   // 升级过滤口径对齐后端：用「裸月/年单价」比较，而非乘时长后的总价。
   // 后端 UpgradeOrder 即按 price_monthly / price_yearly 判定"只能升到更高价位"。
@@ -70,7 +84,7 @@ export function UpgradeDialog({ open, onClose, currentPlanName, currentPlanId, o
       const res = await fetch(`${BASE}/api/orders/upgrade`, {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ plan_id: plan.id, billing }),
+        body: JSON.stringify({ plan_id: plan.id, billing, gateway: gateway || undefined }),
       });
       const data = await res.json();
       if (data.code !== 200) { toast.error(data.message || "请求失败"); setScreen("select"); return; }
@@ -79,7 +93,12 @@ export function UpgradeDialog({ open, onClose, currentPlanName, currentPlanId, o
         setScreen("paid"); setCountdown(3); onSuccess?.(); return;
       }
       setUpgradeData(data.data);
-      if (data.data?.qr_code) {
+      if (data.data?.redirect_url) {
+        // Linux Do 积分支付：新标签打开支付页，本地轮询等待完成
+        setOrder(data.data.order); setPayUrl(data.data.redirect_url); setScreen("qr");
+        window.open(data.data.redirect_url, "_blank");
+        startPolling(data.data.order.order_no);
+      } else if (data.data?.qr_code) {
         setOrder(data.data.order); setQrCode(data.data.qr_code);
         setScreen("qr"); startPolling(data.data.order.order_no);
       } else {
@@ -166,10 +185,10 @@ export function UpgradeDialog({ open, onClose, currentPlanName, currentPlanId, o
                     </div>
 
                     <div className="flex items-baseline gap-1 mb-2">
-                      <span className="text-2xl font-bold tabular-nums font-[family-name:var(--font-display)]">¥{price}</span>
-                      <span className="text-xs text-muted-foreground">/月</span>
+                      <span className="text-2xl font-bold tabular-nums font-[family-name:var(--font-display)]">{currency.symbol}{Math.round(price * currency.rate)}</span>
+                      <span className="text-xs text-muted-foreground">{currency.isCredit ? " 积分/月" : "/月"}</span>
                       {billing === "yearly" && plan.price_monthly > price && (
-                        <span className="text-xs text-muted-foreground line-through ml-1">¥{plan.price_monthly}</span>
+                        <span className="text-xs text-muted-foreground line-through ml-1">{currency.symbol}{Math.round(plan.price_monthly * currency.rate)}</span>
                       )}
                     </div>
 
@@ -184,7 +203,26 @@ export function UpgradeDialog({ open, onClose, currentPlanName, currentPlanId, o
               })}
             </div>
 
-            <div className="px-6 pb-6 pt-2">
+            <div className="px-6 pb-6 pt-2 space-y-3">
+              {/* 支付方式（后台启用多个渠道时显示；单渠道直接用唯一可用项） */}
+              {gateways.length > 1 && (
+                <div className="space-y-1.5">
+                  <p className="text-[11px] text-muted-foreground">支付方式</p>
+                  <div className="grid grid-cols-2 gap-2">
+                    {gateways.map(g => (
+                      <button key={g.id} type="button" onClick={() => setGateway(g.id)}
+                        className={`flex items-center justify-center gap-1.5 rounded-lg py-2 text-xs font-medium transition-colors ${
+                          (gateway || gateways[0]?.id) === g.id
+                            ? "bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 ring-1 ring-cyan-400"
+                            : "bg-muted/50 text-muted-foreground hover:bg-muted ring-1 ring-transparent"
+                        }`}>
+                        {g.id === "credit" ? <Coins className="size-3.5" /> : <Check className="size-3.5" />}
+                        {g.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
               <Button disabled={!selected} onClick={() => handleConfirm(selected)} className="w-full h-10 gap-2 text-white bg-[linear-gradient(110deg,#0891b2,#6366f1)] hover:brightness-110 disabled:opacity-40">
                 {selected ? `升级至 ${selected.name}` : "选择套餐"}
                 <ArrowRight className="size-4" />
@@ -207,8 +245,8 @@ export function UpgradeDialog({ open, onClose, currentPlanName, currentPlanId, o
             <div className="px-6 pt-6 pb-4 border-b">
               <div className="flex items-center justify-between">
                 <div>
-                  <h3 className="text-base font-semibold font-[family-name:var(--font-display)]">扫码支付</h3>
-                  <p className="text-xs text-muted-foreground mt-0.5">支付宝 · 升级 {selected?.name}</p>
+                  <h3 className="text-base font-semibold font-[family-name:var(--font-display)]">{payUrl ? "积分支付" : "扫码支付"}</h3>
+                  <p className="text-xs text-muted-foreground mt-0.5">{payUrl ? "Linux Do 积分" : "支付宝"} · 升级 {selected?.name}</p>
                 </div>
                 <Button variant="ghost" size="icon-sm" onClick={onClose}>×</Button>
               </div>
@@ -219,24 +257,31 @@ export function UpgradeDialog({ open, onClose, currentPlanName, currentPlanId, o
                 {upgradeData?.original_price != null && (
                   <div className="flex items-center justify-between">
                     <span className="text-muted-foreground">套餐原价</span>
-                    <span className="tabular-nums text-muted-foreground line-through">¥{(upgradeData.original_price || 0).toFixed(2)}</span>
+                    <span className="tabular-nums text-muted-foreground line-through">{currency.symbol}{((upgradeData.original_price || 0) * currency.rate).toFixed(currency.isCredit ? 0 : 2)}</span>
                   </div>
                 )}
                 {upgradeData?.remaining_value > 0 && (
                   <div className="flex items-center justify-between">
                     <span className="text-muted-foreground">旧套餐抵扣</span>
-                    <span className="tabular-nums text-emerald-600 dark:text-emerald-400">-¥{(upgradeData.remaining_value || 0).toFixed(2)}</span>
+                    <span className="tabular-nums text-emerald-600 dark:text-emerald-400">-{currency.symbol}{((upgradeData.remaining_value || 0) * currency.rate).toFixed(currency.isCredit ? 0 : 2)}</span>
                   </div>
                 )}
                 <div className="flex items-center justify-between border-t pt-2">
                   <span className="font-medium">实付</span>
-                  <span className="text-xl font-bold tabular-nums font-[family-name:var(--font-display)]">¥{(order?.amount || 0).toFixed(2)}</span>
+                  <span className="text-xl font-bold tabular-nums font-[family-name:var(--font-display)]">{currency.symbol}{((order?.amount || 0) * currency.rate).toFixed(currency.isCredit ? 0 : 2)}{currency.isCredit ? " 积分" : ""}</span>
                 </div>
               </div>
 
               <div className="rounded-xl border bg-muted/30 p-5 flex flex-col items-center">
                 <div className="p-2 bg-white rounded-lg shadow-sm">
-                  <QRCanvas text={qrCode || ""} />
+                  {payUrl ? (
+                    <div className="w-44 h-44 flex flex-col items-center justify-center gap-3 px-3">
+                      <Coins className="size-10 text-amber-500" />
+                      <p className="text-[11px] text-center text-muted-foreground leading-relaxed">已在新标签打开 Linux Do 积分支付页，完成后自动开通</p>
+                    </div>
+                  ) : (
+                    <QRCanvas text={qrCode || ""} />
+                  )}
                 </div>
                 <div className="mt-3 flex items-center gap-2">
                   <span className="relative flex size-2">
@@ -245,6 +290,12 @@ export function UpgradeDialog({ open, onClose, currentPlanName, currentPlanId, o
                   </span>
                   <span className="text-xs text-muted-foreground">等待支付</span>
                 </div>
+                {payUrl && (
+                  <a href={payUrl} target="_blank" rel="noopener noreferrer"
+                    className="mt-3 w-full flex items-center justify-center gap-1.5 rounded-lg bg-amber-500 hover:bg-amber-600 py-2 text-white text-xs font-medium transition-colors">
+                    <Coins className="size-3.5" /> 前往积分支付页
+                  </a>
+                )}
               </div>
 
               {order?.order_no && (

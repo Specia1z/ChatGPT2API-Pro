@@ -18,10 +18,16 @@ func (h *Handler) fulfillOrder(orderNo, tradeNo string) bool {
 		return false
 	}
 	if order.Status != "pending" {
-		return false // 幂等：已处理
+		return false
 	}
 
-	// 计算续期天数：订单指定优先，否则取套餐默认。plan 不存在则只标记已付不开通。
+	// 积分充值订单：加积分 + 标记 paid
+	if order.OrderType == "recharge" {
+		_, _, ok := h.MySQL.FulfillRechargeOrder(orderNo, tradeNo)
+		return ok
+	}
+
+	// 套餐订单：开通/续期
 	planID := order.PlanID
 	days := order.DurationDays
 	if p, _ := h.MySQL.GetPlanByID(order.PlanID); p != nil {
@@ -30,21 +36,18 @@ func (h *Handler) fulfillOrder(orderNo, tradeNo string) bool {
 		}
 	} else {
 		log.Printf("[payment] fulfillOrder: plan %d not found for order %s", order.PlanID, orderNo)
-		planID = 0 // 标记已付但不开通
+		planID = 0
 	}
 
-	// 标记已付 + 开通套餐 + 核销优惠券，三步在同一事务内原子完成
 	fulfilled, err := h.MySQL.FulfillOrderTx(orderNo, tradeNo, order.UserID, planID, days, order.CouponCode, order.Amount)
 	if err != nil {
 		log.Printf("[payment] fulfillOrder tx 失败 order=%s: %v", orderNo, err)
 		return false
 	}
 	if !fulfilled {
-		return false // 已被处理过或并发抢先
+		return false
 	}
 
-	// 邀请首充奖励（幂等，仅被邀请用户首笔付费触发）。
-	// 放在事务外：它自带幂等且失败不应回滚已完成的支付开通。
 	h.grantInviteRecharge(order.UserID)
 	return true
 }

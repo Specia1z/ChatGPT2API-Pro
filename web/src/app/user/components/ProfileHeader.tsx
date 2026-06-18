@@ -24,11 +24,12 @@ type Props = {
   onUpgrade: () => void;
   onLogout: () => void;
   onExchange: () => void;
+  onRecharge: () => void;
 };
 
 // 用户中心头部：欢迎信息 + 令牌仪表盘 + 倒计时（玻璃拟态 + 中性黑白）。
 export function ProfileHeader(p: Props) {
-  const { user, isPro, refill, concurrency, capacity, displayTokens, animatedTokens, pct, burst, exchangeRate, cdNextHMS, onUpgrade, onLogout, onExchange } = p;
+  const { user, isPro, refill, concurrency, capacity, displayTokens, animatedTokens, pct, burst, exchangeRate, cdNextHMS, onUpgrade, onLogout, onExchange, onRecharge } = p;
   return (
     <>
       {/* 欢迎头部 */}
@@ -59,6 +60,7 @@ export function ProfileHeader(p: Props) {
                 <Badge variant="default" className="text-[11px] gap-1">
                   <Coins className="size-3" /> {user.points || 0} 积分
                 </Badge>
+                <button onClick={onRecharge} className="text-[11px] font-medium text-cyan-600 dark:text-cyan-400 hover:underline">充值</button>
               </div>
             </div>
           </div>

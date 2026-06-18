@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { Outfit, DM_Mono } from "next/font/google";
-import { Globe, Shield, Save, Gauge, Gift, Database, Users, Activity, Rocket, Coins, Layers, Shapes, RefreshCw, ShoppingBag, Plus, Trash2, Upload } from "lucide-react";
+import { Globe, Shield, Save, Gauge, Gift, Database, Users, Activity, Rocket, Coins, Layers, Shapes, RefreshCw, ShoppingBag, Plus, Trash2, Upload, KeyRound } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
 import { AdminSidebar } from "@/components/admin-sidebar";
@@ -20,6 +20,7 @@ const SECTIONS = [
   { id: "checkin", label: "每日签到", icon: Gift, color: "text-amber-500", bg: "bg-amber-500/10" },
   { id: "invite", label: "邀请裂变", icon: Users, color: "text-cyan-500", bg: "bg-cyan-500/10" },
   { id: "security", label: "安全验证", icon: Shield, color: "text-primary", bg: "bg-primary/10" },
+  { id: "oauth", label: "第三方登录", icon: KeyRound, color: "text-amber-500", bg: "bg-amber-500/10" },
   { id: "scheduler", label: "生图调度", icon: Gauge, color: "text-emerald-500", bg: "bg-emerald-500/10" },
   { id: "apirate", label: "API 限速", icon: Activity, color: "text-rose-500", bg: "bg-rose-500/10" },
   { id: "imgcost", label: "生图消耗", icon: Coins, color: "text-emerald-500", bg: "bg-emerald-500/10" },
@@ -120,6 +121,12 @@ export default function SettingsPage() {
   const updateInvite = (k: string, v: any) => {
     const next = { ...inviteCfg, [k]: v };
     setCfg((p: any) => ({ ...p, invite_config: JSON.stringify(next) }));
+  };
+  // 第三方登录配置（oauth_config）同样是 JSON 字符串字段
+  const oauthCfg = (() => { try { return JSON.parse(cfg?.oauth_config || "{}"); } catch { return {}; } })();
+  const updateOAuth = (k: string, v: any) => {
+    const next = { ...oauthCfg, [k]: v };
+    setCfg((p: any) => ({ ...p, oauth_config: JSON.stringify(next) }));
   };
   const scrollTo = (id: string) => { setActiveSection(id); document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" }); };
 
@@ -309,6 +316,25 @@ export default function SettingsPage() {
                     <div className="space-y-1.5"><Label>Secret Key</Label><Input type="password" value={cfg?.cf_turnstile_secret_key || ""} onChange={e => update("cf_turnstile_secret_key", e.target.value)} className={inputCls} /></div>
                   </div>
                 ) : <p className="text-sm text-muted-foreground">未启用人机验证，开启后登录注册需完成 Cloudflare Turnstile 验证。</p>}
+              </Card>
+
+              {/* ═══ 第三方登录（Linux Do Connect OAuth2）═══ */}
+              <Card id="oauth" icon={KeyRound} color="text-amber-500" bg="bg-amber-500/10" title="Linux Do 登录" desc="第三方 OAuth2 登录（connect.linux.do）"
+                action={<Switch checked={!!oauthCfg.linuxdo_enabled} onCheckedChange={v => updateOAuth("linuxdo_enabled", v)} />}>
+                {oauthCfg.linuxdo_enabled ? (
+                  <div className="space-y-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div className="space-y-1.5"><Label>Client ID</Label><Input value={oauthCfg.linuxdo_client_id || ""} onChange={e => updateOAuth("linuxdo_client_id", e.target.value)} className={inputCls} placeholder="connect.linux.do 应用 Client ID" /></div>
+                      <div className="space-y-1.5"><Label>Client Secret</Label><Input type="password" value={oauthCfg.linuxdo_client_secret || ""} onChange={e => updateOAuth("linuxdo_client_secret", e.target.value)} className={inputCls} placeholder="留空则保留已保存的值" /></div>
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label>最低信任等级（trust_level）</Label>
+                      <Input type="number" min={0} max={4} value={oauthCfg.linuxdo_min_trust_level ?? 0} onChange={e => updateOAuth("linuxdo_min_trust_level", Math.max(0, Math.min(4, +e.target.value || 0)))} className={inputCls} />
+                      <p className="text-[10px] text-muted-foreground">允许登录的最低 trust_level（0=不限制；Linux Do 为 0-4）。设为 1 可阻挡纯新号，2 则要求活跃成员。</p>
+                    </div>
+                    <p className="text-[11px] text-muted-foreground">回调地址：<span className={mono.className}>{typeof window !== "undefined" ? window.location.origin : ""}/api/auth/linuxdo/callback</span>（需在 Linux Do Connect 应用后台填写一致）</p>
+                  </div>
+                ) : <p className="text-sm text-muted-foreground">未开启第三方登录。开启后登录页将显示「Linux Do 登录」按钮。</p>}
               </Card>
 
               {/* ═══ 生图调度 ═══ */}

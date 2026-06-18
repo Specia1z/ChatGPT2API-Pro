@@ -12,8 +12,9 @@ import (
 
 func NewRouter(mysql *store.MySQLStore, redis *store.RedisStore, cleaner *service.StorageCleaner, apiLogWriter *apilog.Writer) http.Handler {
 	h := &Handler{MySQL: mysql, Redis: redis, Cleaner: cleaner}
-	// 注册支付网关适配器（第一阶段仅支付宝；新增渠道在此注册即可）
+	// 注册支付网关适配器（新增渠道在此注册即可）
 	registerGateway(&alipayGatewayAdapter{})
+	registerGateway(&creditGatewayAdapter{})
 	adminAuth := middleware.AdminAuth(redis, mysql)
 	userAuth := middleware.UserAuth(redis, mysql)
 	apiKeyAuth := middleware.ApiKeyAuth(mysql)
@@ -36,6 +37,10 @@ func NewRouter(mysql *store.MySQLStore, redis *store.RedisStore, cleaner *servic
 	mux.Handle("POST /api/auth/send-code", middleware.RateLimit(http.HandlerFunc(h.SendEmailCode)))
 	mux.Handle("POST /api/auth/verify-code", middleware.RateLimit(http.HandlerFunc(h.VerifyEmailCode)))
 	mux.Handle("POST /api/auth/reset-password", middleware.RateLimit(http.HandlerFunc(h.ResetPassword)))
+
+	// 第三方登录（Linux Do Connect OAuth2）：发起授权 + 回调，均走公开限流
+	mux.Handle("GET /api/auth/linuxdo", middleware.RateLimit(http.HandlerFunc(h.LinuxDoLogin)))
+	mux.Handle("GET /api/auth/linuxdo/callback", middleware.RateLimit(http.HandlerFunc(h.LinuxDoCallback)))
 
 	// 用户鉴权
 	mux.Handle("GET /api/user/profile", userAuth(http.HandlerFunc(h.UserProfile)))
@@ -67,8 +72,11 @@ mux.Handle("POST /api/user/points/exchange", middleware.RateLimit(userAuth(http.
 	mux.Handle("POST /api/user/prompt/polish", middleware.RateLimit(userAuth(http.HandlerFunc(h.PolishPrompt))))
 	mux.Handle("POST /api/user/image-to-text", middleware.RateLimit(userAuth(http.HandlerFunc(h.ImageToText))))
 	mux.Handle("POST /api/user/image-enhance", middleware.RateLimit(userAuth(http.HandlerFunc(h.ImageEnhanceDiagnose))))
+	mux.Handle("POST /api/user/removebg", middleware.RateLimit(userAuth(http.HandlerFunc(h.RemoveBackground))))
 	mux.Handle("GET /api/user/shop", userAuth(http.HandlerFunc(h.ListShop)))
 	mux.Handle("POST /api/user/shop/redeem", middleware.RateLimit(userAuth(http.HandlerFunc(h.RedeemShop))))
+	mux.Handle("POST /api/user/recharge", middleware.RateLimit(userAuth(http.HandlerFunc(h.CreateRecharge))))
+	mux.Handle("GET /api/user/recharge/{orderNo}", userAuth(http.HandlerFunc(h.GetRechargeStatus)))
 	mux.Handle("GET /api/user/invite", userAuth(http.HandlerFunc(h.GetInviteInfo)))
 	mux.Handle("GET /api/generations", userAuth(http.HandlerFunc(h.GetUserGenerations)))
 	mux.Handle("POST /api/generations/share", userAuth(http.HandlerFunc(h.ToggleShare)))
@@ -95,6 +103,7 @@ mux.Handle("POST /api/user/points/exchange", middleware.RateLimit(userAuth(http.
 	// 图像理解/增强（开发者 API）：反推中文提示词 / 一键智能增强（同步出图）
 	mux.Handle("POST /api/v1/image-to-text", apiLogged("image-to-text", middleware.RateLimit(apiKeyAuth(apiUserRL(http.HandlerFunc(h.ImageToText))))))
 	mux.Handle("POST /api/v1/image-enhance", apiLogged("image-enhance", middleware.RateLimit(apiKeyAuth(apiUserRL(http.HandlerFunc(h.ImageEnhanceAPI))))))
+	mux.Handle("POST /api/v1/removebg", apiLogged("removebg", middleware.RateLimit(apiKeyAuth(apiUserRL(http.HandlerFunc(h.RemoveBackground))))))
 
 	// OpenAI 兼容接口（同步返回，标准 /v1 路径，API Key 认证 + IP/uid 双限流）
 	mux.Handle("POST /v1/images/generations", apiLogged("openai.images", middleware.RateLimit(apiKeyAuth(apiUserRL(http.HandlerFunc(h.CreateImageOpenAI))))))
@@ -188,6 +197,7 @@ mux.Handle("POST /api/user/points/exchange", middleware.RateLimit(userAuth(http.
 	mux.HandleFunc("POST /api/orders/alipay/notify", h.AlipayNotify)
 	// 通用支付回调入口（新渠道走此路由，按 {gateway} 分发）
 	mux.HandleFunc("POST /api/orders/{gateway}/notify", h.PaymentCallback)
+	mux.HandleFunc("GET /api/orders/{gateway}/notify", h.PaymentCallback)
 
 	// 本地存储图片统一经 GET /api/images/{id} 代理读取（按 object key 实时定位文件），
 	// 不再挂载 /uploads/ 静态目录——避免热切换存储路径需重启，也不暴露真实目录结构。

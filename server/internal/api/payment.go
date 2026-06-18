@@ -101,7 +101,7 @@ func (h *Handler) CreateOrder(w http.ResponseWriter, r *http.Request) {
 	}
 
 	settings, _ := h.MySQL.GetSettings()
-	gw := firstEnabledGateway(settings)
+	gw := selectGateway(settings, req.Gateway)
 	if gw == nil {
 		writeJSON(w, 200, model.APIResponse{Code: 200, Data: map[string]any{"order": order, "alipay": nil, "message": "支付未配置"}})
 		return
@@ -112,7 +112,13 @@ func (h *Handler) CreateOrder(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 200, model.APIResponse{Code: 200, Data: map[string]any{"order": order, "qr_code": nil, "alipay_app_id": "", "message": "支付服务暂不可用"}})
 		return
 	}
-	writeJSON(w, 200, model.APIResponse{Code: 200, Data: map[string]any{"order": order, "qr_code": pay.QRCode, "gateway": gw.Name(), "alipay_app_id": settings.AlipayAppID}})
+	writeJSON(w, 200, model.APIResponse{Code: 200, Data: map[string]any{
+		"order":        order,
+		"qr_code":      pay.QRCode,
+		"redirect_url": pay.RedirectURL,
+		"gateway":      gw.Name(),
+		"alipay_app_id": settings.AlipayAppID,
+	}})
 }
 
 // GET /api/orders — 用户订单列表
@@ -213,7 +219,7 @@ func (h *Handler) UpgradeOrder(w http.ResponseWriter, r *http.Request) {
 
 	subject := newPlan.Name + "(" + billing + ")"
 	settings, _ := h.MySQL.GetSettings()
-	gw := firstEnabledGateway(settings)
+	gw := selectGateway(settings, req.Gateway)
 	if gw == nil {
 		writeJSON(w, 200, model.APIResponse{Code: 200, Data: map[string]any{"order": order, "alipay": nil, "message": "支付未配置"}})
 		return
@@ -224,7 +230,15 @@ func (h *Handler) UpgradeOrder(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 200, model.APIResponse{Code: 200, Data: map[string]any{"order": order, "qr_code": nil, "alipay_app_id": "", "message": "支付服务暂不可用"}})
 		return
 	}
-	writeJSON(w, 200, model.APIResponse{Code: 200, Data: map[string]any{"order": order, "qr_code": pay.QRCode, "gateway": gw.Name(), "alipay_app_id": settings.AlipayAppID, "original_price": originalPrice, "remaining_value": remainingValue}})
+	writeJSON(w, 200, model.APIResponse{Code: 200, Data: map[string]any{
+		"order":          order,
+		"qr_code":        pay.QRCode,
+		"redirect_url":   pay.RedirectURL,
+		"gateway":        gw.Name(),
+		"alipay_app_id":  settings.AlipayAppID,
+		"original_price": originalPrice,
+		"remaining_value": remainingValue,
+	}})
 }
 
 func (h *Handler) GetUserOrders(w http.ResponseWriter, r *http.Request) {

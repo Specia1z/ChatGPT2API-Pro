@@ -186,6 +186,31 @@ func (r *RedisStore) ExpireToken(ctx context.Context, token string, ttl time.Dur
 	return r.client.Expire(ctx, "token:"+token, ttl).Err()
 }
 
+// ── OAuth state（防 CSRF）──────────────────────
+
+// SetOAuthState 写入一次性 OAuth state → 目标值（如登录后回跳路径），带 TTL。
+// Linux Do 登录发起时生成，回调时校验并消费，防 CSRF 重放。
+func (r *RedisStore) SetOAuthState(ctx context.Context, state, value string, ttl time.Duration) error {
+	return r.client.Set(ctx, "oauth_state:"+state, value, ttl).Err()
+}
+
+// GetOAuthState 读 state 对应值；不存在返回 ("", false)。
+func (r *RedisStore) GetOAuthState(ctx context.Context, state string) (string, bool, error) {
+	val, err := r.client.Get(ctx, "oauth_state:"+state).Result()
+	if err == redis.Nil {
+		return "", false, nil
+	}
+	if err != nil {
+		return "", false, err
+	}
+	return val, true, nil
+}
+
+// DelOAuthState 消费 state（回调校验后立即删除，确保一次性）。
+func (r *RedisStore) DelOAuthState(ctx context.Context, state string) error {
+	return r.client.Del(ctx, "oauth_state:"+state).Err()
+}
+
 // ── 登录失败计数 ──────────────────────────────
 
 func (r *RedisStore) GetLoginFail(ctx context.Context, email string) (int64, error) {

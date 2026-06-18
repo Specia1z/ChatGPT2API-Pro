@@ -103,8 +103,8 @@ func (s *MySQLStore) GetSettings() (*model.Settings, error) {
 
 func (s *MySQLStore) getSettingsRaw() (*model.Settings, error) {
 	cfg := &model.Settings{}
-	err := s.db.QueryRow(`SELECT site_title, site_subtitle, COALESCE(site_description,''), cf_turnstile_enabled, cf_turnstile_site_key, cf_turnstile_secret_key, COALESCE(default_plan_id,0), COALESCE(free_token_capacity,0), COALESCE(free_token_refill_per_hour,0), COALESCE(free_concurrency,0), COALESCE(banned_words,''), COALESCE(checkin_enabled,1), COALESCE(checkin_base,10), COALESCE(checkin_streak_bonus,5), COALESCE(alipay_enabled,0), COALESCE(alipay_app_id,''), COALESCE(alipay_app_private_key,''), COALESCE(alipay_alipay_public_key,''), COALESCE(alipay_notify_url,''), COALESCE(site_logo_type,'text'), COALESCE(site_logo_text,'C2'), COALESCE(site_logo_url,''), COALESCE(storage_cleanup_days,0), COALESCE(points_exchange_rate,10), COALESCE(points_exchange_bonus,0), COALESCE(burst_token_cap,0), COALESCE(points_exchange_bonus_threshold,0), COALESCE(tokens_per_image,0), COALESCE(prompt_polish_cost,0), COALESCE(image_to_text_cost,0), COALESCE(image_enhance_prompt,''), COALESCE(default_rate_limit_per_min,0), COALESCE(config_cache_ttl_seconds,0), COALESCE(apikey_lastused_throttle_seconds,0), COALESCE(public_cache_ttl_seconds,0), COALESCE(db_max_open_conns,0), COALESCE(order_timeout_minutes,0), COALESCE(svg_model,''), COALESCE(upload_max_edge,0), COALESCE(upload_quality,0), COALESCE(upload_format,''), COALESCE(upload_compress_threshold_kb,0), COALESCE(style_presets,''), COALESCE(email_config,''), COALESCE(invite_config,''), COALESCE(shop_config,''), COALESCE(api_no_persist,0), COALESCE(api_image_ttl_min,30), COALESCE(api_log_retention_days,0) FROM settings WHERE id=1`).
-		Scan(&cfg.SiteTitle, &cfg.SiteSubtitle, &cfg.SiteDescription, &cfg.CFTurnstileEnabled, &cfg.CFTurnstileSiteKey, &cfg.CFTurnstileSecretKey, &cfg.DefaultPlanID, &cfg.FreeTokenCapacity, &cfg.FreeTokenRefillPerHour, &cfg.FreeConcurrency, &cfg.BannedWords, &cfg.CheckinEnabled, &cfg.CheckinBase, &cfg.CheckinStreakBonus, &cfg.AlipayEnabled, &cfg.AlipayAppID, &cfg.AlipayAppPrivateKey, &cfg.AlipayPublicKey, &cfg.AlipayNotifyURL, &cfg.SiteLogoType, &cfg.SiteLogoText, &cfg.SiteLogoURL, &cfg.StorageCleanupDays, &cfg.PointsExchangeRate, &cfg.PointsExchangeBonus, &cfg.BurstTokenCap, &cfg.PointsExchangeBonusThreshold, &cfg.TokensPerImage, &cfg.PromptPolishCost, &cfg.ImageToTextCost, &cfg.ImageEnhancePrompt, &cfg.DefaultRateLimitPerMin, &cfg.ConfigCacheTTLSeconds, &cfg.APIKeyLastUsedThrottleSeconds, &cfg.PublicCacheTTLSeconds, &cfg.DBMaxOpenConns, &cfg.OrderTimeoutMinutes, &cfg.SVGModel, &cfg.UploadMaxEdge, &cfg.UploadQuality, &cfg.UploadFormat, &cfg.UploadCompressThresholdKB, &cfg.StylePresets, &cfg.EmailConfig, &cfg.InviteConfig, &cfg.ShopConfig, &cfg.APINoPersist, &cfg.APIImageTTLMin, &cfg.APILogRetentionDays)
+	err := s.db.QueryRow(`SELECT site_title, site_subtitle, COALESCE(site_description,''), cf_turnstile_enabled, cf_turnstile_site_key, cf_turnstile_secret_key, COALESCE(default_plan_id,0), COALESCE(free_token_capacity,0), COALESCE(free_token_refill_per_hour,0), COALESCE(free_concurrency,0), COALESCE(banned_words,''), COALESCE(checkin_enabled,1), COALESCE(checkin_base,10), COALESCE(checkin_streak_bonus,5), COALESCE(alipay_enabled,0), COALESCE(alipay_app_id,''), COALESCE(alipay_app_private_key,''), COALESCE(alipay_alipay_public_key,''), COALESCE(alipay_notify_url,''), COALESCE(site_logo_type,'text'), COALESCE(site_logo_text,'C2'), COALESCE(site_logo_url,''), COALESCE(storage_cleanup_days,0), COALESCE(points_exchange_rate,10), COALESCE(points_exchange_bonus,0), COALESCE(burst_token_cap,0), COALESCE(points_exchange_bonus_threshold,0), COALESCE(tokens_per_image,0), COALESCE(prompt_polish_cost,0), COALESCE(image_to_text_cost,0), COALESCE(image_enhance_prompt,''), COALESCE(default_rate_limit_per_min,0), COALESCE(config_cache_ttl_seconds,0), COALESCE(apikey_lastused_throttle_seconds,0), COALESCE(public_cache_ttl_seconds,0), COALESCE(db_max_open_conns,0), COALESCE(order_timeout_minutes,0), COALESCE(svg_model,''), COALESCE(upload_max_edge,0), COALESCE(upload_quality,0), COALESCE(upload_format,''), COALESCE(upload_compress_threshold_kb,0), COALESCE(style_presets,''), COALESCE(email_config,''), COALESCE(invite_config,''), COALESCE(shop_config,''), COALESCE(oauth_config,''), COALESCE(credit_config,''), COALESCE(api_no_persist,0), COALESCE(api_image_ttl_min,30), COALESCE(api_log_retention_days,0) FROM settings WHERE id=1`).
+		Scan(&cfg.SiteTitle, &cfg.SiteSubtitle, &cfg.SiteDescription, &cfg.CFTurnstileEnabled, &cfg.CFTurnstileSiteKey, &cfg.CFTurnstileSecretKey, &cfg.DefaultPlanID, &cfg.FreeTokenCapacity, &cfg.FreeTokenRefillPerHour, &cfg.FreeConcurrency, &cfg.BannedWords, &cfg.CheckinEnabled, &cfg.CheckinBase, &cfg.CheckinStreakBonus, &cfg.AlipayEnabled, &cfg.AlipayAppID, &cfg.AlipayAppPrivateKey, &cfg.AlipayPublicKey, &cfg.AlipayNotifyURL, &cfg.SiteLogoType, &cfg.SiteLogoText, &cfg.SiteLogoURL, &cfg.StorageCleanupDays, &cfg.PointsExchangeRate, &cfg.PointsExchangeBonus, &cfg.BurstTokenCap, &cfg.PointsExchangeBonusThreshold, &cfg.TokensPerImage, &cfg.PromptPolishCost, &cfg.ImageToTextCost, &cfg.ImageEnhancePrompt, &cfg.DefaultRateLimitPerMin, &cfg.ConfigCacheTTLSeconds, &cfg.APIKeyLastUsedThrottleSeconds, &cfg.PublicCacheTTLSeconds, &cfg.DBMaxOpenConns, &cfg.OrderTimeoutMinutes, &cfg.SVGModel, &cfg.UploadMaxEdge, &cfg.UploadQuality, &cfg.UploadFormat, &cfg.UploadCompressThresholdKB, &cfg.StylePresets, &cfg.EmailConfig, &cfg.InviteConfig, &cfg.ShopConfig, &cfg.OAuthConfig, &cfg.CreditConfig, &cfg.APINoPersist, &cfg.APIImageTTLMin, &cfg.APILogRetentionDays)
 	if err != nil {
 		return cfg, nil
 	}
@@ -126,9 +126,11 @@ func (s *MySQLStore) SaveSettings(cfg *model.Settings) error {
 			cfg.AlipayPublicKey = existing.AlipayPublicKey
 		}
 		cfg.EmailConfig = mergeEmailConfigSecrets(cfg.EmailConfig, existing.EmailConfig)
+		cfg.OAuthConfig = mergeOAuthConfigSecrets(cfg.OAuthConfig, existing.OAuthConfig)
+		cfg.CreditConfig = mergeCreditConfigSecrets(cfg.CreditConfig, existing.CreditConfig)
 	}
-	_, err := s.db.Exec(`UPDATE settings SET site_title=?, site_subtitle=?, site_description=?, cf_turnstile_enabled=?, cf_turnstile_site_key=?, cf_turnstile_secret_key=?, default_plan_id=?, free_token_capacity=?, free_token_refill_per_hour=?, free_concurrency=?, banned_words=?, checkin_enabled=?, checkin_base=?, checkin_streak_bonus=?, alipay_enabled=?, alipay_app_id=?, alipay_app_private_key=?, alipay_alipay_public_key=?, alipay_notify_url=?, site_logo_type=?, site_logo_text=?, site_logo_url=?, storage_cleanup_days=?, points_exchange_rate=?, points_exchange_bonus=?, burst_token_cap=?, points_exchange_bonus_threshold=?, tokens_per_image=?, prompt_polish_cost=?, image_to_text_cost=?, image_enhance_prompt=?, default_rate_limit_per_min=?, config_cache_ttl_seconds=?, apikey_lastused_throttle_seconds=?, public_cache_ttl_seconds=?, db_max_open_conns=?, order_timeout_minutes=?, svg_model=?, upload_max_edge=?, upload_quality=?, upload_format=?, upload_compress_threshold_kb=?, style_presets=?, email_config=?, invite_config=?, shop_config=?, api_no_persist=?, api_image_ttl_min=?, api_log_retention_days=? WHERE id=1`,
-		cfg.SiteTitle, cfg.SiteSubtitle, cfg.SiteDescription, cfg.CFTurnstileEnabled, cfg.CFTurnstileSiteKey, cfg.CFTurnstileSecretKey, cfg.DefaultPlanID, cfg.FreeTokenCapacity, cfg.FreeTokenRefillPerHour, cfg.FreeConcurrency, cfg.BannedWords, cfg.CheckinEnabled, cfg.CheckinBase, cfg.CheckinStreakBonus, cfg.AlipayEnabled, cfg.AlipayAppID, cfg.AlipayAppPrivateKey, cfg.AlipayPublicKey, cfg.AlipayNotifyURL, cfg.SiteLogoType, cfg.SiteLogoText, cfg.SiteLogoURL, cfg.StorageCleanupDays, cfg.PointsExchangeRate, cfg.PointsExchangeBonus, cfg.BurstTokenCap, cfg.PointsExchangeBonusThreshold, cfg.TokensPerImage, cfg.PromptPolishCost, cfg.ImageToTextCost, cfg.ImageEnhancePrompt, cfg.DefaultRateLimitPerMin, cfg.ConfigCacheTTLSeconds, cfg.APIKeyLastUsedThrottleSeconds, cfg.PublicCacheTTLSeconds, cfg.DBMaxOpenConns, cfg.OrderTimeoutMinutes, cfg.SVGModel, cfg.UploadMaxEdge, cfg.UploadQuality, cfg.UploadFormat, cfg.UploadCompressThresholdKB, cfg.StylePresets, cfg.EmailConfig, cfg.InviteConfig, cfg.ShopConfig, cfg.APINoPersist, cfg.APIImageTTLMin, cfg.APILogRetentionDays)
+	_, err := s.db.Exec(`UPDATE settings SET site_title=?, site_subtitle=?, site_description=?, cf_turnstile_enabled=?, cf_turnstile_site_key=?, cf_turnstile_secret_key=?, default_plan_id=?, free_token_capacity=?, free_token_refill_per_hour=?, free_concurrency=?, banned_words=?, checkin_enabled=?, checkin_base=?, checkin_streak_bonus=?, alipay_enabled=?, alipay_app_id=?, alipay_app_private_key=?, alipay_alipay_public_key=?, alipay_notify_url=?, site_logo_type=?, site_logo_text=?, site_logo_url=?, storage_cleanup_days=?, points_exchange_rate=?, points_exchange_bonus=?, burst_token_cap=?, points_exchange_bonus_threshold=?, tokens_per_image=?, prompt_polish_cost=?, image_to_text_cost=?, image_enhance_prompt=?, default_rate_limit_per_min=?, config_cache_ttl_seconds=?, apikey_lastused_throttle_seconds=?, public_cache_ttl_seconds=?, db_max_open_conns=?, order_timeout_minutes=?, svg_model=?, upload_max_edge=?, upload_quality=?, upload_format=?, upload_compress_threshold_kb=?, style_presets=?, email_config=?, invite_config=?, shop_config=?, oauth_config=?, credit_config=?, api_no_persist=?, api_image_ttl_min=?, api_log_retention_days=? WHERE id=1`,
+		cfg.SiteTitle, cfg.SiteSubtitle, cfg.SiteDescription, cfg.CFTurnstileEnabled, cfg.CFTurnstileSiteKey, cfg.CFTurnstileSecretKey, cfg.DefaultPlanID, cfg.FreeTokenCapacity, cfg.FreeTokenRefillPerHour, cfg.FreeConcurrency, cfg.BannedWords, cfg.CheckinEnabled, cfg.CheckinBase, cfg.CheckinStreakBonus, cfg.AlipayEnabled, cfg.AlipayAppID, cfg.AlipayAppPrivateKey, cfg.AlipayPublicKey, cfg.AlipayNotifyURL, cfg.SiteLogoType, cfg.SiteLogoText, cfg.SiteLogoURL, cfg.StorageCleanupDays, cfg.PointsExchangeRate, cfg.PointsExchangeBonus, cfg.BurstTokenCap, cfg.PointsExchangeBonusThreshold, cfg.TokensPerImage, cfg.PromptPolishCost, cfg.ImageToTextCost, cfg.ImageEnhancePrompt, cfg.DefaultRateLimitPerMin, cfg.ConfigCacheTTLSeconds, cfg.APIKeyLastUsedThrottleSeconds, cfg.PublicCacheTTLSeconds, cfg.DBMaxOpenConns, cfg.OrderTimeoutMinutes, cfg.SVGModel, cfg.UploadMaxEdge, cfg.UploadQuality, cfg.UploadFormat, cfg.UploadCompressThresholdKB, cfg.StylePresets, cfg.EmailConfig, cfg.InviteConfig, cfg.ShopConfig, cfg.OAuthConfig, cfg.CreditConfig, cfg.APINoPersist, cfg.APIImageTTLMin, cfg.APILogRetentionDays)
 	// 写后失效配置缓存，并按新值更新缓存 TTL（即时生效）
 	s.SetConfigCacheTTL(cfg.ConfigCacheTTLSeconds)
 	return err
@@ -155,6 +157,60 @@ func mergeEmailConfigSecrets(incoming, existing string) string {
 	if newEC.SMTPPass == "" {
 		newEC.SMTPPass = oldEC.SMTPPass
 		if b, err := json.Marshal(newEC); err == nil {
+			return string(b)
+		}
+	}
+	return incoming
+}
+
+// mergeOAuthConfigSecrets 在保存 oauth_config 时保护 Linux Do client_secret：
+// 若新配置的 linuxdo_client_secret 为空而旧配置存在，则保留旧 secret。
+// 这样公开接口抹掉 secret 后，管理端回填保存不会清空它（与 email_config 同套路）。
+func mergeOAuthConfigSecrets(incoming, existing string) string {
+	if existing == "" {
+		return incoming
+	}
+	var oldOC model.OAuthConfig
+	if json.Unmarshal([]byte(existing), &oldOC) != nil || oldOC.LinuxDoClientSecret == "" {
+		return incoming
+	}
+	if incoming == "" {
+		return existing // 整段缺失时保留旧配置，避免丢失 secret
+	}
+	var newOC model.OAuthConfig
+	if json.Unmarshal([]byte(incoming), &newOC) != nil {
+		return incoming
+	}
+	if newOC.LinuxDoClientSecret == "" {
+		newOC.LinuxDoClientSecret = oldOC.LinuxDoClientSecret
+		if b, err := json.Marshal(newOC); err == nil {
+			return string(b)
+		}
+	}
+	return incoming
+}
+
+// mergeCreditConfigSecrets 在保存 credit_config 时保护 Linux Do Credit 商户密钥 key：
+// 若新配置的 key 为空而旧配置存在，则保留旧 key。
+// 这样公开接口抹掉 key 后，管理端回填保存不会清空它（与 oauth_config 同套路）。
+func mergeCreditConfigSecrets(incoming, existing string) string {
+	if existing == "" {
+		return incoming
+	}
+	var oldCC model.CreditConfig
+	if json.Unmarshal([]byte(existing), &oldCC) != nil || oldCC.Key == "" {
+		return incoming
+	}
+	if incoming == "" {
+		return existing // 整段缺失时保留旧配置，避免丢失 key
+	}
+	var newCC model.CreditConfig
+	if json.Unmarshal([]byte(incoming), &newCC) != nil {
+		return incoming
+	}
+	if newCC.Key == "" {
+		newCC.Key = oldCC.Key
+		if b, err := json.Marshal(newCC); err == nil {
 			return string(b)
 		}
 	}

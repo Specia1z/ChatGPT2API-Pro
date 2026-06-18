@@ -3,11 +3,14 @@ package store
 import (
 	"crypto/rand"
 	"database/sql"
+	"encoding/hex"
 	"fmt"
 	"strings"
 	"time"
 
 	"chatgpt2api-pro/internal/model"
+
+	"golang.org/x/crypto/bcrypt"
 )
 
 // --- Users ---
@@ -41,8 +44,8 @@ func (s *MySQLStore) CreateUser(email, passwordHash, name string) (int64, error)
 
 func (s *MySQLStore) GetUserByEmail(email string) (*model.User, error) {
 	var u model.User
-	err := s.db.QueryRow(`SELECT u.id, u.email, u.password_hash, COALESCE(u.name,''), u.points, u.status, COALESCE(u.role,0), COALESCE(u.ban_reason,''), u.plan_id, u.subscription_expires_at, u.cooldown_until, COALESCE(NULLIF(p2.concurrency,0),NULLIF(st.free_concurrency,0),1), COALESCE(NULLIF(p2.token_capacity,0),NULLIF(st.free_token_capacity,0),50), COALESCE(NULLIF(p2.token_refill_per_hour,0),NULLIF(st.free_token_refill_per_hour,0),3), COALESCE(p2.name,''), u.created_at FROM users u LEFT JOIN plans p2 ON (CASE WHEN u.subscription_expires_at IS NOT NULL AND u.subscription_expires_at < NOW() THEN NULL ELSE u.plan_id END) = p2.id LEFT JOIN settings st ON st.id=1 WHERE u.email=?`,
-		email).Scan(&u.ID, &u.Email, &u.PasswordHash, &u.Name, &u.Points, &u.Status, &u.Role, &u.BanReason, &u.PlanID, &u.SubscriptionExpiresAt, &u.CooldownUntil, &u.PlanConcurrency, &u.TokenCapacity, &u.TokenRefillPerHour, &u.PlanName, &u.CreatedAt)
+	err := s.db.QueryRow(`SELECT u.id, u.email, u.password_hash, COALESCE(u.name,''), COALESCE(u.avatar,''), u.points, u.status, COALESCE(u.role,0), COALESCE(u.ban_reason,''), u.plan_id, u.subscription_expires_at, u.cooldown_until, COALESCE(NULLIF(p2.concurrency,0),NULLIF(st.free_concurrency,0),1), COALESCE(NULLIF(p2.token_capacity,0),NULLIF(st.free_token_capacity,0),50), COALESCE(NULLIF(p2.token_refill_per_hour,0),NULLIF(st.free_token_refill_per_hour,0),3), COALESCE(p2.name,''), u.created_at FROM users u LEFT JOIN plans p2 ON (CASE WHEN u.subscription_expires_at IS NOT NULL AND u.subscription_expires_at < NOW() THEN NULL ELSE u.plan_id END) = p2.id LEFT JOIN settings st ON st.id=1 WHERE u.email=?`,
+		email).Scan(&u.ID, &u.Email, &u.PasswordHash, &u.Name, &u.Avatar, &u.Points, &u.Status, &u.Role, &u.BanReason, &u.PlanID, &u.SubscriptionExpiresAt, &u.CooldownUntil, &u.PlanConcurrency, &u.TokenCapacity, &u.TokenRefillPerHour, &u.PlanName, &u.CreatedAt)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
@@ -50,6 +53,77 @@ func (s *MySQLStore) GetUserByEmail(email string) (*model.User, error) {
 		return nil, err
 	}
 	return &u, nil
+}
+
+// GetUserByLinuxDoID 按 Linux Do OAuth 用户 id 回查本站用户（首次绑定后再次登录命中）。
+// 注意与 GetUserByEmail 同构：返回带套餐字段的完整 User，OAuth 登录流程可直接复用。
+func (s *MySQLStore) GetUserByLinuxDoID(linuxdoID int64) (*model.User, error) {
+	var u model.User
+	err := s.db.QueryRow(`SELECT u.id, u.email, u.password_hash, COALESCE(u.name,''), COALESCE(u.avatar,''), u.points, u.status, COALESCE(u.role,0), COALESCE(u.ban_reason,''), u.plan_id, u.subscription_expires_at, u.cooldown_until, COALESCE(NULLIF(p2.concurrency,0),NULLIF(st.free_concurrency,0),1), COALESCE(NULLIF(p2.token_capacity,0),NULLIF(st.free_token_capacity,0),50), COALESCE(NULLIF(p2.token_refill_per_hour,0),NULLIF(st.free_token_refill_per_hour,0),3), COALESCE(p2.name,''), u.created_at FROM users u LEFT JOIN plans p2 ON (CASE WHEN u.subscription_expires_at IS NOT NULL AND u.subscription_expires_at < NOW() THEN NULL ELSE u.plan_id END) = p2.id LEFT JOIN settings st ON st.id=1 WHERE u.linuxdo_id=?`,
+		linuxdoID).Scan(&u.ID, &u.Email, &u.PasswordHash, &u.Name, &u.Avatar, &u.Points, &u.Status, &u.Role, &u.BanReason, &u.PlanID, &u.SubscriptionExpiresAt, &u.CooldownUntil, &u.PlanConcurrency, &u.TokenCapacity, &u.TokenRefillPerHour, &u.PlanName, &u.CreatedAt)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &u, nil
+}
+
+// CreateUserWithLinuxDo 用 Linux Do OAuth 信息自动建号（首次登录）。
+// 邮箱占位 linuxdo_{id}@connect.local：满足 UNIQUE 约束，且有效但无法登录
+// （无对应密码，bcrypt 比对必然失败）。password_hash 存一个不可预测随机串的哈希：
+// 既满足 NOT NULL，又不可被爆破。默认套餐逻辑与 CreateUser 一致。
+func (s *MySQLStore) CreateUserWithLinuxDo(linuxdoID int64, name string, avatar string) (int64, error) {
+	// 从系统设置读取默认套餐，fallback 到第一个免费套餐（与 CreateUser 一致）
+	var planID int
+	var durationDays int
+	s.db.QueryRow("SELECT COALESCE(default_plan_id,0) FROM settings WHERE id=1").Scan(&planID)
+	if planID == 0 {
+		s.db.QueryRow("SELECT id, COALESCE(duration_days,0) FROM plans WHERE price_monthly=0 AND enabled=1 ORDER BY sort_order LIMIT 1").Scan(&planID, &durationDays)
+	} else {
+		s.db.QueryRow("SELECT COALESCE(duration_days,0) FROM plans WHERE id=?", planID).Scan(&durationDays)
+	}
+	expiresSQL := "NULL"
+	if durationDays > 0 {
+		expiresSQL = "DATE_ADD(NOW(), INTERVAL ? DAY)"
+	}
+
+	// 占位邮箱（UNIQUE）+ 不可预测的随机密码哈希（NOT NULL，且不可被爆破/登录）
+	email := fmt.Sprintf("linuxdo_%d@connect.local", linuxdoID)
+	randBytes := make([]byte, 32)
+	if _, err := rand.Read(randBytes); err != nil {
+		return 0, err
+	}
+	placeholderHash, err := bcryptHash(hex.EncodeToString(randBytes))
+	if err != nil {
+		return 0, err
+	}
+
+	query := fmt.Sprintf("INSERT INTO users (email, password_hash, name, avatar, plan_id, linuxdo_id, subscription_expires_at) VALUES (?, ?, ?, ?, ?, ?, %s)", expiresSQL)
+	var args []any
+	args = append(args, email, placeholderHash, name, avatar, planID, linuxdoID)
+	if durationDays > 0 {
+		args = append(args, durationDays)
+	}
+	res, err := s.db.Exec(query, args...)
+	if err != nil {
+		return 0, err
+	}
+	return res.LastInsertId()
+}
+
+func (s *MySQLStore) UpdateUserAvatar(userID int64, avatar string) {
+	s.db.Exec("UPDATE users SET avatar=? WHERE id=?", avatar, userID)
+}
+
+// bcryptHash 包一层 bcrypt，供 OAuth 占位密码哈希用（password_hash NOT NULL）。
+func bcryptHash(s string) (string, error) {
+	b, err := bcrypt.GenerateFromPassword([]byte(s), bcrypt.DefaultCost)
+	if err != nil {
+		return "", err
+	}
+	return string(b), nil
 }
 
 func (s *MySQLStore) ListUsers(search string, page, pageSize int) ([]model.User, int, error) {
@@ -70,7 +144,7 @@ func (s *MySQLStore) ListUsers(search string, page, pageSize int) ([]model.User,
 
 	allArgs := append([]any{}, args...)
 	allArgs = append(allArgs, pageSize, (page-1)*pageSize)
-	rows, err := s.db.Query(`SELECT u.id, u.email, u.password_hash, COALESCE(u.name,''), u.points, u.status, COALESCE(u.role,0), COALESCE(u.ban_reason,''), u.plan_id, u.subscription_expires_at, COALESCE(p.name,''), u.created_at
+	rows, err := s.db.Query(`SELECT u.id, u.email, u.password_hash, COALESCE(u.name,''), COALESCE(u.avatar,''), u.points, u.status, COALESCE(u.role,0), COALESCE(u.ban_reason,''), u.plan_id, u.subscription_expires_at, COALESCE(p.name,''), u.created_at
 		FROM users u LEFT JOIN plans p ON (CASE WHEN u.subscription_expires_at IS NOT NULL AND u.subscription_expires_at < NOW() THEN NULL ELSE u.plan_id END) = p.id
 		`+where+" ORDER BY u.id DESC LIMIT ? OFFSET ?", allArgs...)
 	if err != nil {
@@ -81,7 +155,7 @@ func (s *MySQLStore) ListUsers(search string, page, pageSize int) ([]model.User,
 	var users []model.User
 	for rows.Next() {
 		var u model.User
-		if err := rows.Scan(&u.ID, &u.Email, &u.PasswordHash, &u.Name, &u.Points, &u.Status, &u.Role, &u.BanReason, &u.PlanID, &u.SubscriptionExpiresAt, &u.PlanName, &u.CreatedAt); err != nil {
+		if err := rows.Scan(&u.ID, &u.Email, &u.PasswordHash, &u.Name, &u.Avatar, &u.Points, &u.Status, &u.Role, &u.BanReason, &u.PlanID, &u.SubscriptionExpiresAt, &u.PlanName, &u.CreatedAt); err != nil {
 			continue
 		}
 		users = append(users, u)
@@ -264,8 +338,8 @@ func (s *MySQLStore) GetLastCheckinStreak(userID int64) (int, error) {
 
 func (s *MySQLStore) GetUserByID(id int64) (*model.User, error) {
 	var u model.User
-	err := s.db.QueryRow(`SELECT u.id, u.email, u.password_hash, COALESCE(u.name,''), u.points, u.status, COALESCE(u.role,0), COALESCE(u.ban_reason,''), u.plan_id, u.subscription_expires_at, u.cooldown_until, COALESCE(NULLIF(p2.concurrency,0),NULLIF(st.free_concurrency,0),1), COALESCE(NULLIF(p2.token_capacity,0),NULLIF(st.free_token_capacity,0),50), COALESCE(NULLIF(p2.token_refill_per_hour,0),NULLIF(st.free_token_refill_per_hour,0),3), COALESCE(p2.rate_limit_per_min,0), COALESCE(p2.name,''), u.created_at FROM users u LEFT JOIN plans p2 ON (CASE WHEN u.subscription_expires_at IS NOT NULL AND u.subscription_expires_at < NOW() THEN NULL ELSE u.plan_id END) = p2.id LEFT JOIN settings st ON st.id=1 WHERE u.id=?`,
-		id).Scan(&u.ID, &u.Email, &u.PasswordHash, &u.Name, &u.Points, &u.Status, &u.Role, &u.BanReason, &u.PlanID, &u.SubscriptionExpiresAt, &u.CooldownUntil, &u.PlanConcurrency, &u.TokenCapacity, &u.TokenRefillPerHour, &u.RateLimitPerMin, &u.PlanName, &u.CreatedAt)
+	err := s.db.QueryRow(`SELECT u.id, u.email, u.password_hash, COALESCE(u.name,''), COALESCE(u.avatar,''), u.points, u.status, COALESCE(u.role,0), COALESCE(u.ban_reason,''), u.plan_id, u.subscription_expires_at, u.cooldown_until, COALESCE(NULLIF(p2.concurrency,0),NULLIF(st.free_concurrency,0),1), COALESCE(NULLIF(p2.token_capacity,0),NULLIF(st.free_token_capacity,0),50), COALESCE(NULLIF(p2.token_refill_per_hour,0),NULLIF(st.free_token_refill_per_hour,0),3), COALESCE(p2.rate_limit_per_min,0), COALESCE(p2.name,''), u.created_at FROM users u LEFT JOIN plans p2 ON (CASE WHEN u.subscription_expires_at IS NOT NULL AND u.subscription_expires_at < NOW() THEN NULL ELSE u.plan_id END) = p2.id LEFT JOIN settings st ON st.id=1 WHERE u.id=?`,
+		id).Scan(&u.ID, &u.Email, &u.PasswordHash, &u.Name, &u.Avatar, &u.Points, &u.Status, &u.Role, &u.BanReason, &u.PlanID, &u.SubscriptionExpiresAt, &u.CooldownUntil, &u.PlanConcurrency, &u.TokenCapacity, &u.TokenRefillPerHour, &u.RateLimitPerMin, &u.PlanName, &u.CreatedAt)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}

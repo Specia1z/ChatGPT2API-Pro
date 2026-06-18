@@ -21,7 +21,6 @@ type Props = {
   hsFilter: "all" | "completed" | "failed" | "pending";
   setHsFilter: (k: "all" | "completed" | "failed" | "pending") => void;
   counts: Counts;
-  clearFailed: () => void;
   brokenIds: Set<number>;
   brokenCount: number;
   markBroken: (id: number) => void;
@@ -43,7 +42,7 @@ type Props = {
 export function GalleryGrid(p: Props) {
   const {
     buckets, filtered, generations, total, revealedIds, setRevealedIds, mounted,
-    hsFilter, setHsFilter, counts, clearFailed, brokenIds, brokenCount, markBroken, unmarkBroken, onClearBroken, hasMore, loadingMore,
+    hsFilter, setHsFilter, counts, brokenIds, brokenCount, markBroken, unmarkBroken, onClearBroken, hasMore, loadingMore,
     galleryRef, sentinelRef, setPreviewGen, toggleShare, editGen, downloadImg, setDeleteTarget, retryGen,
   } = p;
 
@@ -71,12 +70,6 @@ export function GalleryGrid(p: Props) {
                 </button>
               ))}
             </div>
-            {counts.failed > 0 && (
-              <button onClick={clearFailed}
-                className="flex items-center gap-1 px-2 py-1.5 rounded-lg text-[10px] font-medium text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 transition-all">
-                <Trash2 className="w-3 h-3" /> 清除失败
-              </button>
-            )}
             {brokenCount > 0 && (
               <button onClick={onClearBroken}
                 className="flex items-center gap-1 px-2 py-1.5 rounded-lg text-[10px] font-medium text-amber-500 hover:bg-amber-50 dark:hover:bg-amber-500/10 transition-all whitespace-nowrap">
@@ -147,10 +140,7 @@ export function GalleryGrid(p: Props) {
                           <ImageOff className="w-5 h-5 text-amber-500" />
                         </div>
                         <span className="text-[10px] text-zinc-500 dark:text-white/55 font-medium">图片无法显示</span>
-                        <button onClick={e => { e.stopPropagation(); setDeleteTarget(g.id); }}
-                          className="px-2.5 py-1 rounded-lg text-[10px] font-medium bg-zinc-900/[0.05] dark:bg-white/[0.08] text-zinc-500 dark:text-white/55 hover:text-red-500 transition-colors">
-                          删除
-                        </button>
+                        <span className="text-[10px] text-zinc-400 dark:text-white/40">用顶部「清除异常」批量删除</span>
                       </div>
                     )}
                     {/* 扫光渐出遮罩 */}

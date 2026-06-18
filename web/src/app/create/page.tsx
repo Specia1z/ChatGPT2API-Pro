@@ -9,7 +9,7 @@ import { imageProxyUrl } from "@/lib/utils";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { toast } from "sonner";
-import { autoDim, resolveIcon, type StylePreset } from "./lib/helpers";
+import { autoDim, resolveIcon, isAbnormalGen, type StylePreset } from "./lib/helpers";
 import { useGenerations } from "./lib/useGenerations";
 import { PreviewDialog } from "./components/PreviewDialog";
 import { GalleryGrid } from "./components/GalleryGrid";
@@ -348,15 +348,6 @@ export default function CreatePage() {
     setGenerations(prev => prev.filter(g => g.id !== id));
   };
 
-  const clearFailed = async () => {
-    const failed = generations.filter(g => g.status === "failed");
-    for (const g of failed) {
-      await api("/api/generations", { method: "DELETE", body: JSON.stringify({ id: g.id }) }).catch(() => {});
-      colAssignRef.current.delete(g.id);
-    }
-    setGenerations(prev => prev.filter(g => g.status !== "failed"));
-  };
-
   // 标记一张图为「加载异常」（GalleryGrid 的 <img onError> 调用）。
   // 只收 completed 项——pending 还没出图、failed 本就有专门的「清除失败」。
   const markBroken = (id: number) => {
@@ -368,14 +359,17 @@ export default function CreatePage() {
     setBrokenIds(prev => { if (!prev.has(id)) return prev; const next = new Set(prev); next.delete(id); return next; });
   };
 
-  // 批量清除异常图片：删 brokenIds 里仍存在的记录（复用单删接口循环）。
+  // 批量清除异常图片：删所有「异常」记录——失败 / 无图数据的 completed / 裂图。
+  // 复用单删接口循环。统一以 isAbnormalGen 判定，与卡片渲染、头部计数同源。
   const clearBroken = async () => {
-    const ids = generations.filter(g => brokenIds.has(g.id)).map(g => g.id);
+    const targets = generations.filter(g => isAbnormalGen(g, brokenIds));
+    const ids = targets.map(g => g.id);
+    const idSet = new Set(ids);
     for (const id of ids) {
       await api("/api/generations", { method: "DELETE", body: JSON.stringify({ id }) }).catch(() => {});
       colAssignRef.current.delete(id);
     }
-    setGenerations(prev => prev.filter(g => !brokenIds.has(g.id)));
+    setGenerations(prev => prev.filter(g => !idSet.has(g.id)));
     setBrokenIds(new Set());
     setClearBrokenOpen(false);
     if (ids.length) toast.success(`已清除 ${ids.length} 张异常图片`);
@@ -455,8 +449,8 @@ export default function CreatePage() {
     failed: generations.filter(g => g.status === "failed").length,
   };
 
-  // 当前列表里仍存在的异常图片数（brokenIds 可能含已被删除的旧 id，需与现有列表取交集）
-  const brokenCount = generations.reduce((n, g) => n + (brokenIds.has(g.id) ? 1 : 0), 0);
+  // 当前列表里「异常」图片数（失败 / 无图数据的 completed / 裂图）——头部「清除异常 N」用
+  const brokenCount = generations.reduce((n, g) => n + (isAbnormalGen(g, brokenIds) ? 1 : 0), 0);
 
   const lineCount = tags.filter(Boolean).length;
   // 总张数 = 各提示词份数之和（含尚未提交的当前输入，按 1 份计）
@@ -499,7 +493,6 @@ export default function CreatePage() {
           hsFilter={hsFilter}
           setHsFilter={setHsFilter}
           counts={counts}
-          clearFailed={clearFailed}
           brokenIds={brokenIds}
           brokenCount={brokenCount}
           markBroken={markBroken}

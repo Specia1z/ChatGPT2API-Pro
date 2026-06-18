@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { BASE } from "@/lib/api";
+import { getCurrencyInfo } from "@/lib/currency";
 import {
   ArrowRight, Check, Palette, Zap, Image, MessageCircle,
   Shield, Banknote, Coins, Timer, Layers, Clock, Loader2, Sparkles, Gauge,
@@ -206,9 +207,11 @@ export default function HomePage() {
   const [buyPlan, setBuyPlan] = useState<any>(null);
   const [order, setOrder] = useState<any>(null);
   const [qrCode, setQrCode] = useState<string | null>(null);
+  const [payUrl, setPayUrl] = useState<string | null>(null);
   const [polling, setPolling] = useState(false);
   const [paid, setPaid] = useState(false);
   const [couponCode, setCouponCode] = useState("");
+  const currency = useMemo(() => getCurrencyInfo(settings), [settings]);
   // Hero 副标题轮播：在多个卖点间切换（首项为站点配置的副标题）
   const [subIdx, setSubIdx] = useState(0);
   const subtitles = [settings.site_subtitle || "AI 图片生成服务", "矢量设计 · 一键生成 SVG", "图生图 · 智能增强", "OpenAI 兼容 · 开放 API"];
@@ -239,7 +242,7 @@ export default function HomePage() {
       const d = await res.json();
       if (d.data?.valid) {
         setCouponDiscount(d.data);
-        toast.success(`优惠码已应用: ${d.data.discount_type === "percent" ? d.data.discount_value + "%" : "¥" + d.data.discount_value}折扣`);
+        toast.success(`优惠码已应用: ${d.data.discount_type === "percent" ? d.data.discount_value + "%" : currency.symbol + d.data.discount_value}折扣`);
       } else {
         setCouponDiscount(null);
         toast.error(d.data?.message || "优惠码无效");
@@ -270,6 +273,7 @@ export default function HomePage() {
     setBuyPlan(plan);
     setOrder(null);
     setQrCode(null);
+    setPayUrl(null);
     setPaid(false);
     try {
       const res = await fetch(`${BASE}/api/orders`, {
@@ -279,14 +283,11 @@ export default function HomePage() {
       });
       if (res.status === 401) { setBuyPlan(null); window.location.href = "/login"; return; }
       const data = await res.json();
-      if (data.data?.qr_code) {
-        setOrder(data.data.order);
-        setQrCode(data.data.qr_code);
-        // Start polling
+      const startPolling = (orderNo: string) => {
         setPolling(true);
         const pollInterval = setInterval(async () => {
           try {
-            const r = await fetch(`${BASE}/api/orders/${data.data.order.order_no}`, {
+            const r = await fetch(`${BASE}/api/orders/${orderNo}`, {
               headers: { Authorization: `Bearer ${token}` },
             });
             if (r.status === 401) { clearInterval(pollInterval); setPolling(false); setBuyPlan(null); window.location.href = "/login"; return; }
@@ -298,6 +299,17 @@ export default function HomePage() {
             }
           } catch {}
         }, 3000);
+      };
+      if (data.data?.redirect_url) {
+        // Linux Do 积分支付：跳转支付页（新标签）+ 轮询
+        setOrder(data.data.order);
+        setPayUrl(data.data.redirect_url);
+        window.open(data.data.redirect_url, "_blank");
+        startPolling(data.data.order.order_no);
+      } else if (data.data?.qr_code) {
+        setOrder(data.data.order);
+        setQrCode(data.data.qr_code);
+        startPolling(data.data.order.order_no);
       } else {
         setOrder(data.data?.order || data.data);
         setQrCode(null);
@@ -534,6 +546,7 @@ export default function HomePage() {
                   delay={i * 100}
                   onBuy={handleBuy}
                   index={i}
+                  currency={currency}
                 />
               );
             })}
@@ -586,12 +599,14 @@ export default function HomePage() {
           ═══════════════════════════════════════ */}
       <PaymentDialog
         open={!!buyPlan}
-        onClose={() => { setBuyPlan(null); setOrder(null); setQrCode(null); setPaid(false); }}
+        onClose={() => { setBuyPlan(null); setOrder(null); setQrCode(null); setPayUrl(null); setPaid(false); }}
         plan={buyPlan}
         order={order}
         qrCode={qrCode}
+        payUrl={payUrl}
         polling={polling}
         paid={paid}
+        currencySymbol={currency.symbol || "¥"}
       />
 
       {/* ═══════════════════════════════════════
@@ -754,10 +769,10 @@ export default function HomePage() {
    ═══════════════════════════════════════════════ */
 
 function PlanCard({
-  p, billing, inView, delay, onBuy, index,
+  p, billing, inView, delay, onBuy, index, currency,
 }: {
   p: any; billing: string; inView: boolean; delay: number; onBuy: (plan: any) => void;
-  index: number;
+  index: number; currency: { symbol: string; rate: number; isCredit: boolean };
 }) {
   const { auto, custom } = buildFeatures(p, billing);
   const { user, loading: authLoading } = useAuth();
@@ -801,23 +816,23 @@ function PlanCard({
         {/* 价格 — 视觉重心，无衬线等宽数字，紧凑利落 */}
         <div className="mb-7">
           <div className="flex items-start">
-            <span className={`text-2xl font-semibold mt-1.5 mr-0.5 ${hot ? "text-white/70" : "text-zinc-400 dark:text-white/50"}`}>¥</span>
+            <span className={`text-2xl font-semibold mt-1.5 mr-0.5 ${hot ? "text-white/70" : "text-zinc-400 dark:text-white/50"}`}>{currency.symbol}</span>
             {isFree ? (
               <span className={`text-6xl font-bold tabular-nums tracking-tight leading-none ${hot ? "text-white" : "text-zinc-900 dark:text-white"}`}>0</span>
             ) : (
               <AnimatedPrice
-                prefix=""
-                value={Number(billing === "yearly" ? p.price_yearly : p.price_monthly)}
+                prefix={currency.symbol}
+                value={Number(billing === "yearly" ? p.price_yearly : p.price_monthly) * currency.rate}
                 className={`text-6xl font-bold tabular-nums tracking-tight leading-none ${hot ? "text-white" : "text-zinc-900 dark:text-white"}`}
               />
             )}
-            <span className={`text-sm font-medium self-end mb-1.5 ml-1.5 ${hot ? "text-white/50" : "text-zinc-400 dark:text-white/40"}`}>/月</span>
+            <span className={`text-sm font-medium self-end mb-1.5 ml-1.5 ${hot ? "text-white/50" : "text-zinc-400 dark:text-white/40"}`}>{currency.isCredit ? " 积分/月" : "/月"}</span>
           </div>
           {/* 年付折前原价（占位高度固定，避免月付/年付切换时跳动） */}
           <div className="h-5 mt-2">
             {billing === "yearly" && p.price_monthly > 0 && (
               <span className={`text-xs ${hot ? "text-white/40" : "text-zinc-400 dark:text-white/35"}`}>
-                原价 <span className="line-through">¥{p.price_monthly}</span> /月
+                原价 <span className="line-through">{currency.symbol}{Math.round(p.price_monthly * currency.rate)}</span> {currency.isCredit ? "积分/月" : "/月"}
               </span>
             )}
           </div>

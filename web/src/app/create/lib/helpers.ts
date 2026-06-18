@@ -61,3 +61,20 @@ export const shareState = (g: any): ShareUI => {
     default:          return { key: "none",     label: "分享到广场", active: false };
   }
 };
+
+// hasImageData：记录是否带可渲染的图片数据。与 GalleryGrid 卡片「分支A」渲染条件保持一致——
+// 二者必须同源，否则计数与实际渲染会漂移。
+export const hasImageData = (g: any): boolean =>
+  !!(g.image_url || (g.image_b64 && g.image_b64.length > 100));
+
+// isAbnormalGen：判定一条记录是否「异常」，纳入「清除异常」批量入口。三类：
+//  1) status=failed —— 生成失败
+//  2) status=completed 但无图片数据 —— 对象被清/落地失败，服务端以为成功但实际无图
+//  3) brokenIds 命中 —— 有 URL 但浏览器 <img> 加载失败（裂图/URL 失效）
+// pending（生成中）永不算异常。
+export const isAbnormalGen = (g: any, brokenIds: Set<number>): boolean => {
+  if (g.status === "pending") return false;
+  if (g.status === "failed") return true;
+  if (g.status === "completed" && !hasImageData(g)) return true;
+  return brokenIds.has(g.id);
+};

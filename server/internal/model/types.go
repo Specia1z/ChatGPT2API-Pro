@@ -152,6 +152,8 @@ type User struct {
 	TokenRefillPerHour   int        `json:"token_refill_per_hour"`
 	RateLimitPerMin      int        `json:"rate_limit_per_min,omitempty"`
 	APIKeyID             int64      `json:"-"` // 本次认证命中的 API Key 行 id（仅请求内用，不返回前端）
+	Avatar               string     `json:"avatar,omitempty"`        // 头像 URL（Linux Do OAuth 登录自动获取）
+	LinuxDoID            int64      `json:"-"` // Linux Do OAuth 用户 id（仅内部用，不外泄）
 	CreatedAt            string     `json:"created_at"`
 }
 
@@ -281,6 +283,8 @@ type Settings struct {
 	EmailConfig string `json:"email_config"` // JSON：SMTP+域名规则
 	InviteConfig string `json:"invite_config"` // JSON：邀请裂变配置
 	ShopConfig string `json:"shop_config"` // JSON：积分商城商品列表（[]ShopItem）
+	OAuthConfig string `json:"oauth_config"` // JSON：第三方登录配置（Linux Do Connect 等）
+	CreditConfig string `json:"credit_config"` // JSON：Linux Do Credit 积分支付配置（EasyPay 协议）
 	APINoPersist bool `json:"api_no_persist"` // 开：API Key 生成的图/SVG 不永久落地，只短时缓存 + 代理地址（省空间）
 	APIImageTTLMin int `json:"api_image_ttl_min"` // API 短时缓存有效期（分钟，0=用内置默认 30）
 	APILogRetentionDays int `json:"api_log_retention_days"` // API 调用日志保留天数（0=用内置默认 30）
@@ -354,6 +358,31 @@ type EmailConfig struct {
 	DomainAliases  map[string]string `json:"domain_aliases"`
 }
 
+// OAuthConfig 第三方登录配置（存于 settings.oauth_config）。
+// 目前支持 Linux Do Connect（OAuth2）。client_secret 为敏感字段，
+// 公开接口返回前会被抹除（与 SMTP/Turnstile 密钥同级处理）。
+type OAuthConfig struct {
+	LinuxDoEnabled       bool   `json:"linuxdo_enabled"`
+	LinuxDoClientID      string `json:"linuxdo_client_id"`
+	LinuxDoClientSecret  string `json:"linuxdo_client_secret"`
+	LinuxDoMinTrustLevel int    `json:"linuxdo_min_trust_level"` // 允许登录的最低 trust_level（0=不限制；Linux Do 为 0-4）
+}
+
+// CreditConfig Linux Do Credit 积分支付配置（存于 settings.credit_config）。
+// credit.linux.do 采用 EasyPay（易支付）协议：跳转支付页 + MD5 签名 + 异步回调。
+// key 为商户密钥（敏感），公开接口返回前会被抹除（与 OAuth secret 同级处理）。
+type CreditConfig struct {
+	Enabled bool   `json:"enabled"`
+	APIBase string `json:"api_base"` // 网关根地址，如 https://credit.linux.do
+	PID     string `json:"pid"`      // EasyPay 商户 ID
+	Key     string `json:"key"`      // EasyPay 商户密钥（MD5 签名用，敏感）
+	Rate    int    `json:"rate"`     // 积分/元汇率：1 元 = X 积分（0 视为 1）
+	// LDC Pay（Ed25519）—— 优先于 EasyPay；未配置或签名失败时自动降级 MD5
+	LDCClientID     string `json:"ldc_client_id"`
+	LDCClientSecret string `json:"ldc_client_secret"`
+	LDCPrivateKey   string `json:"ldc_private_key"` // Ed25519 私钥（Base64 或 64 位 Hex）
+}
+
 // StylePreset 单个风格预设
 type StylePreset struct {
 	ID      string `json:"id"`
@@ -368,21 +397,23 @@ type StylePreset struct {
 /* ── 支付 ────────────────────────────── */
 
 type Order struct {
-	ID            int64   `json:"id"`
-	OrderNo       string  `json:"order_no"`
-	UserID        int64   `json:"user_id"`
-	UserEmail     string  `json:"user_email,omitempty"`
-	UserName      string  `json:"user_name,omitempty"`
-	PlanID        int     `json:"plan_id"`
-	PlanName     string  `json:"plan_name"`
-	DurationDays int     `json:"duration_days"`
-	Amount       float64 `json:"amount"`
-	Subject      string  `json:"subject"`
-	Status       string  `json:"status"` // pending, paid, expired, cancelled
-	AlipayTradeNo string `json:"alipay_trade_no,omitempty"`
-	CouponCode    string `json:"coupon_code,omitempty"`
-	CreatedAt    string  `json:"created_at"`
-	UpdatedAt    string  `json:"updated_at"`
+	ID             int64   `json:"id"`
+	OrderNo        string  `json:"order_no"`
+	UserID         int64   `json:"user_id"`
+	UserEmail      string  `json:"user_email,omitempty"`
+	UserName       string  `json:"user_name,omitempty"`
+	PlanID         int     `json:"plan_id"`
+	PlanName       string  `json:"plan_name"`
+	DurationDays   int     `json:"duration_days"`
+	Amount         float64 `json:"amount"`
+	Subject        string  `json:"subject"`
+	Status         string  `json:"status"`
+	OrderType      string  `json:"order_type"`
+	RechargePoints int     `json:"recharge_points,omitempty"`
+	AlipayTradeNo  string  `json:"alipay_trade_no,omitempty"`
+	CouponCode     string  `json:"coupon_code,omitempty"`
+	CreatedAt      string  `json:"created_at"`
+	UpdatedAt      string  `json:"updated_at"`
 }
 
 type CreateOrderRequest struct {
@@ -390,12 +421,14 @@ type CreateOrderRequest struct {
 	Billing    string `json:"billing"`
 	CouponCode string `json:"coupon_code,omitempty"`
 	CouponID   int64  `json:"coupon_id,omitempty"`
+	Gateway    string `json:"gateway,omitempty"` // 指定支付渠道（alipay/credit）；空=自动选择首个可用渠道
 }
 
 type UpgradeOrderRequest struct {
 	PlanID     int    `json:"plan_id"`
 	Billing    string `json:"billing"`
 	CouponCode string `json:"coupon_code,omitempty"`
+	Gateway    string `json:"gateway,omitempty"` // 指定支付渠道（alipay/credit）；空=自动选择
 }
 
 /* ── 优惠码 ────────────────────────────── */

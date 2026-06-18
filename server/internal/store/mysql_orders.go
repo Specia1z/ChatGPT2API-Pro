@@ -44,8 +44,8 @@ func (s *MySQLStore) CreateOrder(userID int64, plan *model.Plan, orderNo, billin
 
 func (s *MySQLStore) GetOrderByOrderNo(orderNo string) (*model.Order, error) {
 	var o model.Order
-	err := s.db.QueryRow(`SELECT id, order_no, user_id, plan_id, COALESCE(plan_name,''), COALESCE(duration_days,0), amount, status, COALESCE(alipay_trade_no,''), COALESCE(coupon_code,''), created_at, updated_at FROM orders WHERE order_no=?`, orderNo).
-		Scan(&o.ID, &o.OrderNo, &o.UserID, &o.PlanID, &o.PlanName, &o.DurationDays, &o.Amount, &o.Status, &o.AlipayTradeNo, &o.CouponCode, &o.CreatedAt, &o.UpdatedAt)
+	err := s.db.QueryRow(`SELECT id, order_no, user_id, plan_id, COALESCE(plan_name,''), COALESCE(duration_days,0), amount, status, COALESCE(order_type,'subscription'), COALESCE(recharge_points,0), COALESCE(alipay_trade_no,''), COALESCE(coupon_code,''), created_at, updated_at FROM orders WHERE order_no=?`, orderNo).
+		Scan(&o.ID, &o.OrderNo, &o.UserID, &o.PlanID, &o.PlanName, &o.DurationDays, &o.Amount, &o.Status, &o.OrderType, &o.RechargePoints, &o.AlipayTradeNo, &o.CouponCode, &o.CreatedAt, &o.UpdatedAt)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
@@ -57,8 +57,8 @@ func (s *MySQLStore) GetOrderByOrderNo(orderNo string) (*model.Order, error) {
 
 func (s *MySQLStore) GetOrderByID(id int64) (*model.Order, error) {
 	var o model.Order
-	err := s.db.QueryRow(`SELECT id, order_no, user_id, plan_id, COALESCE(plan_name,''), COALESCE(duration_days,0), amount, status, COALESCE(alipay_trade_no,''), COALESCE(coupon_code,''), created_at, updated_at FROM orders WHERE id=?`, id).
-		Scan(&o.ID, &o.OrderNo, &o.UserID, &o.PlanID, &o.PlanName, &o.DurationDays, &o.Amount, &o.Status, &o.AlipayTradeNo, &o.CouponCode, &o.CreatedAt, &o.UpdatedAt)
+	err := s.db.QueryRow(`SELECT id, order_no, user_id, plan_id, COALESCE(plan_name,''), COALESCE(duration_days,0), amount, status, COALESCE(order_type,'subscription'), COALESCE(recharge_points,0), COALESCE(alipay_trade_no,''), COALESCE(coupon_code,''), created_at, updated_at FROM orders WHERE id=?`, id).
+		Scan(&o.ID, &o.OrderNo, &o.UserID, &o.PlanID, &o.PlanName, &o.DurationDays, &o.Amount, &o.Status, &o.OrderType, &o.RechargePoints, &o.AlipayTradeNo, &o.CouponCode, &o.CreatedAt, &o.UpdatedAt)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
@@ -71,7 +71,7 @@ func (s *MySQLStore) GetOrderByID(id int64) (*model.Order, error) {
 func (s *MySQLStore) GetUserOrders(userID int64, page, pageSize int) ([]model.Order, int, error) {
 	var total int
 	s.db.QueryRow("SELECT COUNT(*) FROM orders WHERE user_id=?", userID).Scan(&total)
-	rows, err := s.db.Query("SELECT id, order_no, user_id, plan_id, COALESCE(plan_name,''), COALESCE(duration_days,0), amount, status, COALESCE(alipay_trade_no,''), COALESCE(coupon_code,''), created_at, updated_at FROM orders WHERE user_id=? ORDER BY id DESC LIMIT ? OFFSET ?", userID, pageSize, (page-1)*pageSize)
+	rows, err := s.db.Query("SELECT id, order_no, user_id, plan_id, COALESCE(plan_name,''), COALESCE(duration_days,0), amount, status, COALESCE(order_type,'subscription'), COALESCE(recharge_points,0), COALESCE(alipay_trade_no,''), COALESCE(coupon_code,''), created_at, updated_at FROM orders WHERE user_id=? ORDER BY id DESC LIMIT ? OFFSET ?", userID, pageSize, (page-1)*pageSize)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -79,7 +79,7 @@ func (s *MySQLStore) GetUserOrders(userID int64, page, pageSize int) ([]model.Or
 	var orders []model.Order
 	for rows.Next() {
 		var o model.Order
-		if err := rows.Scan(&o.ID, &o.OrderNo, &o.UserID, &o.PlanID, &o.PlanName, &o.DurationDays, &o.Amount, &o.Status, &o.AlipayTradeNo, &o.CouponCode, &o.CreatedAt, &o.UpdatedAt); err != nil {
+		if err := rows.Scan(&o.ID, &o.OrderNo, &o.UserID, &o.PlanID, &o.PlanName, &o.DurationDays, &o.Amount, &o.Status, &o.OrderType, &o.RechargePoints, &o.AlipayTradeNo, &o.CouponCode, &o.CreatedAt, &o.UpdatedAt); err != nil {
 			continue
 		}
 		orders = append(orders, o)
@@ -92,8 +92,8 @@ func (s *MySQLStore) GetUserOrders(userID int64, page, pageSize int) ([]model.Or
 
 func (s *MySQLStore) GetLastPaidOrder(userID int64) (*model.Order, error) {
 	var o model.Order
-	err := s.db.QueryRow(`SELECT id, order_no, user_id, plan_id, COALESCE(plan_name,''), COALESCE(duration_days,0), amount, status, COALESCE(alipay_trade_no,''), COALESCE(coupon_code,''), created_at, updated_at FROM orders WHERE user_id=? AND status='paid' ORDER BY id DESC LIMIT 1`, userID).
-		Scan(&o.ID, &o.OrderNo, &o.UserID, &o.PlanID, &o.PlanName, &o.DurationDays, &o.Amount, &o.Status, &o.AlipayTradeNo, &o.CouponCode, &o.CreatedAt, &o.UpdatedAt)
+	err := s.db.QueryRow(`SELECT id, order_no, user_id, plan_id, COALESCE(plan_name,''), COALESCE(duration_days,0), amount, status, COALESCE(order_type,'subscription'), COALESCE(recharge_points,0), COALESCE(alipay_trade_no,''), COALESCE(coupon_code,''), created_at, updated_at FROM orders WHERE user_id=? AND status='paid' ORDER BY id DESC LIMIT 1`, userID).
+		Scan(&o.ID, &o.OrderNo, &o.UserID, &o.PlanID, &o.PlanName, &o.DurationDays, &o.Amount, &o.Status, &o.OrderType, &o.RechargePoints, &o.AlipayTradeNo, &o.CouponCode, &o.CreatedAt, &o.UpdatedAt)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
@@ -162,6 +162,32 @@ func (s *MySQLStore) ExpireStaleOrders(timeoutMinutes int) (int64, error) {
 	return n, nil
 }
 
+func (s *MySQLStore) CreateRechargeOrder(userID int64, orderNo string, points int, amount float64) error {
+	_, err := s.db.Exec(
+		"INSERT INTO orders (order_no, user_id, plan_id, plan_name, amount, status, order_type, recharge_points) VALUES (?, ?, 0, '积分充值', ?, 'pending', 'recharge', ?)",
+		orderNo, userID, amount, points)
+	return err
+}
+
+func (s *MySQLStore) FulfillRechargeOrder(orderNo, tradeNo string) (userID int64, points int, ok bool) {
+	var status, orderType string
+	err := s.db.QueryRow("SELECT user_id, recharge_points, status, COALESCE(order_type,'subscription') FROM orders WHERE order_no=?", orderNo).
+		Scan(&userID, &points, &status, &orderType)
+	if err != nil || status != "pending" || orderType != "recharge" {
+		return 0, 0, false
+	}
+	res, err := s.db.Exec("UPDATE orders SET status='paid', alipay_trade_no=? WHERE order_no=? AND status='pending'", tradeNo, orderNo)
+	if err != nil {
+		return 0, 0, false
+	}
+	n, _ := res.RowsAffected()
+	if n == 0 {
+		return 0, 0, false
+	}
+	s.db.Exec("UPDATE users SET points=points+? WHERE id=?", points, userID)
+	return userID, points, true
+}
+
 func (s *MySQLStore) GetAllOrders(page, pageSize int, status, search string) ([]model.Order, int, error) {
 	var total int
 	var conds []string
@@ -184,6 +210,7 @@ func (s *MySQLStore) GetAllOrders(page, pageSize int, status, search string) ([]
 	s.db.QueryRow("SELECT COUNT(*) FROM orders o LEFT JOIN users u ON o.user_id=u.id"+where, args...).Scan(&total)
 	query := `SELECT o.id, o.order_no, o.user_id, COALESCE(u.email,''), COALESCE(u.name,''),
 		o.plan_id, COALESCE(o.plan_name,''), COALESCE(o.duration_days,0), o.amount, o.status,
+		COALESCE(o.order_type,'subscription'), COALESCE(o.recharge_points,0),
 		COALESCE(o.alipay_trade_no,''), COALESCE(o.coupon_code,''), o.created_at, o.updated_at
 		FROM orders o LEFT JOIN users u ON o.user_id=u.id` + where +
 		` ORDER BY o.id DESC LIMIT ? OFFSET ?`
@@ -198,6 +225,7 @@ func (s *MySQLStore) GetAllOrders(page, pageSize int, status, search string) ([]
 		var o model.Order
 		if err := rows.Scan(&o.ID, &o.OrderNo, &o.UserID, &o.UserEmail, &o.UserName,
 			&o.PlanID, &o.PlanName, &o.DurationDays, &o.Amount, &o.Status,
+			&o.OrderType, &o.RechargePoints,
 			&o.AlipayTradeNo, &o.CouponCode, &o.CreatedAt, &o.UpdatedAt); err != nil {
 			continue
 		}

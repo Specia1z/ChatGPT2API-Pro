@@ -32,6 +32,12 @@ export default function LoginPage() {
       toast.success("密码已重置，请用新密码登录");
       window.history.replaceState({}, "", "/login");
     }
+    // Linux Do OAuth 出错时由后端 302 带回的 error 文案
+    const oauthError = params.get("oauth_error");
+    if (oauthError) {
+      setError(oauthError);
+      window.history.replaceState({}, "", "/login");
+    }
   }, []);
 
   useEffect(() => {
@@ -160,6 +166,30 @@ export default function LoginPage() {
             )}
             {loading ? "登录中..." : "登录"}
           </Button>
+
+          {/* Linux Do 第三方登录（后端 oauth_config.linuxdo_enabled 时显示） */}
+          {(() => {
+            try {
+              const oc = JSON.parse(settings?.oauth_config || "{}");
+              return oc?.linuxdo_enabled ? (
+                <>
+                  <div className="relative my-1">
+                    <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-zinc-200 dark:border-zinc-800" /></div>
+                    <div className="relative flex justify-center"><span className="bg-white dark:bg-zinc-900 px-2 text-[11px] text-zinc-400">或</span></div>
+                  </div>
+                  <a
+                    href="/api/auth/linuxdo"
+                    className="w-full h-10 text-sm font-semibold gap-2 rounded-xl bg-[#F0A020] hover:bg-[#db8e15] text-white inline-flex items-center justify-center transition-colors"
+                  >
+                    <svg viewBox="0 0 24 24" className="w-4 h-4" fill="currentColor" aria-hidden="true">
+                      <path d="M12 2a10 10 0 100 20 10 10 0 000-20zm0 3.2l2.3 4.7 5.2.8-3.8 3.7.9 5.2L12 17.3 7.4 19.8l.9-5.2L4.5 10.9l5.2-.8L12 5.2z" />
+                    </svg>
+                    Linux Do 登录
+                  </a>
+                </>
+              ) : null;
+            } catch { return null; }
+          })()}
 
           {/* Register link */}
           <p className="text-center text-[13px] text-zinc-500 dark:text-zinc-400 pt-1">

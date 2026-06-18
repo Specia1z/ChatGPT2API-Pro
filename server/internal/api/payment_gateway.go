@@ -50,11 +50,24 @@ func registerGateway(g PaymentGateway) { gateways[g.Name()] = g }
 // getGateway 取指定渠道适配器，不存在返回 nil。
 func getGateway(name string) PaymentGateway { return gateways[name] }
 
-// firstEnabledGateway 返回首个可用的支付网关（第一阶段下单时选默认渠道用）。
+// firstEnabledGateway 返回首个可用的支付网关（下单时选默认渠道用）。
+// 优先级：支付宝 > Linux Do 积分支付。
 func firstEnabledGateway(cfg *model.Settings) PaymentGateway {
-	// 第一阶段仅 alipay；将来按渠道排序/优先级选择
 	if g := gateways["alipay"]; g != nil && g.Enabled(cfg) {
 		return g
 	}
+	if g := gateways["credit"]; g != nil && g.Enabled(cfg) {
+		return g
+	}
 	return nil
+}
+
+// selectGateway 按名称选择指定渠道（必须可用）；空名称或不可用时回退 firstEnabledGateway。
+func selectGateway(cfg *model.Settings, name string) PaymentGateway {
+	if name != "" {
+		if g := gateways[name]; g != nil && g.Enabled(cfg) {
+			return g
+		}
+	}
+	return firstEnabledGateway(cfg)
 }

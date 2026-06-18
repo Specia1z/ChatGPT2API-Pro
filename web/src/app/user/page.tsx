@@ -12,6 +12,7 @@ import { stagger } from "./lib/helpers";
 import { useAnimatedNumber, useCountdown } from "./lib/hooks";
 import { useUserData } from "./lib/useUserData";
 import { ExchangeDialog } from "./components/ExchangeDialog";
+import { RechargeDialog } from "./components/RechargeDialog";
 import { ProfileHeader } from "./components/ProfileHeader";
 import { AccountTabs } from "./components/AccountTabs";
 
@@ -40,6 +41,7 @@ export default function UserPage() {
   const [exchangeOpen, setExchangeOpen] = useState(false);
   const [exchangeTokens, setExchangeTokens] = useState(10);
   const [exchanging, setExchanging] = useState(false);
+  const [rechargeOpen, setRechargeOpen] = useState(false);
   const [oldPwd, setOldPwd] = useState("");
   const [newPwd, setNewPwd] = useState("");
   const [changingPwd, setChangingPwd] = useState(false);
@@ -136,6 +138,7 @@ export default function UserPage() {
           onUpgrade={() => setUpgradeOpen(true)}
           onLogout={() => setLogoutOpen(true)}
           onExchange={() => setExchangeOpen(true)}
+          onRecharge={() => setRechargeOpen(true)}
         />
 
         {/* ═══ 功能区 Tabs ═══ */}
@@ -174,6 +177,7 @@ export default function UserPage() {
         exchanging={exchanging}
         onExchange={onExchange}
       />
+      <RechargeDialog open={rechargeOpen} onOpenChange={setRechargeOpen} />
     </div>
   );
 }

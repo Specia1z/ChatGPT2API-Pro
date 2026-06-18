@@ -292,6 +292,14 @@ func (s *MySQLStore) autoMigrate() {
 	if !s.columnExists(dbName, "settings", "shop_config") {
 		s.db.Exec("ALTER TABLE settings ADD COLUMN shop_config TEXT AFTER invite_config")
 	}
+	// 第三方登录配置（JSON：Linux Do Connect 等开关 + client_id/secret + trust_level 阈值）
+	if !s.columnExists(dbName, "settings", "oauth_config") {
+		s.db.Exec("ALTER TABLE settings ADD COLUMN oauth_config TEXT AFTER shop_config")
+	}
+	// Linux Do Credit 积分支付配置（JSON：EasyPay 协议 开关 + api_base + pid + key + 汇率）
+	if !s.columnExists(dbName, "settings", "credit_config") {
+		s.db.Exec("ALTER TABLE settings ADD COLUMN credit_config TEXT AFTER oauth_config")
+	}
 	// API Key 生成内容不永久落地（短时缓存 + 代理）：开关 + 缓存时长（分钟）
 	if !s.columnExists(dbName, "settings", "api_no_persist") {
 		s.db.Exec("ALTER TABLE settings ADD COLUMN api_no_persist TINYINT(1) NOT NULL DEFAULT 0 AFTER shop_config")
@@ -331,6 +339,11 @@ func (s *MySQLStore) autoMigrate() {
 		updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
 		INDEX idx_user_id (user_id)
 	) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`)
+	// 订单类型（subscription=套餐续费, recharge=积分充值）
+	if !s.columnExists(dbName, "orders", "order_type") {
+		s.db.Exec("ALTER TABLE orders ADD COLUMN order_type VARCHAR(16) NOT NULL DEFAULT 'subscription' AFTER status")
+		s.db.Exec("ALTER TABLE orders ADD COLUMN recharge_points INT NOT NULL DEFAULT 0 AFTER order_type")
+	}
 	s.db.Exec(`CREATE TABLE IF NOT EXISTS user_coupons (
 		id BIGINT AUTO_INCREMENT PRIMARY KEY,
 		user_id BIGINT NOT NULL,
@@ -385,6 +398,16 @@ func (s *MySQLStore) autoMigrate() {
 		s.db.Exec("ALTER TABLE users ADD COLUMN invited_by BIGINT NOT NULL DEFAULT 0")
 		s.db.Exec("CREATE UNIQUE INDEX uniq_invite_code ON users (invite_code)")
 		s.db.Exec("CREATE INDEX idx_invited_by ON users (invited_by)")
+	}
+	// 第三方登录：Linux Do Connect 用户绑定。linuxdo_id 用 NULL 默认值——
+	// MySQL 唯一索引允许多个 NULL，避免存量用户（未绑定）撞唯一约束。
+	if !s.columnExists(dbName, "users", "linuxdo_id") {
+		s.db.Exec("ALTER TABLE users ADD COLUMN linuxdo_id BIGINT NULL DEFAULT NULL")
+		s.db.Exec("CREATE UNIQUE INDEX uniq_linuxdo_id ON users (linuxdo_id)")
+	}
+	// 用户头像（Linux Do OAuth 登录时自动获取）
+	if !s.columnExists(dbName, "users", "avatar") {
+		s.db.Exec("ALTER TABLE users ADD COLUMN avatar VARCHAR(512) NULL DEFAULT NULL")
 	}
 	// 邀请记录：每次成功邀请一行（含注册奖励与首充奖励，rewarded_recharge 标记首充奖励是否已发）
 	s.db.Exec(`CREATE TABLE IF NOT EXISTS invite_logs (

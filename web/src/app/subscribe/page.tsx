@@ -1,9 +1,10 @@
 "use client";
 
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useEffect, useState, useMemo } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Tag, Check, ArrowLeft, Crown, Clock, Zap, Coins, Sparkles, X, Hash, Gauge } from "lucide-react";
 import { BASE } from "@/lib/api";
+import { getCurrencyInfo } from "@/lib/currency";
 import { Navbar } from "@/components/navbar";
 import { Button } from "@/components/ui/button";
 import QRCode from "qrcode";
@@ -33,8 +34,19 @@ function SubscribePageInner() {
   const [screen, setScreen] = useState<"select" | "pay" | "qr" | "paid">("select");
   const [order, setOrder] = useState<any>(null);
   const [qrCode, setQrCode] = useState<string | null>(null);
+  const [payUrl, setPayUrl] = useState<string | null>(null);
+  const [gateway, setGateway] = useState<string>(""); // alipay | credit
   const [countdown, setCountdown] = useState(3);
   const [settings, setSettings] = useState<any>(null);
+  const currency = useMemo(() => getCurrencyInfo(settings), [settings]);
+
+  // 可用支付渠道（按后台开关动态显示）
+  const gateways: { id: string; label: string }[] = [];
+  if (settings?.alipay_enabled) gateways.push({ id: "alipay", label: "支付宝" });
+  try {
+    const cc = JSON.parse(settings?.credit_config || "{}");
+    if (cc?.enabled) gateways.push({ id: "credit", label: "Linux Do 积分" });
+  } catch {}
 
   useEffect(() => {
     fetch(`${BASE}/api/plans`).then(r => r.json()).then(d => setPlans(d.data || [])).catch(() => {});
@@ -90,15 +102,23 @@ function SubscribePageInner() {
     if (!token) { router.push("/login"); return; }
     setScreen("qr");
     setOrder(null);
+    setQrCode(null);
+    setPayUrl(null);
     try {
       const res = await fetch(`${BASE}/api/orders`, {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ plan_id: selected.id, billing, coupon_code: couponCode || undefined }),
+        body: JSON.stringify({ plan_id: selected.id, billing, coupon_code: couponCode || undefined, gateway: gateway || undefined }),
       });
       if (res.status === 401) { router.push("/login"); return; }
       const data = await res.json();
-      if (data.data?.qr_code) {
+      if (data.data?.redirect_url) {
+        // Linux Do 积分支付：跳转支付页（新标签），本地轮询等待支付完成
+        setOrder(data.data.order);
+        setPayUrl(data.data.redirect_url);
+        window.open(data.data.redirect_url, "_blank");
+        startPolling(data.data.order.order_no);
+      } else if (data.data?.qr_code) {
         setOrder(data.data.order);
         setQrCode(data.data.qr_code);
         startPolling(data.data.order.order_no);
@@ -155,11 +175,11 @@ function SubscribePageInner() {
               </div>
               <div className="flex items-baseline gap-1 mb-3">
                 <span className="text-3xl font-extrabold tabular-nums text-zinc-900 dark:text-zinc-100 font-[family-name:var(--font-display)]">
-                  ¥{billing === "yearly" ? plan.price_yearly : plan.price_monthly}
+                  {currency.symbol}{Math.round((billing === "yearly" ? plan.price_yearly : plan.price_monthly) * currency.rate)}
                 </span>
-                <span className="text-sm text-zinc-400">/月</span>
+                <span className="text-sm text-zinc-400">{currency.isCredit ? " 积分/月" : "/月"}</span>
                 {billing === "yearly" && plan.price_monthly > 0 && (
-                  <span className="text-sm text-zinc-400 line-through ml-1">¥{plan.price_monthly}</span>
+                  <span className="text-sm text-zinc-400 line-through ml-1">{currency.symbol}{Math.round(plan.price_monthly * currency.rate)}</span>
                 )}
               </div>
               <div className="flex items-center gap-3 text-xs text-zinc-500">
@@ -186,7 +206,7 @@ function SubscribePageInner() {
 
       {selected && (
         <Button onClick={() => setScreen("pay")} size="lg" className="w-full h-12 text-sm font-semibold rounded-xl shadow-sm text-white bg-[linear-gradient(110deg,#0891b2,#6366f1)] hover:brightness-110 hover:shadow-[0_8px_24px_-6px_rgba(34,211,238,0.6)]">
-          去支付 — ¥{Math.round(billing === "yearly" ? selected.price_yearly : selected.price_monthly)}/月
+          去支付 — {currency.symbol}{Math.round((billing === "yearly" ? selected.price_yearly : selected.price_monthly) * currency.rate)}{currency.isCredit ? " 积分/月" : "/月"}
         </Button>
       )}
     </div>
@@ -225,7 +245,7 @@ function SubscribePageInner() {
           <div className="p-6 space-y-3.5">
             <div className="flex items-center justify-between text-sm">
               <span className="text-zinc-500">单价</span>
-              <span className="font-medium text-zinc-700 dark:text-zinc-300 tabular-nums">¥{total}/月</span>
+              <span className="font-medium text-zinc-700 dark:text-zinc-300 tabular-nums">{currency.symbol}{(total * currency.rate).toFixed(currency.isCredit ? 0 : 2)}{currency.isCredit ? " 积分/月" : "/月"}</span>
             </div>
             <div className="flex items-center justify-between text-sm">
               <span className="text-zinc-500">计费周期</span>
@@ -233,12 +253,12 @@ function SubscribePageInner() {
             </div>
             <div className="flex items-center justify-between text-sm">
               <span className="text-zinc-500">小计</span>
-              <span className="font-medium text-zinc-700 dark:text-zinc-300 tabular-nums">¥{originalTotal.toFixed(2)}</span>
+              <span className="font-medium text-zinc-700 dark:text-zinc-300 tabular-nums">{currency.symbol}{(originalTotal * currency.rate).toFixed(currency.isCredit ? 0 : 2)}</span>
             </div>
             {couponDiscount && (
               <div className="flex items-center justify-between text-sm">
                 <span className="text-emerald-600 dark:text-emerald-400 flex items-center gap-1.5"><Tag className="w-3.5 h-3.5" /> 优惠码</span>
-                <span className="font-medium text-emerald-600 dark:text-emerald-400 tabular-nums">−¥{discount.toFixed(2)}</span>
+                <span className="font-medium text-emerald-600 dark:text-emerald-400 tabular-nums">−{currency.symbol}{(discount * currency.rate).toFixed(currency.isCredit ? 0 : 2)}</span>
               </div>
             )}
 
@@ -279,13 +299,34 @@ function SubscribePageInner() {
             <div className="relative p-6">
               <span className="text-[11px] font-medium text-cyan-100/60 tracking-[0.15em] uppercase">应付金额</span>
               <div className="flex items-baseline gap-1 mt-2 mb-1">
-                <span className="text-lg font-medium text-zinc-400">¥</span>
-                <span className="text-4xl font-bold text-white tabular-nums font-[family-name:var(--font-display)]">{finalPrice.toFixed(2)}</span>
+                <span className="text-lg font-medium text-zinc-400">{currency.symbol}</span>
+                <span className="text-4xl font-bold text-white tabular-nums font-[family-name:var(--font-display)]">{(finalPrice * currency.rate).toFixed(currency.isCredit ? 0 : 2)}</span>
+                {currency.isCredit && <span className="text-sm font-medium text-zinc-400 ml-1">积分</span>}
               </div>
               {discount > 0 && (
-                <p className="text-[11px] text-zinc-500 line-through mb-4">原价 ¥{originalTotal.toFixed(2)}</p>
+                <p className="text-[11px] text-zinc-500 line-through mb-4">原价 {currency.symbol}{(originalTotal * currency.rate).toFixed(currency.isCredit ? 0 : 2)}{currency.isCredit ? " 积分" : ""}</p>
               )}
               {discount === 0 && <div className="mb-4" />}
+
+              {/* 支付方式选择（后台启用的渠道动态显示；仅一个时隐藏） */}
+              {gateways.length > 1 && (
+                <div className="mb-4 space-y-2">
+                  <p className="text-[11px] text-zinc-400">支付方式</p>
+                  <div className="grid grid-cols-2 gap-2">
+                    {gateways.map(g => (
+                      <button key={g.id} type="button" onClick={() => setGateway(g.id)}
+                        className={`flex items-center justify-center gap-1.5 rounded-xl py-2.5 text-xs font-medium transition-colors ${
+                          gateway === g.id
+                            ? "bg-white text-zinc-900 ring-2 ring-white"
+                            : "bg-white/5 text-zinc-400 hover:bg-white/10 ring-1 ring-white/10"
+                        }`}>
+                        {g.id === "alipay" ? <Tag className="w-3.5 h-3.5" /> : <Coins className="w-3.5 h-3.5" />}
+                        {g.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               <Button onClick={handlePay} size="lg"
                 className="w-full h-12 text-sm font-semibold rounded-xl text-zinc-900 bg-white hover:bg-zinc-100 shadow-lg shadow-black/20">
@@ -294,10 +335,7 @@ function SubscribePageInner() {
 
               <div className="mt-4 space-y-2">
                 <div className="flex items-center gap-2 text-[11px] text-zinc-400">
-                  <Check className="w-3.5 h-3.5 text-cyan-400 shrink-0" /> 支付宝安全支付
-                </div>
-                <div className="flex items-center gap-2 text-[11px] text-zinc-400">
-                  <Check className="w-3.5 h-3.5 text-cyan-400 shrink-0" /> 开通后立即生效
+                  <Check className="w-3.5 h-3.5 text-cyan-400 shrink-0" /> 安全支付 · 开通后立即生效
                 </div>
               </div>
             </div>
@@ -319,8 +357,9 @@ function SubscribePageInner() {
             <div>
               <p className="text-[11px] text-cyan-100/60 tracking-[0.15em] uppercase mb-1">应付金额</p>
               <div className="flex items-baseline gap-1">
-                <span className="text-base font-medium text-zinc-400">¥</span>
-                <span className="text-3xl font-bold text-white tabular-nums font-[family-name:var(--font-display)]">{(order?.amount || 0).toFixed(2)}</span>
+                <span className="text-base font-medium text-zinc-400">{currency.symbol}</span>
+                <span className="text-3xl font-bold text-white tabular-nums font-[family-name:var(--font-display)]">{((order?.amount || 0) * currency.rate).toFixed(currency.isCredit ? 0 : 2)}</span>
+                {currency.isCredit && <span className="text-sm font-medium text-zinc-400 ml-1">积分</span>}
               </div>
             </div>
             <div className="text-right">
@@ -339,7 +378,12 @@ function SubscribePageInner() {
             <span className="absolute -left-2 -bottom-2 w-5 h-5 border-l-2 border-b-2 border-violet-400 rounded-bl-md" />
             <span className="absolute -right-2 -bottom-2 w-5 h-5 border-r-2 border-b-2 border-fuchsia-400 rounded-br-md" />
             <div className="p-3 bg-white rounded-2xl shadow-sm ring-1 ring-zinc-100">
-              {qrCode
+              {payUrl ? (
+                <div className="w-44 h-44 flex flex-col items-center justify-center gap-3 px-3">
+                  <Coins className="w-10 h-10 text-amber-500" />
+                  <p className="text-[11px] text-center text-zinc-500 dark:text-zinc-400 leading-relaxed">已打开 Linux Do 积分支付页，完成支付后自动跳转</p>
+                </div>
+              ) : qrCode
                 ? <QRCanvas text={qrCode} />
                 : <div className="w-44 h-44 flex items-center justify-center"><div className="w-7 h-7 border-2 border-zinc-200 border-t-cyan-500 rounded-full animate-spin" /></div>}
             </div>
@@ -354,11 +398,19 @@ function SubscribePageInner() {
             <span className="text-xs text-zinc-500 dark:text-zinc-400">等待支付中…</span>
           </div>
 
-          {/* 扫码引导 */}
-          <div className="mt-5 w-full flex items-center justify-center gap-2 rounded-xl bg-zinc-50 dark:bg-zinc-800/50 py-3 px-4">
-            <Sparkles className="w-4 h-4 text-cyan-500 shrink-0" />
-            <span className="text-[11px] text-zinc-500 dark:text-zinc-400">打开<span className="font-medium text-zinc-700 dark:text-zinc-200">支付宝</span>扫一扫，完成支付后自动跳转</span>
-          </div>
+          {/* 支付引导：跳转支付（积分）/ 扫码（支付宝） */}
+          {payUrl ? (
+            <a href={payUrl} target="_blank" rel="noopener noreferrer"
+              className="mt-5 w-full flex items-center justify-center gap-2 rounded-xl bg-amber-500 hover:bg-amber-600 py-3 px-4 text-white transition-colors">
+              <Coins className="w-4 h-4 shrink-0" />
+              <span className="text-xs font-medium">前往 Linux Do 积分支付页</span>
+            </a>
+          ) : (
+            <div className="mt-5 w-full flex items-center justify-center gap-2 rounded-xl bg-zinc-50 dark:bg-zinc-800/50 py-3 px-4">
+              <Sparkles className="w-4 h-4 text-cyan-500 shrink-0" />
+              <span className="text-[11px] text-zinc-500 dark:text-zinc-400">打开<span className="font-medium text-zinc-700 dark:text-zinc-200">支付宝</span>扫一扫，完成支付后自动跳转</span>
+            </div>
+          )}
 
           {order?.order_no && (
             <p className="mt-4 text-[10px] text-zinc-300 dark:text-zinc-600 font-mono tracking-wide">订单号 {order.order_no}</p>
