@@ -36,10 +36,14 @@ export function ProfileHeader(p: Props) {
       <motion.div variants={fadeUp} className="relative overflow-hidden rounded-2xl border border-zinc-900/[0.06] dark:border-white/10 bg-white/60 dark:bg-white/[0.03] backdrop-blur-xl p-6 sm:p-8">
         <div className="relative flex flex-col sm:flex-row sm:items-center sm:justify-between gap-6">
           <div className="flex items-center gap-5">
-            <div className="relative size-16 sm:size-20 rounded-full bg-zinc-900/[0.05] dark:bg-white/[0.08] flex items-center justify-center ring-1 ring-zinc-900/[0.06] dark:ring-white/10">
-              <span className="text-2xl sm:text-3xl font-bold text-zinc-900 dark:text-white">
-                {(user.name || user.email)[0].toUpperCase()}
-              </span>
+            <div className="relative size-16 sm:size-20 rounded-full bg-zinc-900/[0.05] dark:bg-white/[0.08] flex items-center justify-center ring-1 ring-zinc-900/[0.06] dark:ring-white/10 overflow-hidden">
+              {user.avatar ? (
+                <img src={user.avatar} alt="" className="w-full h-full object-cover" />
+              ) : (
+                <span className="text-2xl sm:text-3xl font-bold text-zinc-900 dark:text-white">
+                  {(user.name || user.email)[0].toUpperCase()}
+                </span>
+              )}
             </div>
             <div className="space-y-2">
               <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-zinc-900 dark:text-white">

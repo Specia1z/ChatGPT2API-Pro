@@ -129,9 +129,13 @@ export function Navbar() {
                 <div className="relative ml-0.5">
                   <button
                     onClick={() => setMenuOpen(!menuOpen)}
-                    className="w-8 h-8 rounded-full flex items-center justify-center text-[11px] font-bold text-white bg-[linear-gradient(135deg,#22d3ee,#6366f1_60%,#e879f9)] ring-2 ring-white dark:ring-[#0b0e18] hover:shadow-[0_0_14px_-2px_rgba(34,211,238,0.8)] transition-all"
+                    className="w-8 h-8 rounded-full flex items-center justify-center text-[11px] font-bold text-white bg-[linear-gradient(135deg,#22d3ee,#6366f1_60%,#e879f9)] ring-2 ring-white dark:ring-[#0b0e18] hover:shadow-[0_0_14px_-2px_rgba(34,211,238,0.8)] transition-all overflow-hidden"
                   >
-                    {user.name?.[0] || user.email?.[0] || "U"}
+                    {user.avatar ? (
+                      <img src={user.avatar} alt="" className="w-full h-full object-cover" />
+                    ) : (
+                      user.name?.[0] || user.email?.[0] || "U"
+                    )}
                   </button>
 
                   {menuOpen && (

@@ -38,14 +38,14 @@ export default function LinuxDoCallbackPage() {
     setToken(token);
     authLogin(user, token);
 
-    // 登录后回跳：仅允许站内路径（后端已校验，这里再兜底防 //）
     const safeReturn = returnTo && returnTo.startsWith("/") && !returnTo.startsWith("//") ? returnTo : null;
     if (user.is_super_admin || (user.role && user.role >= 1)) {
       router.replace(safeReturn && safeReturn !== "/" ? safeReturn : "/admin");
     } else {
       router.replace(safeReturn || "/");
     }
-  }, [router, authLogin]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-zinc-50 dark:bg-zinc-950">
