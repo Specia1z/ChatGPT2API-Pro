@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"math"
 	"net/http"
 	"strconv"
 	"strings"
@@ -354,7 +355,7 @@ func (h *Handler) PaymentCallback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// 金额一致性校验（渠道提供金额时）
-	if res.Amount > 0 && res.Amount != order.Amount {
+	if res.Amount > 0 && math.Abs(res.Amount-order.Amount) > 0.01 {
 		log.Printf("[payment] %s amount mismatch: notify=%.2f order=%.2f", name, res.Amount, order.Amount)
 		http.Error(w, res.AckFail, 400)
 		return

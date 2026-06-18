@@ -68,18 +68,26 @@ func (c *creditGatewayAdapter) HandleCallback(cfg *model.Settings, r *http.Reque
 		signKey = cc.LDCClientSecret
 	}
 	if signKey == "" {
+		log.Printf("[payment] credit callback: no sign key configured")
 		return res, nil
 	}
-	if !epayVerifySign(r.URL.Query(), signKey) {
-		log.Printf("[payment] credit sign verify failed")
+
+	// credit.linux.do 回调可能是 GET（参数在 query）或 POST（参数在 form body）
+	vals := r.URL.Query()
+	if vals.Get("sign") == "" && r.Method == "POST" {
+		r.ParseForm()
+		vals = r.Form
+	}
+
+	if !epayVerifySign(vals, signKey) {
+		log.Printf("[payment] credit sign verify failed, query=%s", r.URL.RawQuery)
 		return res, nil
 	}
-	q := r.URL.Query()
 	res.Verified = true
-	res.OrderNo = q.Get("out_trade_no")
-	res.TradeNo = q.Get("trade_no")
-	res.Paid = q.Get("trade_status") == "TRADE_SUCCESS"
-	if moneyStr := q.Get("money"); moneyStr != "" {
+	res.OrderNo = vals.Get("out_trade_no")
+	res.TradeNo = vals.Get("trade_no")
+	res.Paid = vals.Get("trade_status") == "TRADE_SUCCESS"
+	if moneyStr := vals.Get("money"); moneyStr != "" {
 		if credits, err := strconv.ParseFloat(moneyStr, 64); err == nil {
 			rate := creditRate(cc.Rate)
 			if rate > 0 {
