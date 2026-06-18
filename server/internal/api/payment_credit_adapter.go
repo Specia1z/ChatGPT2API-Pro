@@ -2,8 +2,10 @@ package api
 
 import (
 	"encoding/json"
+	"io"
 	"log"
 	"net/http"
+	"net/url"
 	"strconv"
 
 	"chatgpt2api-pro/internal/model"
@@ -72,15 +74,21 @@ func (c *creditGatewayAdapter) HandleCallback(cfg *model.Settings, r *http.Reque
 		return res, nil
 	}
 
-	// credit.linux.do 回调可能是 GET（参数在 query）或 POST（参数在 form body）
+	// credit.linux.do 回调是 GET（参数在 query），但也兼容 POST form
 	vals := r.URL.Query()
-	if vals.Get("sign") == "" && r.Method == "POST" {
-		r.ParseForm()
-		vals = r.Form
+	if vals.Get("sign") == "" {
+		// 读 body 尝试 form 解析
+		bodyBytes, _ := io.ReadAll(io.LimitReader(r.Body, 1<<16))
+		log.Printf("[payment] credit callback debug: method=%s query=%s body=%s", r.Method, r.URL.RawQuery, string(bodyBytes))
+		// 尝试解析为 form
+		parsed, _ := url.ParseQuery(string(bodyBytes))
+		if parsed.Get("sign") != "" {
+			vals = parsed
+		}
 	}
 
 	if !epayVerifySign(vals, signKey) {
-		log.Printf("[payment] credit sign verify failed, query=%s", r.URL.RawQuery)
+		log.Printf("[payment] credit sign verify failed, vals=%v", vals)
 		return res, nil
 	}
 	res.Verified = true
