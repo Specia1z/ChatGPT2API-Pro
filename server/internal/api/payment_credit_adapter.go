@@ -61,20 +61,24 @@ func (c *creditGatewayAdapter) Query(cfg *model.Settings, orderNo string) (bool,
 func (c *creditGatewayAdapter) HandleCallback(cfg *model.Settings, r *http.Request) (*CallbackResult, error) {
 	res := &CallbackResult{Ack: "success", AckFail: "fail"}
 	cc := parseCreditConfig(cfg.CreditConfig)
-	if cc.Key == "" {
+
+	// 验签：优先用 EasyPay Key，回退到 LDC Client Secret（credit.linux.do 回调统一 MD5）
+	signKey := cc.Key
+	if signKey == "" {
+		signKey = cc.LDCClientSecret
+	}
+	if signKey == "" {
 		return res, nil
 	}
-	// EasyPay 异步通知为 GET 参数
-	if !epayVerifySign(r.URL.Query(), cc.Key) {
+	if !epayVerifySign(r.URL.Query(), signKey) {
 		log.Printf("[payment] credit sign verify failed")
-		return res, nil // Verified=false
+		return res, nil
 	}
 	q := r.URL.Query()
 	res.Verified = true
 	res.OrderNo = q.Get("out_trade_no")
 	res.TradeNo = q.Get("trade_no")
 	res.Paid = q.Get("trade_status") == "TRADE_SUCCESS"
-	// 积分 → 人民币还原，供订单金额校验
 	if moneyStr := q.Get("money"); moneyStr != "" {
 		if credits, err := strconv.ParseFloat(moneyStr, 64); err == nil {
 			rate := creditRate(cc.Rate)
