@@ -66,12 +66,16 @@ func epayVerifySign(vals url.Values, key string) bool {
 func buildEpayRedirectURL(apiBase, pid, key, orderNo, subject, payType string, amount float64, notifyURL, returnURL string) string {
 	params := map[string]string{
 		"pid":          pid,
-		"type":         payType, // alipay/wxpay/qqpay 等；credit 场景一般不指定或填 credit
+		"type":         payType,
 		"out_trade_no": orderNo,
-		"notify_url":   notifyURL,
-		"return_url":   returnURL,
 		"name":         subject,
 		"money":        fmt.Sprintf("%.2f", amount),
+	}
+	if notifyURL != "" {
+		params["notify_url"] = notifyURL
+	}
+	if returnURL != "" {
+		params["return_url"] = returnURL
 	}
 	params["sign"] = epaySign(params, key)
 	params["sign_type"] = "MD5"
