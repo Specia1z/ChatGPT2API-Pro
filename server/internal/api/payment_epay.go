@@ -79,7 +79,7 @@ func buildEpayRedirectURL(apiBase, pid, key, orderNo, subject, payType string, a
 	// 拼成 submit.php?k=v&...（值需 URL 编码）
 	var b strings.Builder
 	b.WriteString(strings.TrimRight(apiBase, "/"))
-	b.WriteString("/submit.php?")
+	b.WriteString("/pay/submit.php?")
 	first := true
 	for _, k := range sortedKeys(params) {
 		if !first {

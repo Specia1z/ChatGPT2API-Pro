@@ -157,7 +157,7 @@ export default function PaymentPage() {
                 {creditCfg.enabled ? (
                   <div className="space-y-4">
                     <Field icon={Globe} label="网关地址（API Base）">
-                      <Input value={creditCfg.api_base || ""} onChange={e => updateCredit("api_base", e.target.value)} placeholder="https://credit.linux.do" className={inputCls} />
+                      <Input value={creditCfg.api_base || ""} onChange={e => updateCredit("api_base", e.target.value)} placeholder="https://credit.linux.do/epay" className={inputCls} />
                     </Field>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <Field icon={KeyRound} label="商户 PID">
