@@ -45,7 +45,7 @@ func (c *creditGatewayAdapter) CreatePayment(cfg *model.Settings, orderNo, subje
 	}
 
 	// EasyPay（MD5）降级
-	redirectURL := buildEpayRedirectURL(cc.APIBase, cc.PID, cc.Key, orderNo, subject, "credit", credits, notifyURL, returnURL)
+	redirectURL := buildEpayRedirectURL(cc.APIBase, cc.PID, cc.Key, orderNo, subject, "epay", credits, notifyURL, returnURL)
 	return &PaymentResult{RedirectURL: redirectURL}, nil
 }
 
