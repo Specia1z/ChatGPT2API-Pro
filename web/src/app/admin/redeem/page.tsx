@@ -359,7 +359,12 @@ export default function RedeemPage() {
                   </div>
                 ))}
               </div>
-              <Button variant="outline" className="w-full" onClick={() => { setShowGen(false); setGenResult(null); }}>关闭</Button>
+              <div className="flex gap-2">
+                <Button variant="outline" className="flex-1 gap-1.5" onClick={() => { navigator.clipboard.writeText(genResult.codes.join("\n")); toast.success("已复制全部兑换码"); }}>
+                  <Copy className="size-3.5" /> 复制全部
+                </Button>
+                <Button variant="outline" className="flex-1" onClick={() => { setShowGen(false); setGenResult(null); }}>关闭</Button>
+              </div>
             </div>
           ) : (
             <div className="space-y-4 mt-1">
