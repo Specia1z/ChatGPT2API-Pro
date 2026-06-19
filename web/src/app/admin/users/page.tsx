@@ -1,10 +1,10 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import { Outfit, DM_Mono } from "next/font/google";
-import { Users, Search, Pencil, Key, Coins, Ban, Check, RefreshCw, X, UserCheck, UserX, Plus, Minus, ArrowRight, UserPlus, Crown, Shield, Eye } from "lucide-react";
+import { Users, Search, Pencil, Key, Coins, Ban, Check, RefreshCw, X, UserCheck, UserX, Plus, Minus, ArrowRight, Crown, Shield, Eye, ChevronLeft, ChevronRight } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
 import { AdminSidebar } from "@/components/admin-sidebar";
@@ -18,6 +18,8 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 
 const heading = Outfit({ subsets: ["latin"], weight: ["400", "500", "600", "700"], variable: "--font-heading" });
 const mono = DM_Mono({ subsets: ["latin"], weight: ["400", "500"], variable: "--font-mono" });
+
+const PAGE_SIZE = 20;
 
 /* ── 动画 ─────────────────────────────────── */
 const stagger = { hidden: {}, visible: { transition: { staggerChildren: 0.04 } } };
@@ -41,6 +43,7 @@ export default function UsersPage() {
   const [users, setUsers] = useState<any[]>([]);
   const [total, setTotal] = useState(0);
   const [search, setSearch] = useState("");
+  const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
 
   const [editUser, setEditUser] = useState<any>(null);
@@ -62,13 +65,13 @@ export default function UsersPage() {
   }, []);
   const [roleTarget, setRoleTarget] = useState<any>(null);
 
-  const fetchUsers = () => {
+  const fetchUsers = useCallback(() => {
     setLoading(true);
-    api(`/api/admin/users?search=${encodeURIComponent(search)}`).then(r => {
+    api(`/api/admin/users?search=${encodeURIComponent(search)}&page=${page}&page_size=${PAGE_SIZE}`).then(r => {
       setUsers(r.data.items || []); setTotal(r.data.total || 0); setLoading(false);
     });
-  };
-  useEffect(() => { fetchUsers(); }, [search]);
+  }, [search, page]);
+  useEffect(() => { fetchUsers(); }, [fetchUsers]);
 
   // 加载套餐列表，供创建用户弹窗的套餐下拉使用（含禁用套餐，管理员可指定）
   useEffect(() => {
@@ -134,6 +137,8 @@ export default function UsersPage() {
     return { total, active, disabled: users.length - active };
   }, [users, total]);
 
+  const totalPages = Math.ceil(total / PAGE_SIZE);
+
   return (
     <div className={`${heading.variable} ${mono.variable} h-screen bg-background flex overflow-hidden pb-[calc(4rem+env(safe-area-inset-bottom))] md:pb-0`}>
       <AdminSidebar />
@@ -176,8 +181,8 @@ export default function UsersPage() {
             <motion.div variants={fadeUp} className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-3">
               <div className="relative w-full sm:w-64 shrink-0">
                 <Search className="size-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
-                <Input value={search} onChange={e => setSearch(e.target.value)} placeholder="搜索邮箱或昵称..." className="pl-9 pr-8 text-xs" />
-                {search && <button onClick={() => setSearch("")} className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"><X className="size-3" /></button>}
+                <Input value={search} onChange={e => { setSearch(e.target.value); setPage(1); }} placeholder="搜索邮箱或昵称..." className="pl-9 pr-8 text-xs" />
+                {search && <button onClick={() => { setSearch(""); setPage(1); }} className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"><X className="size-3" /></button>}
               </div>
               <Button size="sm" className="gap-1.5 text-xs shrink-0" onClick={() => setCreateOpen(true)}><Plus className="size-3.5" /> 创建用户</Button>
               <div className="flex-1" />
@@ -272,6 +277,32 @@ export default function UsersPage() {
                 </table>
               </div>
             </motion.div>
+
+            {/* ═══ 分页 ═══ */}
+            {totalPages > 1 && (
+              <motion.div variants={fadeUp} className="flex items-center justify-between px-1">
+                <span className={`${mono.className} text-[11px] text-muted-foreground tabular-nums`}>共 {total} 人 · {page}/{totalPages} 页</span>
+                <div className="flex items-center gap-1">
+                  <Button variant="ghost" size="icon-sm" onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page <= 1}><ChevronLeft /></Button>
+                  {Array.from({ length: Math.min(totalPages, 5) }, (_, i) => {
+                    let num: number;
+                    if (totalPages <= 5) num = i + 1;
+                    else if (page <= 3) num = i + 1;
+                    else if (page >= totalPages - 2) num = totalPages - 4 + i;
+                    else num = page - 2 + i;
+                    return (
+                      <button key={num} onClick={() => setPage(num)}
+                        className={`size-7 rounded-lg text-xs font-medium tabular-nums transition-all ${
+                          page === num ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground hover:bg-muted"
+                        }`}>
+                        {num}
+                      </button>
+                    );
+                  })}
+                  <Button variant="ghost" size="icon-sm" onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page >= totalPages}><ChevronRight /></Button>
+                </div>
+              </motion.div>
+            )}
           </div>
         </motion.div>
       </main>
