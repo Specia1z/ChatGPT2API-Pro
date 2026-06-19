@@ -168,7 +168,9 @@ func (s *MySQLStore) GetUserSVGGenerations(userID int64, page, pageSize int) ([]
 func (s *MySQLStore) GetAllGenerations(page, pageSize int) ([]model.Generation, int, error) {
 	var total int
 	s.db.QueryRow("SELECT COUNT(*) FROM generations WHERE gen_type='image'").Scan(&total)
-	rows, err := s.db.Query("SELECT g.id, g.user_id, g.prompt, g.model, COALESCE(g.size,''), COALESCE(g.image_b64,''), COALESCE(g.image_url,''), g.status, COALESCE(g.error_msg,''), g.created_at, COALESCE(u.email,''), COALESCE(u.name,''), g.shared, COALESCE(g.share_status,'none') FROM generations g LEFT JOIN users u ON g.user_id=u.id WHERE g.gen_type='image' ORDER BY g.id DESC LIMIT ? OFFSET ?", pageSize, (page-1)*pageSize)
+	// 列表不查 image_b64(MEDIUMTEXT 大字段)：前端经 /api/images/{id} 代理懒加载图片，
+	// 列表带上 base64 会让每页响应膨胀到几十 MB、严重拖慢生图管理页加载。
+	rows, err := s.db.Query("SELECT g.id, g.user_id, g.prompt, g.model, COALESCE(g.size,''), COALESCE(g.image_url,''), g.status, COALESCE(g.error_msg,''), g.created_at, COALESCE(u.email,''), COALESCE(u.name,''), g.shared, COALESCE(g.share_status,'none') FROM generations g LEFT JOIN users u ON g.user_id=u.id WHERE g.gen_type='image' ORDER BY g.id DESC LIMIT ? OFFSET ?", pageSize, (page-1)*pageSize)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -176,7 +178,7 @@ func (s *MySQLStore) GetAllGenerations(page, pageSize int) ([]model.Generation, 
 	var gens []model.Generation
 	for rows.Next() {
 		var g model.Generation
-		rows.Scan(&g.ID, &g.UserID, &g.Prompt, &g.Model, &g.Size, &g.ImageB64, &g.ImageURL, &g.Status, &g.ErrorMsg, &g.CreatedAt, &g.UserEmail, &g.UserName, &g.Shared, &g.ShareStatus)
+		rows.Scan(&g.ID, &g.UserID, &g.Prompt, &g.Model, &g.Size, &g.ImageURL, &g.Status, &g.ErrorMsg, &g.CreatedAt, &g.UserEmail, &g.UserName, &g.Shared, &g.ShareStatus)
 		gens = append(gens, g)
 	}
 	if err := rows.Err(); err != nil {
