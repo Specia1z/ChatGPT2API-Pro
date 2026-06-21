@@ -13,6 +13,7 @@ type Record struct {
 	UserID     int64
 	APIKeyID   int64
 	Endpoint   string
+	Source     string // 调用来源：api=开发者 API Key 接口，web=站内 Web UI（默认 api）
 	IP         string // 调用方 IP（X-Real-IP / X-Forwarded-For / RemoteAddr）
 	Prompt     string // 生图提示词（handler 回填，截断 512）
 	ImageURL   string // 代理中转后图片地址（同步端点回填，截断 1024）

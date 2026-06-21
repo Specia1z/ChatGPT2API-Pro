@@ -57,11 +57,15 @@ func (w *statusWriter) Flush() {
 	}
 }
 
-// APILogger 返回一个「最外层」采集中间件工厂，绑定固定 endpoint 标签。
+// APILogger 返回一个「最外层」采集中间件工厂，绑定固定 endpoint 标签与来源 source。
 // 包裹顺序：APILogger(ep)( RateLimit( apiKeyAuth( apiUserRL( handler )))) 。
 // 因在最外层，限流提前拒绝的 429 也会被记录（此时 holder.APIKeyID/UserID 仍为 0）。
+// source 标识调用来源：'api'=开发者 API Key 接口，'web'=站内 Web UI；空值按 'api' 兜底。
 // writer 为 nil 时退化为透传（不采集），便于测试/降级。
-func APILogger(writer *apilog.Writer, endpoint string) func(http.Handler) http.Handler {
+func APILogger(writer *apilog.Writer, endpoint, source string) func(http.Handler) http.Handler {
+	if source == "" {
+		source = "api"
+	}
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			if writer == nil {
@@ -88,6 +92,7 @@ func APILogger(writer *apilog.Writer, endpoint string) func(http.Handler) http.H
 				UserID:     info.UserID,
 				APIKeyID:   info.APIKeyID,
 				Endpoint:   endpoint,
+				Source:     source,
 				IP:         clientIP(r),
 				Prompt:     info.Prompt,
 				ImageURL:   info.ImageURL,

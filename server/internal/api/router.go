@@ -25,6 +25,17 @@ func NewRouter(mysql *store.MySQLStore, redis *store.RedisStore, cleaner *servic
 		setPublicCacheTTL(cfg.PublicCacheTTLSeconds)
 	}
 
+	// 采集中间件工厂（按来源区分）：
+	// apiLogged — 开发者 API Key 接口（source=api），用于 /api/v1 与 /v1。
+	// webLogged — 站内 Web UI 生成类接口（source=web），仅消耗资源的生成操作，
+	//             不含状态轮询/列表查询，最外层叠加 RiskRecorder 补齐 Web 风控盲区。
+	apiLogged := func(ep string, hh http.Handler) http.Handler {
+		return middleware.APILogger(apiLogWriter, ep, "api")(hh)
+	}
+	webLogged := func(ep string, hh http.Handler) http.Handler {
+		return middleware.RiskRecorder(redis)(middleware.APILogger(apiLogWriter, ep, "web")(hh))
+	}
+
 	mux := http.NewServeMux()
 
 	// 公开（带短 TTL 缓存，TTL=0 时直通；后台 public_cache_ttl_seconds 可调）
@@ -54,9 +65,9 @@ func NewRouter(mysql *store.MySQLStore, redis *store.RedisStore, cleaner *servic
 	mux.Handle("POST /api/user/webhook", userAuth(http.HandlerFunc(h.SaveWebhook)))
 	mux.Handle("DELETE /api/user/webhook", userAuth(http.HandlerFunc(h.DeleteWebhook)))
 
-	// 生图
-	mux.Handle("POST /api/generations", userAuth(http.HandlerFunc(h.CreateGeneration)))
-	mux.Handle("POST /api/vector", userAuth(http.HandlerFunc(h.CreateVector)))
+	// 生图（站内 Web UI；生成类操作纳入采集 source=web + 风控）
+	mux.Handle("POST /api/generations", webLogged("images.generations", userAuth(http.HandlerFunc(h.CreateGeneration))))
+	mux.Handle("POST /api/vector", webLogged("vector", userAuth(http.HandlerFunc(h.CreateVector))))
 	mux.Handle("GET /api/vector", userAuth(http.HandlerFunc(h.ListVector)))
 	mux.Handle("DELETE /api/vector", userAuth(http.HandlerFunc(h.DeleteVector)))
 	mux.Handle("DELETE /api/generations", userAuth(http.HandlerFunc(h.DeleteGeneration)))
@@ -69,10 +80,10 @@ mux.Handle("GET /api/user/stats", userAuth(http.HandlerFunc(h.GetUserStats)))
 mux.Handle("POST /api/user/change-password", userAuth(http.HandlerFunc(h.ChangePassword)))
 mux.Handle("POST /api/user/points/exchange", middleware.RateLimit(userAuth(http.HandlerFunc(h.ExchangePoints))))
 	mux.Handle("GET /api/user/points/logs", userAuth(http.HandlerFunc(h.GetPointsLogs)))
-	mux.Handle("POST /api/user/prompt/polish", middleware.RateLimit(userAuth(http.HandlerFunc(h.PolishPrompt))))
-	mux.Handle("POST /api/user/image-to-text", middleware.RateLimit(userAuth(http.HandlerFunc(h.ImageToText))))
-	mux.Handle("POST /api/user/image-enhance", middleware.RateLimit(userAuth(http.HandlerFunc(h.ImageEnhanceDiagnose))))
-	mux.Handle("POST /api/user/removebg", middleware.RateLimit(userAuth(http.HandlerFunc(h.RemoveBackground))))
+	mux.Handle("POST /api/user/prompt/polish", webLogged("prompt.polish", middleware.RateLimit(userAuth(http.HandlerFunc(h.PolishPrompt)))))
+	mux.Handle("POST /api/user/image-to-text", webLogged("image-to-text", middleware.RateLimit(userAuth(http.HandlerFunc(h.ImageToText)))))
+	mux.Handle("POST /api/user/image-enhance", webLogged("image-enhance", middleware.RateLimit(userAuth(http.HandlerFunc(h.ImageEnhanceDiagnose)))))
+	mux.Handle("POST /api/user/removebg", webLogged("removebg", middleware.RateLimit(userAuth(http.HandlerFunc(h.RemoveBackground)))))
 	mux.Handle("GET /api/user/shop", userAuth(http.HandlerFunc(h.ListShop)))
 	mux.Handle("POST /api/user/shop/redeem", middleware.RateLimit(userAuth(http.HandlerFunc(h.RedeemShop))))
 	mux.Handle("POST /api/user/recharge", middleware.RateLimit(userAuth(http.HandlerFunc(h.CreateRecharge))))
@@ -91,12 +102,8 @@ mux.Handle("POST /api/user/points/exchange", middleware.RateLimit(userAuth(http.
 	// API v1 (API Key 认证)：IP 粗限流 + 按 uid 精确限流（防多 IP 绕过）。
 	// 内置兜底 30/min；后台「默认限速」与套餐 rate_limit_per_min 可逐级覆盖（见 UserRateLimit）。
 	apiUserRL := func(h http.Handler) http.Handler { return middleware.UserRateLimit(redis, 30, time.Minute)(h) }
-	// apiLogged 把采集中间件包在最外层（含限流之前），按 endpoint 标签记录每次调用到 api_call_logs +
-	// 同时累加 Redis 风险计数器（QPS/错误/IP/令牌）。
-	// 顺序：APILogger(ep)( RateLimit( apiKeyAuth( apiUserRL( handler ))))，故 IP 限流 429 也能记录。
-	apiLogged := func(ep string, h http.Handler) http.Handler {
-		return middleware.APILogger(apiLogWriter, ep)(h)
-	}
+	// apiLogged/webLogged 见上方定义。v1 路由把采集包在最外层（限流之前），
+	// 顺序：riskRec( APILogger(ep)( RateLimit( apiKeyAuth( apiUserRL( handler )))))，故 IP 限流 429 也能记录。
 	riskRec := middleware.RiskRecorder(redis)
 	mux.Handle("POST /api/v1/images/generations", riskRec(apiLogged("images.generations", middleware.RateLimit(apiKeyAuth(apiUserRL(http.HandlerFunc(h.CreateGeneration)))))))
 	mux.Handle("GET /api/v1/images/generations", riskRec(apiLogged("images.query", apiKeyAuth(apiUserRL(http.HandlerFunc(h.GetUserGenerations))))))

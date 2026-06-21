@@ -25,14 +25,18 @@ func (s *MySQLStore) BatchInsertAPICallLogs(batch []apilog.Record) error {
 	tx.Exec("SET NAMES utf8mb4")
 
 	var sb strings.Builder
-	sb.WriteString("INSERT INTO api_call_logs (user_id, api_key_id, endpoint, ip, prompt, image_url, status_code, tokens_cost, count, latency_ms) VALUES ")
-	args := make([]any, 0, len(batch)*10)
+	sb.WriteString("INSERT INTO api_call_logs (user_id, api_key_id, endpoint, source, ip, prompt, image_url, status_code, tokens_cost, count, latency_ms) VALUES ")
+	args := make([]any, 0, len(batch)*11)
 	for i, r := range batch {
 		if i > 0 {
 			sb.WriteString(",")
 		}
-		sb.WriteString("(?,?,?,?,?,?,?,?,?,?)")
-		args = append(args, r.UserID, r.APIKeyID, r.Endpoint, r.IP, r.Prompt, r.ImageURL, r.StatusCode, r.TokensCost, r.Count, r.LatencyMs)
+		sb.WriteString("(?,?,?,?,?,?,?,?,?,?,?)")
+		source := r.Source
+		if source == "" {
+			source = "api"
+		}
+		args = append(args, r.UserID, r.APIKeyID, r.Endpoint, source, r.IP, r.Prompt, r.ImageURL, r.StatusCode, r.TokensCost, r.Count, r.LatencyMs)
 	}
 	if _, err := tx.Exec(sb.String(), args...); err != nil {
 		return err
@@ -187,9 +191,9 @@ func (s *MySQLStore) GetAPICallLogs(userID int64, page, pageSize int, keyID int6
 }
 
 // GetAllAPICallLogs 全站分页查询 API 调用明细（Admin 视角，跨用户）。
-// 支持按 user_id / email（LIKE 模糊）/ endpoint / status / key_id 筛选。
+// 支持按 user_id / email（LIKE 模糊）/ endpoint / status / key_id / source 筛选。
 // email 非空时走子查询转 user_id 列表，避免 JOIN users 的全表扫。
-func (s *MySQLStore) GetAllAPICallLogs(userID int64, email string, page, pageSize int, endpoint string, status int, keyID int64) ([]model.APICallLog, int, error) {
+func (s *MySQLStore) GetAllAPICallLogs(userID int64, email string, page, pageSize int, endpoint string, status int, keyID int64, source string) ([]model.APICallLog, int, error) {
 	if page < 1 {
 		page = 1
 	}
@@ -220,12 +224,16 @@ func (s *MySQLStore) GetAllAPICallLogs(userID int64, email string, page, pageSiz
 		where += " AND l.api_key_id=?"
 		args = append(args, keyID)
 	}
+	if source == "api" || source == "web" {
+		where += " AND l.source=?"
+		args = append(args, source)
+	}
 
 	var total int
 	countSQL := "SELECT COUNT(*) FROM api_call_logs l " + where
 	s.db.QueryRow(countSQL, args...).Scan(&total)
 
-	selectSQL := "SELECT l.id, l.api_key_id, COALESCE(k.name,''), l.endpoint, l.ip, l.prompt, l.image_url, l.user_id, l.status_code, l.tokens_cost, l.count, l.latency_ms, DATE_FORMAT(l.created_at,'%Y-%m-%d %H:%i:%s'), COALESCE(u.email,'') " +
+	selectSQL := "SELECT l.id, l.api_key_id, COALESCE(k.name,''), l.endpoint, COALESCE(l.source,'api'), l.ip, l.prompt, l.image_url, l.user_id, l.status_code, l.tokens_cost, l.count, l.latency_ms, DATE_FORMAT(l.created_at,'%Y-%m-%d %H:%i:%s'), COALESCE(u.email,'') " +
 		"FROM api_call_logs l " +
 		"LEFT JOIN user_api_keys k ON l.api_key_id=k.id " +
 		"LEFT JOIN users u ON l.user_id=u.id " +
@@ -241,7 +249,7 @@ func (s *MySQLStore) GetAllAPICallLogs(userID int64, email string, page, pageSiz
 	out := []model.APICallLog{}
 	for rows.Next() {
 		var l model.APICallLog
-		if rows.Scan(&l.ID, &l.APIKeyID, &l.KeyName, &l.Endpoint, &l.IP, &l.Prompt, &l.ImageURL, &l.UserID, &l.StatusCode, &l.TokensCost, &l.Count, &l.LatencyMs, &l.CreatedAt, &l.UserEmail) == nil {
+		if rows.Scan(&l.ID, &l.APIKeyID, &l.KeyName, &l.Endpoint, &l.Source, &l.IP, &l.Prompt, &l.ImageURL, &l.UserID, &l.StatusCode, &l.TokensCost, &l.Count, &l.LatencyMs, &l.CreatedAt, &l.UserEmail) == nil {
 			if l.KeyName == "" {
 				l.KeyName = "未知"
 			}
@@ -354,7 +362,7 @@ func (s *MySQLStore) GetRecentAPICallLogs(limit int) ([]model.APICallLog, error)
 		limit = 50
 	}
 	rows, err := s.db.Query(
-		"SELECT l.id, l.api_key_id, COALESCE(k.name,''), l.endpoint, l.ip, l.prompt, l.image_url, l.user_id, l.status_code, l.tokens_cost, l.count, l.latency_ms, DATE_FORMAT(l.created_at,'%Y-%m-%d %H:%i:%s'), COALESCE(u.email,'') "+
+		"SELECT l.id, l.api_key_id, COALESCE(k.name,''), l.endpoint, COALESCE(l.source,'api'), l.ip, l.prompt, l.image_url, l.user_id, l.status_code, l.tokens_cost, l.count, l.latency_ms, DATE_FORMAT(l.created_at,'%Y-%m-%d %H:%i:%s'), COALESCE(u.email,'') "+
 			"FROM api_call_logs l "+
 			"LEFT JOIN user_api_keys k ON l.api_key_id=k.id "+
 			"LEFT JOIN users u ON l.user_id=u.id "+
@@ -366,7 +374,7 @@ func (s *MySQLStore) GetRecentAPICallLogs(limit int) ([]model.APICallLog, error)
 	out := []model.APICallLog{}
 	for rows.Next() {
 		var l model.APICallLog
-		if rows.Scan(&l.ID, &l.APIKeyID, &l.KeyName, &l.Endpoint, &l.IP, &l.Prompt, &l.ImageURL, &l.UserID, &l.StatusCode, &l.TokensCost, &l.Count, &l.LatencyMs, &l.CreatedAt, &l.UserEmail) == nil {
+		if rows.Scan(&l.ID, &l.APIKeyID, &l.KeyName, &l.Endpoint, &l.Source, &l.IP, &l.Prompt, &l.ImageURL, &l.UserID, &l.StatusCode, &l.TokensCost, &l.Count, &l.LatencyMs, &l.CreatedAt, &l.UserEmail) == nil {
 			if l.KeyName == "" {
 				l.KeyName = "未知"
 			}

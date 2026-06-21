@@ -671,6 +671,11 @@ func (s *MySQLStore) autoMigrate() {
 	if !s.columnExists(s.currentDBName(), "api_call_logs", "image_url") {
 		s.db.Exec("ALTER TABLE api_call_logs ADD COLUMN image_url VARCHAR(1024) NOT NULL DEFAULT '' AFTER prompt")
 	}
+	// 补 source 列（区分调用来源：api=开发者 API Key 接口，web=站内 Web UI）。
+	// 旧库历史数据默认归为 api（此前仅采集 /api/v1 与 /v1 的 Key 接口）。
+	if !s.columnExists(s.currentDBName(), "api_call_logs", "source") {
+		s.db.Exec("ALTER TABLE api_call_logs ADD COLUMN source VARCHAR(8) NOT NULL DEFAULT 'api' AFTER endpoint")
+	}
 
 	// 用户风险评分
 	s.db.Exec(`CREATE TABLE IF NOT EXISTS user_risk_scores (

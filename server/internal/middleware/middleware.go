@@ -193,6 +193,11 @@ func UserAuth(redis *store.RedisStore, mysql *store.MySQLStore) func(http.Handle
 				return
 			}
 			redis.ExpireToken(r.Context(), "user:"+token, 24*time.Hour)
+			// 回填 holder（若外层 APILogger 创建了）：Web 采集路由据此记录用户。
+			// 走 holder 指针而非 context value：APILogger 在更外层，读不到此处派生的子 context。
+			if info, ok := r.Context().Value(APICallInfoKey).(*APICallInfo); ok && info != nil {
+				info.UserID = userID
+			}
 			ctx := context.WithValue(r.Context(), UserIDKey, userID)
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})

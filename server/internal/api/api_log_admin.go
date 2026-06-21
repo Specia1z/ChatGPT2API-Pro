@@ -21,8 +21,9 @@ func (h *Handler) AdminListAPILogs(w http.ResponseWriter, r *http.Request) {
 	status, _ := strconv.Atoi(q.Get("status"))
 	endpoint := q.Get("endpoint")
 	email := q.Get("email")
+	source := q.Get("source")
 
-	items, total, err := h.MySQL.GetAllAPICallLogs(userID, email, page, pageSize, endpoint, status, keyID)
+	items, total, err := h.MySQL.GetAllAPICallLogs(userID, email, page, pageSize, endpoint, status, keyID, source)
 	if err != nil {
 		writeJSON(w, 500, model.APIResponse{Code: 500, Message: "查询失败"})
 		return
@@ -97,6 +98,7 @@ func (h *Handler) AdminAPILogEvents(w http.ResponseWriter, r *http.Request) {
 				"user_id":     record.UserID,
 				"api_key_id":  record.APIKeyID,
 				"endpoint":    record.Endpoint,
+				"source":      record.Source,
 				"ip":          record.IP,
 				"prompt":      record.Prompt,
 				"image_url":   record.ImageURL,
