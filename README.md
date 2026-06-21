@@ -93,6 +93,26 @@ curl -X POST /v1/images/generations \
 
 ---
 
+## ⚡ 高并发设计
+
+充分利用 Go 语言的并发特性，在**请求热路径**上做到零阻塞、零额外分配：
+
+| 机制 | 实现方式 | Go 特性 |
+|---|---|---|
+| **QPS 实时采集** | `atomic` 环形桶，60 秒滑动窗口，无锁读写 | `sync/atomic` |
+| **API 日志落库** | `channel` 非阻塞投递 + goroutine 定时/定量双触发批量 INSERT，满即丢弃永不阻塞请求 | `chan` · `goroutine` |
+| **生图并发闸门** | 全局 / 单用户 / 单账号三级 `sync.Mutex` 计数限流，后台可热调 | `sync.Mutex` |
+| **配置热缓存** | `sync.RWMutex` 保护进程内缓存，TTL 过期 + 写后主动失效，减少数据库压力 | `sync.RWMutex` |
+| **API Key 限流** | Redis 原子滑动窗口，优先级链：套餐速率 → 后台默认 → 内置兜底 | Redis `INCR` + `EXPIRE` |
+| **SSE 实时推送** | `channel` pub/sub 广播，订阅者非阻塞 send，掉队丢弃不拖慢发布者 | `select default` |
+| **风险指标采集** | 每请求 Redis 原子计数器，定时批量合并到 DB，`sync.Map` 缓存限流名单 | `sync.Map` |
+| **优雅退出** | `defer` 链保证 `apilog.Writer` flush 剩余缓冲 + DB/Redis 连接关闭 | `defer` |
+| **HTTP 服务** | 显式 `http.Server`，`ReadHeaderTimeout` 防慢连接，不设 `WriteTimeout` 保 SSE 长连接 | `net/http` |
+
+> 💡 **热路径原则**：所有中间件链上的操作均使用原子指令或无锁结构，GC 友好的值类型传递，避免在请求路径上分配堆内存。
+
+---
+
 ## 🏗️ 技术架构
 
 <div align="center">
