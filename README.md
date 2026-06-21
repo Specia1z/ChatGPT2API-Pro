@@ -95,26 +95,44 @@ curl -X POST /v1/images/generations \
 
 ## ⚡ 高并发设计
 
-充分利用 Go 语言的并发特性，在**请求热路径**上做到零阻塞、零额外分配：
+请求路径上做到零阻塞、零额外分配。写操作异步批，读操作带缓存。
 
-| 机制 | 实现方式 | Go 特性 |
+### 🔥 请求路径（每请求 < 1μs 额外开销）
+
+| 机制 | 一句话 | 关键字 |
 |---|---|---|
-| **QPS 实时采集** | `atomic` 环形桶，60 秒滑动窗口，无锁读写 | `sync/atomic` |
-| **API 日志落库** | `channel` 非阻塞投递 + goroutine 定时/定量双触发批量 INSERT，满即丢弃永不阻塞请求 | `chan` · `goroutine` |
-| **实时日志广播** | `select default` 非阻塞 pub/sub，多订阅者并发推送，慢消费者自动跳过 | `select` · `chan` |
-| **生图并发闸门** | Redis 原子槽位计数，全局 / 单用户 / 单账号三级 `sync.Mutex` 限流，后台可热调 | `sync.Mutex` |
-| **配置热缓存** | `sync.RWMutex` 保护进程内缓存，TTL 过期 + 写后主动失效，DB 压力降低 90%+ | `sync.RWMutex` |
-| **请求计数** | `MetricsCount` 中间件，每请求一次 `atomic.Add`，零开销全站 QPS 采集 | `sync/atomic` |
-| **API Key 限流** | Redis 原子滑动窗口，优先级链：套餐速率 → 后台默认 → 内置兜底，多实例共享 | Redis `INCR` + `EXPIRE` |
-| **风险指标采集** | 每请求 Redis 计数器，定时批量合并落库，`sync.Map` 热更新限流名单 | `sync.Map` |
-| **数据库写入** | `BatchInsert` 批量攒批，事务内 `SET NAMES utf8mb4` 防编码回退，`columnExists` 守卫零停机 DDL | `database/sql` |
-| **DB 连接池** | 可配置 `MaxOpenConns` / `MaxIdleConns` / `ConnMaxLifetime=5min`，后台热调免重启 | `database/sql` |
-| **公开接口缓存** | `publicCache` 中间件，短 TTL 进程内缓存套餐/画廊/公告/统计，0=直通 | `sync.Map` |
-| **热路径零分配** | 中间件链通过 `context.Value` 传递 `*APICallInfo` 指针，各层原地写字段，无额外 heap 分配 | `context` |
-| **图片懒加载** | 管理端列表不查 `MEDIUMTEXT` 大字段，通过 `/api/images/{id}` 代理按需加载，避免每页响应膨胀数十 MB | `io.Copy` |
-| **优雅退出** | `defer` 链保证日志缓冲 flush、DB/Redis 连接关闭，显式 `http.Server` 超时配置 | `defer` |
+| QPS 采集 | `atomic` 环形桶，60s 滑动窗口，无锁 | `sync/atomic` |
+| 请求计数 | 每请求一次 `atomic.Add`，零开销 | `sync/atomic` |
+| 热路径零分配 | `context` 传 `*APICallInfo` 指针，各层原地写 | `context` |
+| 限流 | Redis 原子滑动窗口，套餐 → 默认 → 兜底三级 | Redis `INCR` |
 
-> 💡 热路径零阻塞，写操作异步批，读操作带缓存——每请求只多分配一个 `APICallInfo` 结构体，剩下的全是纯原子操作和 channel，主打一个快且不崩。
+### 📨 异步化（写操作不阻塞请求）
+
+| 机制 | 一句话 | 关键字 |
+|---|---|---|
+| 日志落库 | `channel` 非阻塞投递，goroutine 定时/定量双触发批量 INSERT | `chan` · `goroutine` |
+| 实时广播 | `select default` pub/sub，慢消费者自动跳过 | `select` · `chan` |
+| 风险采集 | Redis 实时计数 → 定时批量合并落库，`sync.Map` 热更限流名单 | `sync.Map` |
+| 图片懒加载 | 列表不查 `MEDIUMTEXT`，`/api/images/{id}` 代理按需取 | `io.Copy` |
+
+### 🗄️ 数据层
+
+| 机制 | 一句话 | 关键字 |
+|---|---|---|
+| 攒批写入 | 200 条/批，事务内 `SET NAMES utf8mb4` 防乱码 | `database/sql` |
+| 配置热缓存 | `sync.RWMutex` + TTL + 写后失效，DB 压力降 90%+ | `sync.RWMutex` |
+| 公开接口缓存 | 套餐/画廊/公告/统计短 TTL 进程内缓存 | `sync.Map` |
+| 连接池 | `MaxOpenConns` / `MaxIdleConns` / `ConnMaxLifetime=5min` 后台可调 | `database/sql` |
+| 零停机 DDL | `columnExists` 守卫实现滚动升级 | `database/sql` |
+
+### ⚙️ 系统级
+
+| 机制 | 一句话 | 关键字 |
+|---|---|---|
+| 并发闸门 | 全局 / 单用户 / 单账号三级限流，后台热调 | `sync.Mutex` |
+| 优雅退出 | `defer` 链保证缓冲 flush + 连接关闭 | `defer` |
+
+> 💡 每请求只多分配一个 `APICallInfo`，其余全是原子操作和 channel——主打一个快且不崩。
 
 ---
 
