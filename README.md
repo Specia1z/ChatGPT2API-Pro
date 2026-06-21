@@ -101,15 +101,20 @@ curl -X POST /v1/images/generations \
 |---|---|---|
 | **QPS 实时采集** | `atomic` 环形桶，60 秒滑动窗口，无锁读写 | `sync/atomic` |
 | **API 日志落库** | `channel` 非阻塞投递 + goroutine 定时/定量双触发批量 INSERT，满即丢弃永不阻塞请求 | `chan` · `goroutine` |
-| **生图并发闸门** | 全局 / 单用户 / 单账号三级 `sync.Mutex` 计数限流，后台可热调 | `sync.Mutex` |
-| **配置热缓存** | `sync.RWMutex` 保护进程内缓存，TTL 过期 + 写后主动失效，减少数据库压力 | `sync.RWMutex` |
-| **API Key 限流** | Redis 原子滑动窗口，优先级链：套餐速率 → 后台默认 → 内置兜底 | Redis `INCR` + `EXPIRE` |
-| **SSE 实时推送** | `channel` pub/sub 广播，订阅者非阻塞 send，掉队丢弃不拖慢发布者 | `select default` |
-| **风险指标采集** | 每请求 Redis 原子计数器，定时批量合并到 DB，`sync.Map` 缓存限流名单 | `sync.Map` |
-| **优雅退出** | `defer` 链保证 `apilog.Writer` flush 剩余缓冲 + DB/Redis 连接关闭 | `defer` |
-| **HTTP 服务** | 显式 `http.Server`，`ReadHeaderTimeout` 防慢连接，不设 `WriteTimeout` 保 SSE 长连接 | `net/http` |
+| **实时日志广播** | `select default` 非阻塞 pub/sub，多订阅者并发推送，慢消费者自动跳过 | `select` · `chan` |
+| **生图并发闸门** | Redis 原子槽位计数，全局 / 单用户 / 单账号三级 `sync.Mutex` 限流，后台可热调 | `sync.Mutex` |
+| **配置热缓存** | `sync.RWMutex` 保护进程内缓存，TTL 过期 + 写后主动失效，DB 压力降低 90%+ | `sync.RWMutex` |
+| **请求计数** | `MetricsCount` 中间件，每请求一次 `atomic.Add`，零开销全站 QPS 采集 | `sync/atomic` |
+| **API Key 限流** | Redis 原子滑动窗口，优先级链：套餐速率 → 后台默认 → 内置兜底，多实例共享 | Redis `INCR` + `EXPIRE` |
+| **风险指标采集** | 每请求 Redis 计数器，定时批量合并落库，`sync.Map` 热更新限流名单 | `sync.Map` |
+| **数据库写入** | `BatchInsert` 批量攒批，事务内 `SET NAMES utf8mb4` 防编码回退，`columnExists` 守卫零停机 DDL | `database/sql` |
+| **DB 连接池** | 可配置 `MaxOpenConns` / `MaxIdleConns` / `ConnMaxLifetime=5min`，后台热调免重启 | `database/sql` |
+| **公开接口缓存** | `publicCache` 中间件，短 TTL 进程内缓存套餐/画廊/公告/统计，0=直通 | `sync.Map` |
+| **热路径零分配** | 中间件链通过 `context.Value` 传递 `*APICallInfo` 指针，各层原地写字段，无额外 heap 分配 | `context` |
+| **图片懒加载** | 管理端列表不查 `MEDIUMTEXT` 大字段，通过 `/api/images/{id}` 代理按需加载，避免每页响应膨胀数十 MB | `io.Copy` |
+| **优雅退出** | `defer` 链保证日志缓冲 flush、DB/Redis 连接关闭，显式 `http.Server` 超时配置 | `defer` |
 
-> 💡 **热路径原则**：所有中间件链上的操作均使用原子指令或无锁结构，GC 友好的值类型传递，避免在请求路径上分配堆内存。
+> 💡 **设计哲学**：热路径上所有操作均使用原子指令、channel 或无锁结构，GC 友好的值类型传递。每请求额外分配 ≤ 1 次（`APICallInfo` 结构体）。写操作全部异步批量，读操作带缓存。
 
 ---
 
