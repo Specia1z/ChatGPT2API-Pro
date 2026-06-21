@@ -95,46 +95,43 @@ curl -X POST /v1/images/generations \
 
 ## ⚡ 高并发设计
 
-请求路径零阻塞，写操作异步批，读操作带缓存。
+所有中间件链上的操作均使用原子指令或无锁结构，单次请求额外分配 ≤ 1 个 `APICallInfo` 结构体。写操作全部异步批量，读操作带缓存。
 
 ### 🔥 请求路径
 
-| 做了什么 | 怎么做的 | 用了啥 |
-|---|---|---|
-| QPS 统计 | 60 秒环形桶，无锁读写 | `sync/atomic` |
-| 请求计数 | 每次请求 +1，纯原子操作 | `sync/atomic` |
-| 零分配传参 | `context` 塞个指针进去，中间件各层原地写 | `context` |
-| 精准限流 | Redis 滑动窗口，套餐 → 默认 → 兜底 | Redis `INCR` |
+| 机制 | 实现 |
+|---|---|
+| QPS 采集 | `sync/atomic` 环形桶，60s 窗口，CAS 置换桶归属，写入路径仅一次 `Add` |
+| API 限流 | Redis `INCR` + `EXPIRE` 原子滑动窗口，三级优先级链：套餐速率 → 后台默认 → 内置兜底 |
+| 中间件传参 | `*APICallInfo` 指针通过 `context.Value` 透传，各层原地写字段，零 heap 逃逸 |
 
 ### 📨 异步化
 
-| 做了什么 | 怎么做的 | 用了啥 |
-|---|---|---|
-| 日志入库 | `channel` 丢进去就走，goroutine 攒够一批再写 | `chan` · `goroutine` |
-| 实时推送 | pub/sub 广播，谁慢了跳过谁 | `select` · `chan` |
-| 风险打分 | Redis 先记着，定时批量算完了再落库 | `sync.Map` |
-| 图片加载 | 列表不查大字段，用代理按需取 | `io.Copy` |
+| 机制 | 实现 |
+|---|---|
+| 日志落库 | `apilog.Writer` — 1024 缓冲 channel，`Submit` 非阻塞投递，200 条或 2s 触发 `BatchInsert`，满即丢弃 |
+| 实时广播 | `Broadcaster` — 256 缓冲 per-sub，`select default` 非阻塞 send，掉队自动跳过 |
+| 风险采集 | `RiskRecorder` — 每请求 3 次 Redis 原子操作，5min 定时 `ScoreTick` 批量合并落库 |
 
 ### 🗄️ 数据层
 
-| 做了什么 | 怎么做的 | 用了啥 |
-|---|---|---|
-| 批量写入 | 200 条一批，事务里顺手 `SET NAMES utf8mb4` | `database/sql` |
-| 配置缓存 | 读写锁 + 过期时间 + 改了立即失效 | `sync.RWMutex` |
-| 接口缓存 | 套餐画廊公告统计，短期缓存 | `sync.Map` |
-| 连接池 | 最大连接/空闲连接/最长寿命，后台随便调 | `database/sql` |
-| 平滑升级 | 加列前先看有没有，有就不动，不炸 | `database/sql` |
+| 机制 | 实现 |
+|---|---|
+| 批量写入 | `BatchInsertAPICallLogs` — 事务内 `SET NAMES utf8mb4`，200 条/批，容量预分配 |
+| 配置缓存 | `sync.RWMutex` 保护，TTL 过期 + 写后击穿，DB 查询减少 90%+ |
+| 公开接口缓存 | `publicCache` — `sync.Map` 短 TTL 进程内缓存，`/api/plans` `/gallery` `/announcements` `/stats` |
+| DB 连接池 | `MaxOpenConns=25` `MaxIdleConns=5` `ConnMaxLifetime=5min`，后台 `db_max_open_conns` 可热调 |
+| 热更新 DDL | `columnExists` 守卫，`ALTER TABLE` 仅首次执行，后续启动零开销跳过 |
 
 ### ⚙️ 系统级
 
-| 做了什么 | 怎么做的 | 用了啥 |
-|---|---|---|
-| 并发闸门 | 全局多少、每人多少、每号多少，后台可调 | `sync.Mutex` |
-| 优雅退出 | `defer` 链保证缓冲区 flush + 连接关闭 | `defer` |
+| 机制 | 实现 |
+|---|---|
+| 生图并发闸门 | `GenerationScheduler` — 全局 / 单用户 / 单账号三级 `sync.Mutex` 计数，Redis 槽位支持水平扩展 |
+| 优雅退出 | `defer` 链：`apiLogWriter.Stop()` 排空 channel → `mysql.Close()` → `redis.Close()` |
+| HTTP Server | 显式 `http.Server`，`ReadHeaderTimeout=15s` `IdleTimeout=120s`，不设 `WriteTimeout` 保 SSE |
 
-> 💡 每请求只多分配一个 `APICallInfo`，其余全靠原子操作和 channel——主打一个快且不崩。
-
----
+> 每请求热路径仅一次 `atomic.Add` + 三次 Redis 原子操作，其余全部异步。`APICallInfo` 栈分配，中间件链零 heap 逃逸。
 
 ## 🏗️ 技术架构
 
