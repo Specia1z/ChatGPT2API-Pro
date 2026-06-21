@@ -199,7 +199,7 @@ func (h *Handler) CreateImageOpenAI(w http.ResponseWriter, r *http.Request) {
 			}
 			defer sched.Release(uid)
 
-			genID, dbErr := h.MySQL.CreateGeneration(uid, req.Prompt, "gpt-image-2", size)
+			genID, dbErr := h.MySQL.CreateGeneration(uid, req.Prompt, "gpt-image-2", size, ephemeral)
 			if dbErr != nil {
 				results[idx].err = dbErr
 				h.Redis.RefundToken(uid, capacity, refillRate, perImage)

@@ -514,6 +514,12 @@ func (s *MySQLStore) autoMigrate() {
 		s.db.Exec("UPDATE generations SET share_status='approved' WHERE shared=1")
 	}
 
+	// 临时图标记：API Key「不落地」(api_no_persist)生成的图，图片仅存 Redis 短时缓存、
+	// 到期即删，DB 记录无图片数据。标记后在「生图管理」等运营视图中排除，避免堆积裂图。
+	if !s.columnExists(genDB, "generations", "ephemeral") {
+		s.db.Exec("ALTER TABLE generations ADD COLUMN ephemeral TINYINT(1) NOT NULL DEFAULT 0")
+	}
+
 	s.db.Exec(`CREATE TABLE IF NOT EXISTS accounts (
 		id BIGINT AUTO_INCREMENT PRIMARY KEY,
 		access_token TEXT NOT NULL,

@@ -90,7 +90,7 @@ func (h *Handler) ImageEnhanceAPI(w http.ResponseWriter, r *http.Request) {
 	}
 	defer sched.Release(uid)
 
-	genID, dbErr := h.MySQL.CreateGeneration(uid, prompt, "gpt-image-2", size)
+	genID, dbErr := h.MySQL.CreateGeneration(uid, prompt, "gpt-image-2", size, false)
 	if dbErr != nil {
 		refund()
 		writeJSON(w, 500, model.APIResponse{Code: 500, Message: "创建记录失败"})

@@ -93,7 +93,7 @@ func (h *Handler) CreateVector(w http.ResponseWriter, r *http.Request) {
 	h.recordMonthlyUsage(r.Context(), uid, monthlyQuota, cost)
 
 	// 记录
-	genID, err := h.MySQL.CreateSVGGeneration(uid, req.Prompt, svgModel)
+	genID, err := h.MySQL.CreateSVGGeneration(uid, req.Prompt, svgModel, false)
 	if err != nil {
 		h.Redis.RefundToken(uid, capacity, refillRate, cost)
 		h.refundMonthlyUsage(r.Context(), uid, monthlyQuota, cost)
@@ -203,7 +203,9 @@ func (h *Handler) CreateVectorAPI(w http.ResponseWriter, r *http.Request) {
 	h.recordMonthlyUsage(r.Context(), uid, monthlyQuota, cost)
 	middleware.SetAPICallCost(r, cost, 1)
 	middleware.SetAPICallExtra(r, req.Prompt, "")
-	genID, err := h.MySQL.CreateSVGGeneration(uid, req.Prompt, svgModel)
+	// 不落地（API Key + 后台开关）：提前判定，建记录即标记 ephemeral，运营矢量管理排除临时图
+	svgEphemeral := h.isEphemeralRequest(r, settings)
+	genID, err := h.MySQL.CreateSVGGeneration(uid, req.Prompt, svgModel, svgEphemeral)
 	if err != nil {
 		h.Redis.RefundToken(uid, capacity, refillRate, cost)
 		h.refundMonthlyUsage(r.Context(), uid, monthlyQuota, cost)
@@ -228,7 +230,7 @@ func (h *Handler) CreateVectorAPI(w http.ResponseWriter, r *http.Request) {
 	}
 	svg := extractSVG(full)
 	// 不落地（API Key 来源 + 后台开关）：SVG 源码已在响应里直接返回，DB 不存正文，仅置 completed。
-	if h.isEphemeralRequest(r, settings) {
+	if svgEphemeral {
 		h.MySQL.UpdateSVGGeneration(genID, "", "completed", "")
 	} else {
 		h.MySQL.UpdateSVGGeneration(genID, svg, "completed", "")

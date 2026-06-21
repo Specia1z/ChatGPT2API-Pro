@@ -10,8 +10,12 @@ import (
 
 // --- Generations ---
 
-func (s *MySQLStore) CreateGeneration(userID int64, prompt, model, size string) (int64, error) {
-	res, err := s.db.Exec(`INSERT INTO generations (user_id, prompt, model, size, status) VALUES (?, ?, ?, ?, 'pending')`, userID, prompt, model, size)
+func (s *MySQLStore) CreateGeneration(userID int64, prompt, model, size string, ephemeral bool) (int64, error) {
+	eph := 0
+	if ephemeral {
+		eph = 1
+	}
+	res, err := s.db.Exec(`INSERT INTO generations (user_id, prompt, model, size, status, ephemeral) VALUES (?, ?, ?, ?, 'pending', ?)`, userID, prompt, model, size, eph)
 	if err != nil {
 		return 0, err
 	}
@@ -19,8 +23,12 @@ func (s *MySQLStore) CreateGeneration(userID int64, prompt, model, size string) 
 }
 
 // CreateSVGGeneration 新建一条 AI 矢量(svg)生成记录（pending）。内容后续 UpdateSVGGeneration 写入。
-func (s *MySQLStore) CreateSVGGeneration(userID int64, prompt, model string) (int64, error) {
-	res, err := s.db.Exec(`INSERT INTO generations (user_id, prompt, model, gen_type, status) VALUES (?, ?, ?, 'svg', 'pending')`, userID, prompt, model)
+func (s *MySQLStore) CreateSVGGeneration(userID int64, prompt, model string, ephemeral bool) (int64, error) {
+	eph := 0
+	if ephemeral {
+		eph = 1
+	}
+	res, err := s.db.Exec(`INSERT INTO generations (user_id, prompt, model, gen_type, status, ephemeral) VALUES (?, ?, ?, 'svg', 'pending', ?)`, userID, prompt, model, eph)
 	if err != nil {
 		return 0, err
 	}
@@ -167,10 +175,11 @@ func (s *MySQLStore) GetUserSVGGenerations(userID int64, page, pageSize int) ([]
 
 func (s *MySQLStore) GetAllGenerations(page, pageSize int) ([]model.Generation, int, error) {
 	var total int
-	s.db.QueryRow("SELECT COUNT(*) FROM generations WHERE gen_type='image'").Scan(&total)
+	// 排除 ephemeral（API 不落地临时图）：它们图片仅短时缓存、到期即删，留在运营管理页只会变裂图。
+	s.db.QueryRow("SELECT COUNT(*) FROM generations WHERE gen_type='image' AND ephemeral=0").Scan(&total)
 	// 列表不查 image_b64(MEDIUMTEXT 大字段)：前端经 /api/images/{id} 代理懒加载图片，
 	// 列表带上 base64 会让每页响应膨胀到几十 MB、严重拖慢生图管理页加载。
-	rows, err := s.db.Query("SELECT g.id, g.user_id, g.prompt, g.model, COALESCE(g.size,''), COALESCE(g.image_url,''), g.status, COALESCE(g.error_msg,''), g.created_at, COALESCE(u.email,''), COALESCE(u.name,''), g.shared, COALESCE(g.share_status,'none') FROM generations g LEFT JOIN users u ON g.user_id=u.id WHERE g.gen_type='image' ORDER BY g.id DESC LIMIT ? OFFSET ?", pageSize, (page-1)*pageSize)
+	rows, err := s.db.Query("SELECT g.id, g.user_id, g.prompt, g.model, COALESCE(g.size,''), COALESCE(g.image_url,''), g.status, COALESCE(g.error_msg,''), g.created_at, COALESCE(u.email,''), COALESCE(u.name,''), g.shared, COALESCE(g.share_status,'none') FROM generations g LEFT JOIN users u ON g.user_id=u.id WHERE g.gen_type='image' AND g.ephemeral=0 ORDER BY g.id DESC LIMIT ? OFFSET ?", pageSize, (page-1)*pageSize)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -190,8 +199,8 @@ func (s *MySQLStore) GetAllGenerations(page, pageSize int) ([]model.Generation, 
 // GetAllSVGGenerations 管理员查看所有 AI 矢量(svg)生成记录。svg 文本存在 image_b64 列。
 func (s *MySQLStore) GetAllSVGGenerations(page, pageSize int) ([]model.Generation, int, error) {
 	var total int
-	s.db.QueryRow("SELECT COUNT(*) FROM generations WHERE gen_type='svg'").Scan(&total)
-	rows, err := s.db.Query("SELECT g.id, g.user_id, g.prompt, g.model, COALESCE(g.image_b64,''), g.status, COALESCE(g.error_msg,''), g.created_at, COALESCE(u.email,''), COALESCE(u.name,'') FROM generations g LEFT JOIN users u ON g.user_id=u.id WHERE g.gen_type='svg' ORDER BY g.id DESC LIMIT ? OFFSET ?", pageSize, (page-1)*pageSize)
+	s.db.QueryRow("SELECT COUNT(*) FROM generations WHERE gen_type='svg' AND ephemeral=0").Scan(&total)
+	rows, err := s.db.Query("SELECT g.id, g.user_id, g.prompt, g.model, COALESCE(g.image_b64,''), g.status, COALESCE(g.error_msg,''), g.created_at, COALESCE(u.email,''), COALESCE(u.name,'') FROM generations g LEFT JOIN users u ON g.user_id=u.id WHERE g.gen_type='svg' AND g.ephemeral=0 ORDER BY g.id DESC LIMIT ? OFFSET ?", pageSize, (page-1)*pageSize)
 	if err != nil {
 		return nil, 0, err
 	}

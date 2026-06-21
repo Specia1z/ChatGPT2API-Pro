@@ -348,13 +348,18 @@ func (h *Handler) CreateGeneration(w http.ResponseWriter, r *http.Request) {
 
 
 
+	// 「不落地」策略：API Key 来源 + 后台开关。命中则图存 Redis 短时缓存、DB 不存图。
+	// 提前判定，建记录时即标记 ephemeral，使运营「生图管理」排除这些临时图。
+	ephemeral := h.isEphemeralRequest(r, settings)
+	ephTTL := ephemeralTTL(settings)
+
 	// 批量创建记录
 
 	var ids []int64
 
 	for i := 0; i < count; i++ {
 
-		id, err := h.MySQL.CreateGeneration(userID, req.Prompt, req.Model, size)
+		id, err := h.MySQL.CreateGeneration(userID, req.Prompt, req.Model, size, ephemeral)
 
 		if err != nil {
 
@@ -381,10 +386,6 @@ func (h *Handler) CreateGeneration(w http.ResponseWriter, r *http.Request) {
 	preview := req.Prompt
 
 	if len(preview) > 50 { preview = preview[:50] }
-
-	// 「不落地」策略：API Key 来源 + 后台开关。命中则图存 Redis 短时缓存、DB 不存图。
-	ephemeral := h.isEphemeralRequest(r, settings)
-	ephTTL := ephemeralTTL(settings)
 
 	// Webhook 回调：仅对 API Key 来源的异步生图触发（网页 token 有实时 UI，不需要）。
 	// baseURL 在此（仍持有 *http.Request）预先算好，供 goroutine 脱离 r 后拼图片地址。
