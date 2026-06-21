@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
-	"strconv"
 	"time"
 
 	"chatgpt2api-pro/internal/middleware"
@@ -103,17 +102,37 @@ func (rs *RiskScorer) run() {
 	// 热更新：风险限流列表（≥ limit_threshold 且 < ban_threshold）
 	middleware.SetRiskLimitedUIDs(riskThrottled)
 
-	// 自动封禁
+	// 自动封禁（支持阶梯时长）
 	for _, uid := range autoBanIDs {
 		user, _ := rs.mysql.GetUserByID(uid)
-		if user != nil && user.Status {
-			score := totalScore(rs.mysql, uid)
-			reason := fmt.Sprintf("风险评分 %d 分（阈值 %d），系统自动封禁。如有疑问请联系管理员。", score, cfg.BanThreshold)
-			rs.mysql.BanUser(uid, reason)
-			rs.mysql.InsertAccountEvent(uid, "ban", "risk_score_auto",
-				"风险评分 "+strconv.Itoa(score)+" 分，自动封禁")
-			log.Printf("[risk] 自动封禁 uid=%d (%s)", uid, user.Email)
+		if user == nil || !user.Status {
+			continue
 		}
+		score := totalScore(rs.mysql, uid)
+		banCount := rs.mysql.GetUserBanCount(uid)
+		duration := cfg.BanDurationMinutes
+		if cfg.BanEscalation {
+			switch banCount {
+			case 0: duration = 60    // 首次：1 小时
+			case 1: duration = 1440  // 二次：24 小时
+			default: duration = 0   // 三次及以上：永久
+			}
+		}
+		var reason string
+		if duration > 0 {
+			reason = fmt.Sprintf("风险评分 %d 分（阈值 %d），第 %d 次违规，封禁 %d 分钟。", score, cfg.BanThreshold, banCount+1, duration)
+		} else {
+			reason = fmt.Sprintf("风险评分 %d 分（阈值 %d），第 %d 次违规，永久封禁。如有疑问请联系管理员。", score, cfg.BanThreshold, banCount+1)
+		}
+		rs.mysql.BanUserWithDuration(uid, reason, duration)
+		rs.mysql.InsertAccountEvent(uid, "ban", "risk_score_auto",
+			fmt.Sprintf("评分 %d，第 %d 次，封禁 %d 分钟", score, banCount+1, duration))
+		log.Printf("[risk] 自动封禁 uid=%d (%s) 评分=%d 第%d次 时长=%dmin", uid, user.Email, score, banCount+1, duration)
+	}
+
+	// 检查是否有已过期的临时封禁需自动解封
+	if n, err := rs.mysql.UnbanExpired(); err == nil && n > 0 {
+		log.Printf("[risk] 自动解封 %d 位用户（临时封禁到期）", n)
 	}
 
 	// 清理旧评分（超过 24h 未更新的自动重置）

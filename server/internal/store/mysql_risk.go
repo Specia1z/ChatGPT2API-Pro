@@ -223,3 +223,30 @@ func (s *MySQLStore) BatchUnbanRisk(maxScore int) (int64, error) {
 	}
 	return int64(len(ids)), nil
 }
+
+// GetUserBanCount 返回用户被自动封禁的次数（用于阶梯封禁计数）。
+func (s *MySQLStore) GetUserBanCount(uid int64) int {
+	var n int
+	s.db.QueryRow("SELECT COUNT(*) FROM account_events WHERE user_id=? AND event_type='ban' AND source='risk_score_auto'", uid).Scan(&n)
+	return n
+}
+
+// BanUserWithDuration 封禁用户并设置解封时间（0=永久）。
+func (s *MySQLStore) BanUserWithDuration(uid int64, reason string, durationMinutes int) error {
+	if durationMinutes <= 0 {
+		return s.BanUser(uid, reason)
+	}
+	_, err := s.db.Exec("UPDATE users SET status=0, ban_reason=?, ban_until=DATE_ADD(NOW(), INTERVAL ? MINUTE) WHERE id=?",
+		reason, durationMinutes, uid)
+	return err
+}
+
+// UnbanExpired 解封所有已过期的临时封禁。返回解封人数。
+func (s *MySQLStore) UnbanExpired() (int64, error) {
+	res, err := s.db.Exec("UPDATE users SET status=1, ban_reason='' WHERE status=0 AND ban_until IS NOT NULL AND ban_until <= NOW()")
+	if err != nil {
+		return 0, err
+	}
+	n, _ := res.RowsAffected()
+	return n, nil
+}

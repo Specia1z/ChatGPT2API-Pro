@@ -400,6 +400,10 @@ func (s *MySQLStore) autoMigrate() {
 	if !s.columnExists(dbName, "users", "ban_reason") {
 		s.db.Exec("ALTER TABLE users ADD COLUMN ban_reason VARCHAR(512) DEFAULT '' AFTER status")
 	}
+	// 临时封禁到期时间（NULL=永久或未封禁）
+	if !s.columnExists(dbName, "users", "ban_until") {
+		s.db.Exec("ALTER TABLE users ADD COLUMN ban_until DATETIME NULL AFTER ban_reason")
+	}
 	// 管理员角色：0=普通 1=admin。superadmin 不入库，由 .env SUPERADMIN_EMAIL 实时判定。
 	if !s.columnExists(dbName, "users", "role") {
 		s.db.Exec("ALTER TABLE users ADD COLUMN role TINYINT NOT NULL DEFAULT 0 AFTER status")

@@ -610,7 +610,7 @@ export default function SettingsPage() {
               <Card id="risk" icon={ShieldAlert} color="text-red-500" bg="bg-red-500/10" title="风险评分" desc="多维度用户风险评估阈值（修改后即时生效）">
                 {(() => {
                   const rc = (() => { try { return JSON.parse(cfg?.risk_config || "{}"); } catch { return {}; } })();
-                  const setRisk = (k: string, v: number) => {
+                  const setRisk = (k: string, v: number | boolean) => {
                     const next = { ...rc, [k]: v };
                     setCfg((p: any) => ({ ...p, risk_config: JSON.stringify(next) }));
                   };
@@ -630,11 +630,23 @@ export default function SettingsPage() {
                           <Input type="number" min={0} max={100} value={rc.ban_threshold ?? 80} onChange={e => setRisk("ban_threshold", +e.target.value)} className={inputCls} placeholder="80" />
                         </div>
                       </div>
-                      <div className="grid grid-cols-1 sm:grid-cols-5 gap-3">
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                        <div className="space-y-1.5">
+                          <Label>封禁时长(分钟)</Label>
+                          <Input type="number" min={0} max={43200} value={rc.ban_duration_minutes ?? 0} onChange={e => setRisk("ban_duration_minutes", +e.target.value)} className={inputCls} placeholder="0" />
+                        </div>
                         <div className="space-y-1.5">
                           <Label>评分间隔(分钟)</Label>
                           <Input type="number" min={1} max={60} value={rc.score_interval_min ?? 5} onChange={e => setRisk("score_interval_min", +e.target.value)} className={inputCls} placeholder="5" />
                         </div>
+                        <div className="flex items-end pb-1">
+                          <label className="flex items-center gap-2 text-xs cursor-pointer">
+                            <Switch checked={rc.ban_escalation ?? true} onCheckedChange={v => setRisk("ban_escalation", v)} />
+                            <span>阶梯封禁<span className="text-muted-foreground ml-1">第1次1h·第2次24h·第3次永久</span></span>
+                          </label>
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-5 gap-3">
                         <div className="space-y-1.5">
                           <Label>API 权重 %</Label>
                           <Input type="number" min={0} max={100} value={rc.weight_api ?? 35} onChange={e => setRisk("weight_api", +e.target.value)} className={inputCls} placeholder="35" />
@@ -653,7 +665,7 @@ export default function SettingsPage() {
                         </div>
                       </div>
                       <div className="rounded-xl bg-muted/40 p-3.5 text-xs text-muted-foreground leading-relaxed">
-                        四项权重应合计 100。阈值说明：≥{rc.flag_threshold ?? 30} 标记观察 · ≥{rc.limit_threshold ?? 50} 限流降级 · ≥{rc.ban_threshold ?? 80} 自动封禁。评分每 {rc.score_interval_min ?? 5} 分钟刷新。修改后点击底部「保存设置」即时生效。
+                        四项权重应合计 100。阈值：≥{rc.flag_threshold ?? 30} 观察 · ≥{rc.limit_threshold ?? 50} 限流 · ≥{rc.ban_threshold ?? 80} 封禁。评分每 {rc.score_interval_min ?? 5} 分钟刷新。封禁时长 0=永久；开启阶梯后第 1 次 1h、第 2 次 24h、第 3 次永久。点击底部「保存设置」即时生效。
                       </div>
                     </div>
                   );

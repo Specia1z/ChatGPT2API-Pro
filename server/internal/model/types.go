@@ -816,19 +816,24 @@ type RiskConfig struct {
 	WeightPoints  int `json:"weight_points"`  // 积分滥用权重，默认 25
 	WeightContent int `json:"weight_content"` // 内容滥用权重，默认 20
 	WeightAccount int `json:"weight_account"` // 账号异常权重，默认 20
+	// 封禁策略
+	BanDurationMinutes int  `json:"ban_duration_minutes"` // 单次封禁时长（分钟），0=永久，默认 0
+	BanEscalation      bool `json:"ban_escalation"`       // 阶梯封禁：第1次1h，第2次24h，第3次永久
 }
 
 // DefaultRiskConfig 返回合理且不误判的默认值。
 func DefaultRiskConfig() RiskConfig {
 	return RiskConfig{
-		FlagThreshold:  30,
-		LimitThreshold: 50,
-		BanThreshold:   80,
+		FlagThreshold:    30,
+		LimitThreshold:   50,
+		BanThreshold:     80,
 		ScoreIntervalMin: 5,
-		WeightAPI:      35,
-		WeightPoints:   25,
-		WeightContent:  20,
-		WeightAccount:  20,
+		WeightAPI:        35,
+		WeightPoints:     25,
+		WeightContent:    20,
+		WeightAccount:    20,
+		BanDurationMinutes: 0,  // 0=永久，建议首次部署设 60（1小时）观察
+		BanEscalation:     true, // 默认开启阶梯，避免永久误封
 	}
 }
 
