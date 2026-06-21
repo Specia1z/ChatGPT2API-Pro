@@ -153,9 +153,9 @@ func (s *MySQLStore) AccountAgeHours(uid int64) float64 {
 	return h
 }
 
-// BanUser 封禁用户（设置 status=0）。
-func (s *MySQLStore) BanUser(uid int64) error {
-	_, err := s.db.Exec("UPDATE users SET status=0 WHERE id=?", uid)
+// BanUser 封禁用户（设置 status=0 + 原因）。
+func (s *MySQLStore) BanUser(uid int64, reason string) error {
+	_, err := s.db.Exec("UPDATE users SET status=0, ban_reason=? WHERE id=?", reason, uid)
 	return err
 }
 
