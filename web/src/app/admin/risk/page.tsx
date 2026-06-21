@@ -21,12 +21,13 @@ const fadeUp = { hidden: { opacity: 0, y: 12 }, visible: { opacity: 1, y: 0, tra
 
 interface RiskEntry {
   user_id: number;
+  email?: string;
   score_api: number;
   score_points: number;
   score_content: number;
   score_account: number;
   total_score: number;
-  email?: string;
+  reasons?: string;
   updated_at: string;
 }
 
@@ -143,16 +144,17 @@ export default function RiskPage() {
                       <th className="hidden sm:table-cell font-medium px-3 py-3 text-center w-16"><Coins className="size-3 inline" /> 积分</th>
                       <th className="hidden sm:table-cell font-medium px-3 py-3 text-center w-16"><Image className="size-3 inline" /> 内容</th>
                       <th className="hidden sm:table-cell font-medium px-3 py-3 text-center w-16"><UserX className="size-3 inline" /> 账号</th>
+                      <th className="hidden sm:table-cell font-medium px-3 py-3 w-24">评分理由</th>
                       <th className="font-medium px-4 py-3 text-right w-20">更新时间</th>
                     </tr>
                   </thead>
                   <tbody>
                     {scores.length === 0 ? (
-                      <tr><td colSpan={8} className="text-center py-16 text-muted-foreground">暂无风险评分数据</td></tr>
+                      <tr><td colSpan={9} className="text-center py-16 text-muted-foreground">暂无风险评分数据</td></tr>
                     ) : scores.map(s => (
                       <tr key={s.user_id} className="border-b border-border/50 last:border-0 hover:bg-muted/30 transition-colors">
                         <td className="px-4 py-3">
-                          <span className="font-medium text-foreground truncate max-w-[160px] block">{s.email || `#${s.user_id}`}</span>
+                          <span className="font-medium text-foreground truncate max-w-[160px] block">{s.email ? `${s.email} (#${s.user_id})` : `#${s.user_id}`}</span>
                         </td>
                         <td className="px-3 py-3 text-center">
                           <span className={`inline-flex items-center justify-center w-9 h-6 rounded-md text-[11px] font-bold tabular-nums ${scoreColor(s.total_score)} ${scoreBg(s.total_score)}`}>{s.total_score}</span>
@@ -164,6 +166,7 @@ export default function RiskPage() {
                         <td className="hidden sm:table-cell px-3 py-3"><BarGauge value={s.score_points} label="" max={100} /></td>
                         <td className="hidden sm:table-cell px-3 py-3"><BarGauge value={s.score_content} label="" max={100} /></td>
                         <td className="hidden sm:table-cell px-3 py-3"><BarGauge value={s.score_account} label="" max={100} /></td>
+                        <td className="hidden sm:table-cell px-3 py-3 text-[10px] text-muted-foreground truncate max-w-[140px]" title={s.reasons}>{s.reasons || "—"}</td>
                         <td className="px-4 py-3 text-right tabular-nums text-muted-foreground text-[10px]">{s.updated_at?.slice(5, 16) || "—"}</td>
                       </tr>
                     ))}

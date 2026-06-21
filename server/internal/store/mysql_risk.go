@@ -2,6 +2,7 @@ package store
 
 import (
 	"database/sql"
+	"strings"
 	"time"
 
 	"chatgpt2api-pro/internal/model"
@@ -39,8 +40,8 @@ func (s *MySQLStore) GetRiskScores(page, pageSize int, minScore int) ([]model.Us
 	var scores []model.UserRiskScore
 	for rows.Next() {
 		var s model.UserRiskScore
-		var email string
-		if rows.Scan(&s.UserID, &email, &s.ScoreAPI, &s.ScorePoints, &s.ScoreContent, &s.ScoreAccount, &s.TotalScore, &s.UpdatedAt) == nil {
+		if rows.Scan(&s.UserID, &s.Email, &s.ScoreAPI, &s.ScorePoints, &s.ScoreContent, &s.ScoreAccount, &s.TotalScore, &s.UpdatedAt) == nil {
+			s.Reasons = scoreReasons(s)
 			scores = append(scores, s)
 		}
 	}
@@ -153,7 +154,28 @@ func (s *MySQLStore) AccountAgeHours(uid int64) float64 {
 	return h
 }
 
-// BanUser 封禁用户（设置 status=0 + 原因）。
+// scoreReasons 根据各维度分数生成简短评分理由。
+func scoreReasons(s model.UserRiskScore) string {
+	var parts []string
+	add := func(label string, v int, threshold int) {
+		if v >= threshold {
+			parts = append(parts, label)
+		}
+	}
+	add("QPS超限", s.ScoreAPI, 15)
+	add("多IP", s.ScoreAPI, 10)
+	add("高错误率", s.ScoreAPI, 20)
+	add("刷邀请", s.ScorePoints, 20)
+	add("同IP多号", s.ScorePoints, 15)
+	add("重复prompt", s.ScoreContent, 20)
+	add("高失败率", s.ScoreContent, 10)
+	add("被封历史", s.ScoreAccount, 30)
+	add("新账号", s.ScoreAccount, 20)
+	if len(parts) == 0 {
+		return ""
+	}
+	return strings.Join(parts, "+")
+}
 func (s *MySQLStore) BanUser(uid int64, reason string) error {
 	_, err := s.db.Exec("UPDATE users SET status=0, ban_reason=? WHERE id=?", reason, uid)
 	return err

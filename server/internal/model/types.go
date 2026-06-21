@@ -835,11 +835,13 @@ func DefaultRiskConfig() RiskConfig {
 // UserRiskScore 用户风险评分记录（DB 表 user_risk_scores）。
 type UserRiskScore struct {
 	UserID       int64  `json:"user_id"`
-	ScoreAPI     int    `json:"score_api"`     // API 滥用分
-	ScorePoints  int    `json:"score_points"`  // 积分滥用分
-	ScoreContent int    `json:"score_content"` // 内容滥用分
-	ScoreAccount int    `json:"score_account"` // 账号异常分
-	TotalScore   int    `json:"total_score"`   // 加权总分
+	Email        string `json:"email,omitempty"`    // 用户邮箱（列表展示用）
+	ScoreAPI     int    `json:"score_api"`          // API 滥用分
+	ScorePoints  int    `json:"score_points"`       // 积分滥用分
+	ScoreContent int    `json:"score_content"`      // 内容滥用分
+	ScoreAccount int    `json:"score_account"`      // 账号异常分
+	TotalScore   int    `json:"total_score"`        // 加权总分
+	Reasons      string `json:"reasons,omitempty"`  // 评分理由简述（如"QPS超限+多IP"）
 	UpdatedAt    string `json:"updated_at"`
 }
 
