@@ -91,24 +91,26 @@ mux.Handle("POST /api/user/points/exchange", middleware.RateLimit(userAuth(http.
 	// API v1 (API Key 认证)：IP 粗限流 + 按 uid 精确限流（防多 IP 绕过）。
 	// 内置兜底 30/min；后台「默认限速」与套餐 rate_limit_per_min 可逐级覆盖（见 UserRateLimit）。
 	apiUserRL := func(h http.Handler) http.Handler { return middleware.UserRateLimit(redis, 30, time.Minute)(h) }
-	// apiLogged 把采集中间件包在最外层（含限流之前），按 endpoint 标签记录每次调用到 api_call_logs。
+	// apiLogged 把采集中间件包在最外层（含限流之前），按 endpoint 标签记录每次调用到 api_call_logs +
+	// 同时累加 Redis 风险计数器（QPS/错误/IP/令牌）。
 	// 顺序：APILogger(ep)( RateLimit( apiKeyAuth( apiUserRL( handler ))))，故 IP 限流 429 也能记录。
 	apiLogged := func(ep string, h http.Handler) http.Handler {
 		return middleware.APILogger(apiLogWriter, ep)(h)
 	}
-	mux.Handle("POST /api/v1/images/generations", apiLogged("images.generations", middleware.RateLimit(apiKeyAuth(apiUserRL(http.HandlerFunc(h.CreateGeneration))))))
-	mux.Handle("GET /api/v1/images/generations", apiLogged("images.query", apiKeyAuth(apiUserRL(http.HandlerFunc(h.GetUserGenerations)))))
-	mux.Handle("POST /api/v1/vector", apiLogged("vector", middleware.RateLimit(apiKeyAuth(apiUserRL(http.HandlerFunc(h.CreateVectorAPI))))))
-	mux.Handle("GET /api/v1/user/tokens", apiLogged("user.tokens", apiKeyAuth(apiUserRL(http.HandlerFunc(h.GetUserTokens)))))
+	riskRec := middleware.RiskRecorder(redis)
+	mux.Handle("POST /api/v1/images/generations", riskRec(apiLogged("images.generations", middleware.RateLimit(apiKeyAuth(apiUserRL(http.HandlerFunc(h.CreateGeneration)))))))
+	mux.Handle("GET /api/v1/images/generations", riskRec(apiLogged("images.query", apiKeyAuth(apiUserRL(http.HandlerFunc(h.GetUserGenerations))))))
+	mux.Handle("POST /api/v1/vector", riskRec(apiLogged("vector", middleware.RateLimit(apiKeyAuth(apiUserRL(http.HandlerFunc(h.CreateVectorAPI)))))))
+	mux.Handle("GET /api/v1/user/tokens", riskRec(apiLogged("user.tokens", apiKeyAuth(apiUserRL(http.HandlerFunc(h.GetUserTokens))))))
 	// 图像理解/增强（开发者 API）：反推中文提示词 / 一键智能增强（同步出图）
-	mux.Handle("POST /api/v1/image-to-text", apiLogged("image-to-text", middleware.RateLimit(apiKeyAuth(apiUserRL(http.HandlerFunc(h.ImageToText))))))
-	mux.Handle("POST /api/v1/image-enhance", apiLogged("image-enhance", middleware.RateLimit(apiKeyAuth(apiUserRL(http.HandlerFunc(h.ImageEnhanceAPI))))))
-	mux.Handle("POST /api/v1/removebg", apiLogged("removebg", middleware.RateLimit(apiKeyAuth(apiUserRL(http.HandlerFunc(h.RemoveBackground))))))
+	mux.Handle("POST /api/v1/image-to-text", riskRec(apiLogged("image-to-text", middleware.RateLimit(apiKeyAuth(apiUserRL(http.HandlerFunc(h.ImageToText)))))))
+	mux.Handle("POST /api/v1/image-enhance", riskRec(apiLogged("image-enhance", middleware.RateLimit(apiKeyAuth(apiUserRL(http.HandlerFunc(h.ImageEnhanceAPI)))))))
+	mux.Handle("POST /api/v1/removebg", riskRec(apiLogged("removebg", middleware.RateLimit(apiKeyAuth(apiUserRL(http.HandlerFunc(h.RemoveBackground)))))))
 
 	// OpenAI 兼容接口（同步返回，标准 /v1 路径，API Key 认证 + IP/uid 双限流）
-	mux.Handle("POST /v1/images/generations", apiLogged("openai.images", middleware.RateLimit(apiKeyAuth(apiUserRL(http.HandlerFunc(h.CreateImageOpenAI))))))
+	mux.Handle("POST /v1/images/generations", riskRec(apiLogged("openai.images", middleware.RateLimit(apiKeyAuth(apiUserRL(http.HandlerFunc(h.CreateImageOpenAI)))))))
 	// /v1/models：OpenAI SDK/LangChain 等连接时会先探测，缺失会 404 导致连接失败
-	mux.Handle("GET /v1/models", apiLogged("openai.models", apiKeyAuth(http.HandlerFunc(h.ListModelsOpenAI))))
+	mux.Handle("GET /v1/models", riskRec(apiLogged("openai.models", apiKeyAuth(http.HandlerFunc(h.ListModelsOpenAI)))))
 
 	// 注：管理员登录已统一到 /api/auth/login（按 users.role / .env SUPERADMIN_EMAIL 鉴权），
 	// 旧的独立 /api/admin/login 已废弃移除。
@@ -135,6 +137,10 @@ mux.Handle("POST /api/user/points/exchange", middleware.RateLimit(userAuth(http.
 	mux.Handle("POST /api/admin/scheduler/config", adminAuth(http.HandlerFunc(h.SetSchedulerConfig)))
 	mux.Handle("GET /api/admin/system/snapshot", adminAuth(http.HandlerFunc(h.GetSystemSnapshot)))
 	mux.Handle("GET /api/admin/system/events", adminAuth(http.HandlerFunc(h.SystemEvents)))
+
+	// 用户风险评分
+	mux.Handle("GET /api/admin/risk/scores", adminAuth(http.HandlerFunc(h.AdminRiskScores)))
+	mux.Handle("GET /api/admin/risk/detail", adminAuth(http.HandlerFunc(h.AdminRiskDetail)))
 
 	// API 调用日志（Admin 全局视角）
 	mux.Handle("GET /api/admin/api-logs", adminAuth(http.HandlerFunc(h.AdminListAPILogs)))

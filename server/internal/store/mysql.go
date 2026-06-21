@@ -663,6 +663,19 @@ func (s *MySQLStore) autoMigrate() {
 		s.db.Exec("ALTER TABLE api_call_logs ADD COLUMN image_url VARCHAR(1024) NOT NULL DEFAULT '' AFTER prompt")
 	}
 
+	// 用户风险评分
+	s.db.Exec(`CREATE TABLE IF NOT EXISTS user_risk_scores (
+		id BIGINT AUTO_INCREMENT PRIMARY KEY,
+		user_id BIGINT NOT NULL UNIQUE,
+		score_api INT NOT NULL DEFAULT 0,
+		score_points INT NOT NULL DEFAULT 0,
+		score_content INT NOT NULL DEFAULT 0,
+		score_account INT NOT NULL DEFAULT 0,
+		total_score INT NOT NULL DEFAULT 0,
+		updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+		INDEX idx_total (total_score)
+	) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`)
+
 	// settings 保留期列（旧库补列；裸 ALTER 重复执行报错被忽略）
 	s.db.Exec("ALTER TABLE settings ADD COLUMN api_log_retention_days INT NOT NULL DEFAULT 0 AFTER api_image_ttl_min")
 }

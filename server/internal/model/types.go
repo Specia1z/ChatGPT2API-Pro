@@ -798,3 +798,53 @@ type APICallLog struct {
 	CreatedAt  string `json:"created_at"`
 	UserEmail  string `json:"user_email,omitempty"`  // Admin 全站查询时附带
 }
+
+// ── 用户风险评分 ──────────────────────────────────────────
+
+// RiskConfig 风险评分阈值配置（存于 settings 表 JSON 列）。
+type RiskConfig struct {
+	// 自动处置阈值（0-100）
+	FlagThreshold  int `json:"flag_threshold"`  // 标记观察阈值，默认 30
+	LimitThreshold int `json:"limit_threshold"` // 限流降级阈值，默认 50
+	BanThreshold   int `json:"ban_threshold"`   // 自动封禁阈值，默认 80
+	// 评分窗口
+	ScoreIntervalMin int `json:"score_interval_min"` // 评分计算间隔（分钟），默认 5
+	// 权重（百分比，四项加起来应=100）
+	WeightAPI     int `json:"weight_api"`     // API 滥用权重，默认 35
+	WeightPoints  int `json:"weight_points"`  // 积分滥用权重，默认 25
+	WeightContent int `json:"weight_content"` // 内容滥用权重，默认 20
+	WeightAccount int `json:"weight_account"` // 账号异常权重，默认 20
+}
+
+// DefaultRiskConfig 返回合理且不误判的默认值。
+func DefaultRiskConfig() RiskConfig {
+	return RiskConfig{
+		FlagThreshold:  30,
+		LimitThreshold: 50,
+		BanThreshold:   80,
+		ScoreIntervalMin: 5,
+		WeightAPI:      35,
+		WeightPoints:   25,
+		WeightContent:  20,
+		WeightAccount:  20,
+	}
+}
+
+// UserRiskScore 用户风险评分记录（DB 表 user_risk_scores）。
+type UserRiskScore struct {
+	UserID       int64  `json:"user_id"`
+	ScoreAPI     int    `json:"score_api"`     // API 滥用分
+	ScorePoints  int    `json:"score_points"`  // 积分滥用分
+	ScoreContent int    `json:"score_content"` // 内容滥用分
+	ScoreAccount int    `json:"score_account"` // 账号异常分
+	TotalScore   int    `json:"total_score"`   // 加权总分
+	UpdatedAt    string `json:"updated_at"`
+}
+
+// RiskDetail 评分明细（Admin 单个用户详情用）。
+type RiskDetail struct {
+	UserID    int64          `json:"user_id"`
+	Email     string         `json:"email"`
+	Scores    UserRiskScore  `json:"scores"`
+	Snapshots map[string]int `json:"snapshots"` // Redis 实时指标快照
+}
