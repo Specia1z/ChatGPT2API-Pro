@@ -25,6 +25,25 @@ func SetDefaultUserRate(n int) {
 	atomic.StoreInt64(&defaultUserRate, int64(n))
 }
 
+// riskLimitedUIDs 风险评分 ≥ limit_threshold 的用户集合。
+// 由 RiskScorer 每轮评分后写入，UserRateLimit 读取。
+var riskLimitedUIDs sync.Map
+
+// SetRiskLimitedUIDs 更新风险限流用户列表。
+func SetRiskLimitedUIDs(uids map[int64]bool) {
+	// 重建 map（sync.Map 不支持 Clear）
+	riskLimitedUIDs = sync.Map{}
+	for uid := range uids {
+		riskLimitedUIDs.Store(uid, true)
+	}
+}
+
+// IsRiskLimited 判断用户是否被风险限流（≥ limit_threshold 且 < ban_threshold）。
+func IsRiskLimited(uid int64) bool {
+	_, ok := riskLimitedUIDs.Load(uid)
+	return ok
+}
+
 type rateLimiter struct {
 	mu      sync.Mutex
 	entries map[string]*rateEntry
@@ -119,7 +138,14 @@ func UserRateLimit(redis *store.RedisStore, limit int, window time.Duration) fun
 			if pl, ok := r.Context().Value(RateLimitKey).(int); ok && pl > 0 {
 				effLimit = pl
 			}
-			if redis != nil && !redis.AllowRate(key, effLimit, window) {
+			// 风险限流降级
+			if uid, ok := r.Context().Value(UserIDKey).(int64); ok && uid > 0 && IsRiskLimited(uid) {
+				effLimit /= 2
+				if effLimit < 5 {
+					effLimit = 5
+				}
+			}
+						if redis != nil && !redis.AllowRate(key, effLimit, window) {
 				w.Header().Set("Retry-After", "1")
 				http.Error(w, `{"code":429,"message":"请求过于频繁，请稍后再试"}`, http.StatusTooManyRequests)
 				return

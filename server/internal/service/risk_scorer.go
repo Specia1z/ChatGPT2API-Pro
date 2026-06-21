@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"time"
 
+	"chatgpt2api-pro/internal/middleware"
 	"chatgpt2api-pro/internal/model"
 	"chatgpt2api-pro/internal/store"
 )
@@ -60,6 +61,7 @@ func (rs *RiskScorer) run() {
 	}
 
 	var autoBanIDs []int64
+	riskThrottled := map[int64]bool{}
 
 	for _, uid := range ids {
 		snap := rs.redis.GetRiskSnapshot(ctx, uid)
@@ -79,8 +81,13 @@ func (rs *RiskScorer) run() {
 
 		if total >= cfg.BanThreshold {
 			autoBanIDs = append(autoBanIDs, uid)
+		} else if total >= cfg.LimitThreshold {
+			riskThrottled[uid] = true
 		}
 	}
+
+	// 热更新：风险限流列表（≥ limit_threshold 且 < ban_threshold）
+	middleware.SetRiskLimitedUIDs(riskThrottled)
 
 	// 自动封禁
 	for _, uid := range autoBanIDs {
@@ -88,7 +95,7 @@ func (rs *RiskScorer) run() {
 		if user != nil && user.Status {
 			rs.mysql.BanUser(uid)
 			rs.mysql.InsertAccountEvent(uid, "ban", "risk_score_auto",
-				"风险评分 "+strconv.Itoa(totalScore(rs.mysql, uid)))
+				"风险评分 "+strconv.Itoa(totalScore(rs.mysql, uid))+" 分，自动封禁")
 			log.Printf("[risk] 自动封禁 uid=%d (%s)", uid, user.Email)
 		}
 	}
