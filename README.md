@@ -95,44 +95,44 @@ curl -X POST /v1/images/generations \
 
 ## ⚡ 高并发设计
 
-请求路径上做到零阻塞、零额外分配。写操作异步批，读操作带缓存。
+请求路径零阻塞，写操作异步批，读操作带缓存。
 
-### 🔥 请求路径（每请求 < 1μs 额外开销）
+### 🔥 请求路径（每次请求多花的 CPU 忽略不计）
 
-| 机制 | 一句话 | 关键字 |
+| 做了什么 | 怎么做的 | 用了啥 |
 |---|---|---|
-| QPS 采集 | `atomic` 环形桶，60s 滑动窗口，无锁 | `sync/atomic` |
-| 请求计数 | 每请求一次 `atomic.Add`，零开销 | `sync/atomic` |
-| 热路径零分配 | `context` 传 `*APICallInfo` 指针，各层原地写 | `context` |
-| 限流 | Redis 原子滑动窗口，套餐 → 默认 → 兜底三级 | Redis `INCR` |
+| QPS 统计 | 60 秒环形桶，无锁读写 | `sync/atomic` |
+| 请求计数 | 每次请求 +1，纯原子操作 | `sync/atomic` |
+| 零分配传参 | `context` 塞个指针进去，中间件各层原地写 | `context` |
+| 精准限流 | Redis 滑动窗口，套餐 → 默认 → 兜底 | Redis `INCR` |
 
-### 📨 异步化（写操作不阻塞请求）
+### 📨 异步化（慢的事情扔后台，别堵着用户）
 
-| 机制 | 一句话 | 关键字 |
+| 做了什么 | 怎么做的 | 用了啥 |
 |---|---|---|
-| 日志落库 | `channel` 非阻塞投递，goroutine 定时/定量双触发批量 INSERT | `chan` · `goroutine` |
-| 实时广播 | `select default` pub/sub，慢消费者自动跳过 | `select` · `chan` |
-| 风险采集 | Redis 实时计数 → 定时批量合并落库，`sync.Map` 热更限流名单 | `sync.Map` |
-| 图片懒加载 | 列表不查 `MEDIUMTEXT`，`/api/images/{id}` 代理按需取 | `io.Copy` |
+| 日志入库 | `channel` 丢进去就走，goroutine 攒够一批再写 | `chan` · `goroutine` |
+| 实时推送 | pub/sub 广播，谁慢了跳过谁 | `select` · `chan` |
+| 风险打分 | Redis 先记着，定时批量算完了再落库 | `sync.Map` |
+| 图片加载 | 列表不查大字段，用代理按需取 | `io.Copy` |
 
 ### 🗄️ 数据层
 
-| 机制 | 一句话 | 关键字 |
+| 做了什么 | 怎么做的 | 用了啥 |
 |---|---|---|
-| 攒批写入 | 200 条/批，事务内 `SET NAMES utf8mb4` 防乱码 | `database/sql` |
-| 配置热缓存 | `sync.RWMutex` + TTL + 写后失效，DB 压力降 90%+ | `sync.RWMutex` |
-| 公开接口缓存 | 套餐/画廊/公告/统计短 TTL 进程内缓存 | `sync.Map` |
-| 连接池 | `MaxOpenConns` / `MaxIdleConns` / `ConnMaxLifetime=5min` 后台可调 | `database/sql` |
-| 零停机 DDL | `columnExists` 守卫实现滚动升级 | `database/sql` |
+| 批量写入 | 200 条一批，事务里顺手 `SET NAMES utf8mb4` | `database/sql` |
+| 配置缓存 | 读写锁 + 过期时间 + 改了立即失效 | `sync.RWMutex` |
+| 接口缓存 | 套餐画廊公告统计，短期缓存 | `sync.Map` |
+| 连接池 | 最大连接/空闲连接/最长寿命，后台随便调 | `database/sql` |
+| 平滑升级 | 加列前先看有没有，有就不动，不炸 | `database/sql` |
 
 ### ⚙️ 系统级
 
-| 机制 | 一句话 | 关键字 |
+| 做了什么 | 怎么做的 | 用了啥 |
 |---|---|---|
-| 并发闸门 | 全局 / 单用户 / 单账号三级限流，后台热调 | `sync.Mutex` |
-| 优雅退出 | `defer` 链保证缓冲 flush + 连接关闭 | `defer` |
+| 并发闸门 | 全局多少、每人多少、每号多少，后台可调 | `sync.Mutex` |
+| 优雅退出 | `defer` 链保证缓冲区 flush + 连接关闭 | `defer` |
 
-> 💡 每请求只多分配一个 `APICallInfo`，其余全是原子操作和 channel——主打一个快且不崩。
+> 💡 每请求只多分配一个 `APICallInfo`，其余全靠原子操作和 channel——主打一个快且不崩。
 
 ---
 
