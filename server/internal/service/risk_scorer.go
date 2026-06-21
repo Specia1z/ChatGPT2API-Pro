@@ -110,7 +110,6 @@ func (rs *RiskScorer) run() {
 			score := totalScore(rs.mysql, uid)
 			reason := fmt.Sprintf("风险评分 %d 分（阈值 %d），系统自动封禁。如有疑问请联系管理员。", score, cfg.BanThreshold)
 			rs.mysql.BanUser(uid, reason)
-			rs.mysql.UpsertRiskScore(uid, 0, 0, 0, 0, 0) // 清零评分
 			rs.mysql.InsertAccountEvent(uid, "ban", "risk_score_auto",
 				"风险评分 "+strconv.Itoa(score)+" 分，自动封禁")
 			log.Printf("[risk] 自动封禁 uid=%d (%s)", uid, user.Email)

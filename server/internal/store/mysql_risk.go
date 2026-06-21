@@ -24,7 +24,7 @@ func (s *MySQLStore) GetRiskScores(page, pageSize int, minScore int) ([]model.Us
 	if page < 1 { page = 1 }
 	if pageSize < 1 || pageSize > 100 { pageSize = 20 }
 
-	where := "WHERE r.total_score >= ? AND u.status=1"
+	where := "WHERE r.total_score >= ?"
 	args := []any{minScore}
 	var total int
 	s.db.QueryRow("SELECT COUNT(*) FROM user_risk_scores r JOIN users u ON r.user_id=u.id "+where, args...).Scan(&total)
