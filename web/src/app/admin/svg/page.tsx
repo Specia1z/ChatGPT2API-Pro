@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
-import { Shapes, RefreshCw, X, Trash2, Download, Code2 } from "lucide-react";
+import { Shapes, RefreshCw, X, Trash2, Download, Code2, Copy, Check } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
 import { formatShort, isLocalToday } from "@/lib/utils";
@@ -31,6 +31,7 @@ export default function AdminSVGPage() {
   const [hasMore, setHasMore] = useState(true);
   const [preview, setPreview] = useState<any | null>(null);
   const [showCode, setShowCode] = useState(false);
+  const [copied, setCopied] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<any>(null);
   const observerRef = useRef<IntersectionObserver | null>(null);
   const sentinelRef = useRef<HTMLDivElement>(null);
@@ -78,6 +79,14 @@ export default function AdminSVGPage() {
     const a = document.createElement("a");
     a.href = u; a.download = `vector-${g.id}.svg`; a.click();
     URL.revokeObjectURL(u);
+  };
+
+  const copyPrompt = async (text: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch { toast.error("复制失败"); }
   };
 
   const stats = useMemo(() => {
@@ -166,7 +175,9 @@ export default function AdminSVGPage() {
                             </div>
                           </div>
                           <div className="px-2.5 py-2 space-y-1">
-                            <p className="text-[10px] text-muted-foreground line-clamp-2 leading-relaxed">{g.prompt || "无提示词"}</p>
+                            <p onClick={() => { setPreview(g); setShowCode(false); }}
+                              className="text-[10px] text-muted-foreground line-clamp-2 leading-relaxed cursor-pointer hover:text-foreground transition-colors"
+                              title="点击查看完整提示词">{g.prompt || "无提示词"}</p>
                             <div className="flex items-center gap-1.5 text-[9px] text-muted-foreground/70">
                               {g.user_email && <span className="truncate font-mono flex-1">{g.user_email}</span>}
                               <span className="shrink-0 tabular-nums">{fmtDate(g.created_at)}</span>
@@ -179,7 +190,12 @@ export default function AdminSVGPage() {
                             <X className="w-6 h-6 text-red-400 mx-auto mb-2" />
                             <p className="text-[10px] text-red-500 font-medium">生成失败</p>
                             {g.error_msg && <p className="text-[9px] text-red-400 mt-0.5 line-clamp-2">{g.error_msg}</p>}
-                            <button onClick={() => setDeleteTarget(g)} className="mt-2 text-[9px] text-red-400 hover:text-red-600">删除</button>
+                            <div className="mt-2 flex items-center justify-center gap-2">
+                              <button onClick={() => { setPreview(g); setShowCode(false); }}
+                                className="text-[9px] text-muted-foreground hover:text-foreground transition-colors">查看详情</button>
+                              <span className="text-red-400/40">·</span>
+                              <button onClick={() => setDeleteTarget(g)} className="text-[9px] text-red-400 hover:text-red-600">删除</button>
+                            </div>
                           </div>
                         </div>
                       ) : (
@@ -208,32 +224,65 @@ export default function AdminSVGPage() {
 
       <Dialog open={!!preview} onOpenChange={() => setPreview(null)}>
         <DialogContent className="max-w-[90vw] sm:max-w-2xl max-h-[90vh] p-0 overflow-hidden">
-          {preview && (
-            <div className="flex flex-col max-h-[90vh]">
-              <div className="flex items-center justify-between px-4 py-3 border-b shrink-0">
-                <span className="text-xs font-medium truncate mr-2">{preview.prompt || "矢量图"}</span>
-                <div className="flex items-center gap-1 shrink-0">
-                  <Button variant="ghost" size="sm" className="h-7 gap-1 text-[10px]" onClick={() => setShowCode(s => !s)}>
-                    <Code2 className="w-3 h-3" /> {showCode ? "看图" : "看代码"}
-                  </Button>
-                  <Button variant="ghost" size="sm" className="h-7 gap-1 text-[10px]" onClick={() => downloadSvg(preview)}>
-                    <Download className="w-3 h-3" /> 下载
-                  </Button>
+          {preview && (() => {
+            const hasSvg = !!preview.image_b64;
+            return (
+              <div className="flex flex-col max-h-[90vh]">
+                <div className="flex items-center justify-between px-4 py-3 border-b shrink-0">
+                  <span className="text-xs font-semibold">矢量图详情</span>
+                  {hasSvg && (
+                    <div className="flex items-center gap-1 shrink-0">
+                      <Button variant="ghost" size="sm" className="h-7 gap-1 text-[10px]" onClick={() => setShowCode(s => !s)}>
+                        <Code2 className="w-3 h-3" /> {showCode ? "看图" : "看代码"}
+                      </Button>
+                      <Button variant="ghost" size="sm" className="h-7 gap-1 text-[10px]" onClick={() => downloadSvg(preview)}>
+                        <Download className="w-3 h-3" /> 下载
+                      </Button>
+                    </div>
+                  )}
+                </div>
+
+                <div className="flex-1 overflow-auto">
+                  {/* 图 / 代码 / 失败 */}
+                  {hasSvg ? (
+                    <div className="p-4 bg-[conic-gradient(at_50%_50%,#f8f8f8_25%,#efefef_0_50%,#f8f8f8_0_75%,#efefef_0)] bg-[length:20px_20px] dark:bg-zinc-900">
+                      {showCode ? (
+                        <pre className="text-[11px] font-mono whitespace-pre-wrap break-all text-foreground bg-card rounded-lg p-3 border">{preview.image_b64 || ""}</pre>
+                      ) : (
+                        <img src={svgToDataUri(preview.image_b64 || "")} alt="" className="w-full h-auto max-h-[50vh] object-contain" />
+                      )}
+                    </div>
+                  ) : preview.status === "failed" ? (
+                    <div className="px-4 pt-4">
+                      <span className="text-[11px] font-semibold text-red-500">失败原因</span>
+                      <p className="mt-1.5 text-xs leading-relaxed break-words rounded-lg bg-red-500/5 text-red-500 p-3">{preview.error_msg || "未知错误"}</p>
+                    </div>
+                  ) : null}
+
+                  {/* 完整提示词 + 复制 */}
+                  <div className="px-4 pt-3 pb-4 space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[11px] font-semibold text-muted-foreground">完整提示词</span>
+                      {preview.prompt && (
+                        <button onClick={() => copyPrompt(preview.prompt)}
+                          className="inline-flex items-center gap-1 text-[10px] text-muted-foreground hover:text-foreground transition-colors">
+                          {copied ? <><Check className="w-3 h-3 text-emerald-500" />已复制</> : <><Copy className="w-3 h-3" />复制</>}
+                        </button>
+                      )}
+                    </div>
+                    <p className="text-xs leading-relaxed whitespace-pre-wrap break-words rounded-lg bg-muted/50 p-3 max-h-40 overflow-y-auto scrollbar-thin">
+                      {preview.prompt || "无提示词"}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="px-4 py-2 border-t text-[10px] text-muted-foreground flex items-center gap-3 shrink-0">
+                  {preview.user_email && <span className="font-mono truncate">{preview.user_email}</span>}
+                  <span className="tabular-nums ml-auto">{fmtDate(preview.created_at)}</span>
                 </div>
               </div>
-              <div className="flex-1 overflow-auto p-4 bg-[conic-gradient(at_50%_50%,#f8f8f8_25%,#efefef_0_50%,#f8f8f8_0_75%,#efefef_0)] bg-[length:20px_20px] dark:bg-zinc-900">
-                {showCode ? (
-                  <pre className="text-[11px] font-mono whitespace-pre-wrap break-all text-foreground bg-card rounded-lg p-3 border">{preview.image_b64 || ""}</pre>
-                ) : (
-                  <img src={svgToDataUri(preview.image_b64 || "")} alt="" className="w-full h-auto max-h-[60vh] object-contain" />
-                )}
-              </div>
-              <div className="px-4 py-2 border-t text-[10px] text-muted-foreground flex items-center gap-3 shrink-0">
-                {preview.user_email && <span className="font-mono truncate">{preview.user_email}</span>}
-                <span className="tabular-nums ml-auto">{fmtDate(preview.created_at)}</span>
-              </div>
-            </div>
-          )}
+            );
+          })()}
         </DialogContent>
       </Dialog>
     </div>

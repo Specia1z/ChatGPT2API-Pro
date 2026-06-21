@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import {
-  ImageIcon, RefreshCw, X, Trash2, Eye, ImagePlus, Share2, Trash,
+  ImageIcon, RefreshCw, X, Trash2, Eye, ImagePlus, Share2, Trash, Copy, Check,
 } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
@@ -24,6 +24,8 @@ export default function AdminGenerationsPage() {
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
   const [preview, setPreview] = useState<string | null>(null);
+  const [detail, setDetail] = useState<any | null>(null);
+  const [copied, setCopied] = useState(false);
   const [loadedImages, setLoadedImages] = useState<Set<string>>(new Set());
   const [deleteTarget, setDeleteTarget] = useState<any>(null);
   const [batchDeleting, setBatchDeleting] = useState(false);
@@ -57,6 +59,14 @@ export default function AdminGenerationsPage() {
   }, [page, hasMore, loading, fetchGens]);
 
   const handleImageLoad = (id: number) => setLoadedImages(prev => new Set(prev).add(String(id)));
+
+  const copyPrompt = async (text: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch { toast.error("复制失败"); }
+  };
 
   const confirmDelete = async () => {
     if (!deleteTarget) return;
@@ -186,7 +196,8 @@ export default function AdminGenerationsPage() {
                             {/* Hover overlay */}
                             <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity duration-200">
                               <div className="absolute top-2 right-2 flex gap-1">
-                                <button className="p-1.5 rounded-lg bg-white/15 hover:bg-white/30 backdrop-blur-sm transition-colors">
+                                <button onClick={e => { e.stopPropagation(); setDetail(g); }}
+                                  className="p-1.5 rounded-lg bg-white/15 hover:bg-white/30 backdrop-blur-sm transition-colors" title="查看详情">
                                   <Eye className="w-3 h-3 text-white" />
                                 </button>
                                 <button onClick={e => { e.stopPropagation(); setDeleteTarget(g); }}
@@ -204,7 +215,9 @@ export default function AdminGenerationsPage() {
                           </div>
                           {/* Footer info */}
                           <div className="px-2.5 py-2 space-y-1">
-                            <p className="text-[10px] text-muted-foreground line-clamp-2 leading-relaxed">{g.prompt || "无提示词"}</p>
+                            <p onClick={() => setDetail(g)}
+                              className="text-[10px] text-muted-foreground line-clamp-2 leading-relaxed cursor-pointer hover:text-foreground transition-colors"
+                              title="点击查看完整提示词">{g.prompt || "无提示词"}</p>
                             <div className="flex items-center gap-1.5 text-[9px] text-muted-foreground/70">
                               {g.user_email && <span className="truncate font-mono flex-1">{g.user_email}</span>}
                               {g.size && <span className="px-1 py-px rounded bg-muted font-mono shrink-0">{g.size}</span>}
@@ -225,8 +238,13 @@ export default function AdminGenerationsPage() {
                             </div>
                             <p className="text-[10px] text-red-500 font-medium">生成失败</p>
                             {g.error_msg && <p className="text-[9px] text-red-400 mt-0.5 line-clamp-2">{g.error_msg}</p>}
-                            <button onClick={() => setDeleteTarget(g)}
-                              className="mt-2 text-[9px] text-red-400 hover:text-red-600 transition-colors">删除</button>
+                            <div className="mt-2 flex items-center justify-center gap-2">
+                              <button onClick={() => setDetail(g)}
+                                className="text-[9px] text-muted-foreground hover:text-foreground transition-colors">查看详情</button>
+                              <span className="text-red-400/40">·</span>
+                              <button onClick={() => setDeleteTarget(g)}
+                                className="text-[9px] text-red-400 hover:text-red-600 transition-colors">删除</button>
+                            </div>
                           </div>
                         </div>
                       ) : (
@@ -268,6 +286,63 @@ export default function AdminGenerationsPage() {
             <X className="w-5 h-5 text-white" />
           </button>
           {preview && <img src={preview} alt="Preview" className="w-full h-full object-contain rounded-xl" />}
+        </DialogContent>
+      </Dialog>
+
+      {/* ═══ Detail (完整提示词 + 元信息) ═══ */}
+      <Dialog open={!!detail} onOpenChange={() => setDetail(null)}>
+        <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto scrollbar-thin">
+          {detail && (() => {
+            const imgSrc = imageProxyUrl(detail) || null;
+            return (
+              <div className="space-y-3">
+                {/* 缩略图 */}
+                {imgSrc && (
+                  <div className="rounded-lg overflow-hidden bg-muted cursor-pointer" onClick={() => { setPreview(imgSrc); }}>
+                    <img src={imgSrc} alt={detail.prompt || ""} className="w-full max-h-56 object-contain" />
+                  </div>
+                )}
+
+                {/* 提示词（完整 + 复制） */}
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] font-semibold text-muted-foreground">完整提示词</span>
+                    {detail.prompt && (
+                      <button onClick={() => copyPrompt(detail.prompt)}
+                        className="inline-flex items-center gap-1 text-[10px] text-muted-foreground hover:text-foreground transition-colors">
+                        {copied ? <><Check className="w-3 h-3 text-emerald-500" />已复制</> : <><Copy className="w-3 h-3" />复制</>}
+                      </button>
+                    )}
+                  </div>
+                  <p className="text-xs leading-relaxed whitespace-pre-wrap break-words rounded-lg bg-muted/50 p-3 max-h-48 overflow-y-auto scrollbar-thin">
+                    {detail.prompt || "无提示词"}
+                  </p>
+                </div>
+
+                {/* 失败原因 */}
+                {detail.status === "failed" && detail.error_msg && (
+                  <div className="space-y-1.5">
+                    <span className="text-[11px] font-semibold text-red-500">失败原因</span>
+                    <p className="text-xs leading-relaxed break-words rounded-lg bg-red-500/5 text-red-500 p-3">{detail.error_msg}</p>
+                  </div>
+                )}
+
+                {/* 元信息 */}
+                <div className="grid grid-cols-2 gap-2 text-[11px]">
+                  {detail.user_email && (
+                    <div className="rounded-lg bg-muted/40 p-2 col-span-2">
+                      <p className="text-muted-foreground text-[10px]">用户</p>
+                      <p className="font-mono truncate" title={detail.user_email}>{detail.user_email}{detail.user_name ? ` (${detail.user_name})` : ""}</p>
+                    </div>
+                  )}
+                  {detail.model && <div className="rounded-lg bg-muted/40 p-2"><p className="text-muted-foreground text-[10px]">模型</p><p className="font-mono truncate">{detail.model}</p></div>}
+                  {detail.size && <div className="rounded-lg bg-muted/40 p-2"><p className="text-muted-foreground text-[10px]">尺寸</p><p className="font-mono">{detail.size}</p></div>}
+                  <div className="rounded-lg bg-muted/40 p-2"><p className="text-muted-foreground text-[10px]">状态</p><p className="font-mono">{detail.status}</p></div>
+                  <div className="rounded-lg bg-muted/40 p-2"><p className="text-muted-foreground text-[10px]">时间</p><p className="font-mono tabular-nums">{fmtDate(detail.created_at)}</p></div>
+                </div>
+              </div>
+            );
+          })()}
         </DialogContent>
       </Dialog>
     </div>
