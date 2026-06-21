@@ -41,7 +41,7 @@ func (s *MySQLStore) GetRiskScores(page, pageSize int, minScore int) ([]model.Us
 	for rows.Next() {
 		var s model.UserRiskScore
 		if rows.Scan(&s.UserID, &s.Email, &s.ScoreAPI, &s.ScorePoints, &s.ScoreContent, &s.ScoreAccount, &s.TotalScore, &s.UpdatedAt) == nil {
-			s.Reasons = scoreReasons(s)
+			s.Reasons = ScoreReasons(s)
 			scores = append(scores, s)
 		}
 	}
@@ -154,8 +154,8 @@ func (s *MySQLStore) AccountAgeHours(uid int64) float64 {
 	return h
 }
 
-// scoreReasons 根据各维度分数生成简短评分理由。
-func scoreReasons(s model.UserRiskScore) string {
+// ScoreReasons 根据各维度分数生成简短评分理由（如"QPS超限+多IP+刷邀请"）。
+func ScoreReasons(s model.UserRiskScore) string {
 	var parts []string
 	add := func(label string, v int, threshold int) {
 		if v >= threshold {
