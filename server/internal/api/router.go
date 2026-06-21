@@ -135,6 +135,11 @@ mux.Handle("POST /api/user/points/exchange", middleware.RateLimit(userAuth(http.
 	mux.Handle("GET /api/admin/system/snapshot", adminAuth(http.HandlerFunc(h.GetSystemSnapshot)))
 	mux.Handle("GET /api/admin/system/events", adminAuth(http.HandlerFunc(h.SystemEvents)))
 
+	// API 调用日志（Admin 全局视角）
+	mux.Handle("GET /api/admin/api-logs", adminAuth(http.HandlerFunc(h.AdminListAPILogs)))
+	mux.Handle("GET /api/admin/api-stats", adminAuth(http.HandlerFunc(h.AdminAPIStats)))
+	mux.Handle("GET /api/admin/api-logs/events", adminAuth(http.HandlerFunc(h.AdminAPILogEvents)))
+
 	// 套餐管理
 	mux.Handle("GET /api/admin/plans", adminAuth(http.HandlerFunc(h.AdminListPlans)))
 	mux.Handle("POST /api/admin/plans", adminAuth(http.HandlerFunc(h.CreatePlan)))
