@@ -331,17 +331,18 @@ type InviteeItem struct {
 
 // Announcement 站点公告（顶部 Banner 展示）
 type Announcement struct {
-	ID        int64  `json:"id"`
-	Title     string `json:"title"`
-	Content   string `json:"content"`
-	Type      string `json:"type"`  // info | warning | success | activity
-	Link      string `json:"link"`  // 可选跳转链接
-	Priority  int    `json:"priority"` // 数值越大越靠前
-	Enabled   bool   `json:"enabled"`
-	Dismissible bool `json:"dismissible"` // 是否允许用户关闭（false=强制常驻）
-	StartAt   string `json:"start_at"` // 生效起（空=立即）
-	EndAt     string `json:"end_at"`   // 生效止（空=永久）
-	CreatedAt string `json:"created_at"`
+	ID          int64  `json:"id"`
+	Title       string `json:"title"`
+	Content     string `json:"content"`
+	Type        string `json:"type"`        // info | warning | success | activity
+	DisplayMode string `json:"display_mode"` // banner | popup（默认 banner）
+	Link        string `json:"link"`        // 可选跳转链接
+	Priority    int    `json:"priority"`    // 数值越大越靠前
+	Enabled     bool   `json:"enabled"`
+	Dismissible bool   `json:"dismissible"` // 是否允许用户关闭（false=强制常驻）
+	StartAt     string `json:"start_at"`    // 生效起（空=立即）
+	EndAt       string `json:"end_at"`      // 生效止（空=永久）
+	CreatedAt   string `json:"created_at"`
 }
 
 // EmailConfig 邮箱验证配置

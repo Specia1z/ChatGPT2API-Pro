@@ -320,6 +320,7 @@ func (s *MySQLStore) autoMigrate() {
 		title VARCHAR(128) NOT NULL DEFAULT '',
 		content TEXT,
 		type VARCHAR(16) NOT NULL DEFAULT 'info',
+		display_mode VARCHAR(16) NOT NULL DEFAULT 'banner',
 		link VARCHAR(512) DEFAULT '',
 		priority INT NOT NULL DEFAULT 0,
 		enabled TINYINT(1) NOT NULL DEFAULT 1,
@@ -331,6 +332,10 @@ func (s *MySQLStore) autoMigrate() {
 	// 公告是否允许用户关闭（0=强制常驻，如重要维护通知）
 	if !s.columnExists(dbName, "announcements", "dismissible") {
 		s.db.Exec("ALTER TABLE announcements ADD COLUMN dismissible TINYINT(1) NOT NULL DEFAULT 1 AFTER enabled")
+	}
+	// 公告展示模式：banner（顶部横幅）| popup（居中弹窗）
+	if !s.columnExists(dbName, "announcements", "display_mode") {
+		s.db.Exec("ALTER TABLE announcements ADD COLUMN display_mode VARCHAR(16) NOT NULL DEFAULT 'banner' AFTER type")
 	}
 	s.db.Exec(`CREATE TABLE IF NOT EXISTS orders (
 		id BIGINT AUTO_INCREMENT PRIMARY KEY,

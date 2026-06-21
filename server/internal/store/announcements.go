@@ -13,7 +13,7 @@ func scanAnnouncements(rows *sql.Rows) ([]model.Announcement, error) {
 	for rows.Next() {
 		var a model.Announcement
 		var start, end, created sql.NullString
-		if err := rows.Scan(&a.ID, &a.Title, &a.Content, &a.Type, &a.Link, &a.Priority, &a.Enabled, &a.Dismissible, &start, &end, &created); err != nil {
+		if err := rows.Scan(&a.ID, &a.Title, &a.Content, &a.Type, &a.DisplayMode, &a.Link, &a.Priority, &a.Enabled, &a.Dismissible, &start, &end, &created); err != nil {
 			return nil, err
 		}
 		a.StartAt = start.String
@@ -27,7 +27,7 @@ func scanAnnouncements(rows *sql.Rows) ([]model.Announcement, error) {
 // ListActiveAnnouncements 返回当前生效的公告（已启用，且在 start_at/end_at 时间窗内），按优先级倒序。
 // 供公开接口使用。NULL 的起止时间表示不限。
 func (s *MySQLStore) ListActiveAnnouncements() ([]model.Announcement, error) {
-	rows, err := s.db.Query(`SELECT id, title, COALESCE(content,''), type, COALESCE(link,''), priority, enabled, dismissible,
+	rows, err := s.db.Query(`SELECT id, title, COALESCE(content,''), type, COALESCE(display_mode,'banner'), COALESCE(link,''), priority, enabled, dismissible,
 		start_at, end_at, created_at FROM announcements
 		WHERE enabled=1
 		  AND (start_at IS NULL OR start_at <= NOW())
@@ -41,7 +41,7 @@ func (s *MySQLStore) ListActiveAnnouncements() ([]model.Announcement, error) {
 
 // ListAnnouncements 返回全部公告（含禁用/过期），供管理端使用。
 func (s *MySQLStore) ListAnnouncements() ([]model.Announcement, error) {
-	rows, err := s.db.Query(`SELECT id, title, COALESCE(content,''), type, COALESCE(link,''), priority, enabled, dismissible,
+	rows, err := s.db.Query(`SELECT id, title, COALESCE(content,''), type, COALESCE(display_mode,'banner'), COALESCE(link,''), priority, enabled, dismissible,
 		start_at, end_at, created_at FROM announcements ORDER BY priority DESC, id DESC`)
 	if err != nil {
 		return nil, err
@@ -58,9 +58,9 @@ func nullableTime(s string) any {
 }
 
 func (s *MySQLStore) CreateAnnouncement(a *model.Announcement) (int64, error) {
-	res, err := s.db.Exec(`INSERT INTO announcements (title, content, type, link, priority, enabled, dismissible, start_at, end_at)
-		VALUES (?,?,?,?,?,?,?,?,?)`,
-		a.Title, a.Content, a.Type, a.Link, a.Priority, a.Enabled, a.Dismissible, nullableTime(a.StartAt), nullableTime(a.EndAt))
+	res, err := s.db.Exec(`INSERT INTO announcements (title, content, type, display_mode, link, priority, enabled, dismissible, start_at, end_at)
+		VALUES (?,?,?,?,?,?,?,?,?,?)`,
+		a.Title, a.Content, a.Type, a.DisplayMode, a.Link, a.Priority, a.Enabled, a.Dismissible, nullableTime(a.StartAt), nullableTime(a.EndAt))
 	if err != nil {
 		return 0, err
 	}
@@ -68,8 +68,8 @@ func (s *MySQLStore) CreateAnnouncement(a *model.Announcement) (int64, error) {
 }
 
 func (s *MySQLStore) UpdateAnnouncement(a *model.Announcement) error {
-	_, err := s.db.Exec(`UPDATE announcements SET title=?, content=?, type=?, link=?, priority=?, enabled=?, dismissible=?, start_at=?, end_at=? WHERE id=?`,
-		a.Title, a.Content, a.Type, a.Link, a.Priority, a.Enabled, a.Dismissible, nullableTime(a.StartAt), nullableTime(a.EndAt), a.ID)
+	_, err := s.db.Exec(`UPDATE announcements SET title=?, content=?, type=?, display_mode=?, link=?, priority=?, enabled=?, dismissible=?, start_at=?, end_at=? WHERE id=?`,
+		a.Title, a.Content, a.Type, a.DisplayMode, a.Link, a.Priority, a.Enabled, a.Dismissible, nullableTime(a.StartAt), nullableTime(a.EndAt), a.ID)
 	return err
 }
 

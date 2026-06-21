@@ -20,6 +20,17 @@ func normalizeAnnouncementType(t string) string {
 	return "info"
 }
 
+// 合法展示模式，非法值回退为 banner
+var validDisplayModes = map[string]bool{"banner": true, "popup": true}
+
+func normalizeDisplayMode(m string) string {
+	m = strings.ToLower(strings.TrimSpace(m))
+	if validDisplayModes[m] {
+		return m
+	}
+	return "banner"
+}
+
 // GET /api/announcements — 公开：当前生效的公告（顶部 Banner 用）
 func (h *Handler) ListActiveAnnouncements(w http.ResponseWriter, r *http.Request) {
 	list, err := h.MySQL.ListActiveAnnouncements()
@@ -59,6 +70,7 @@ func (h *Handler) CreateAnnouncement(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	a.Type = normalizeAnnouncementType(a.Type)
+	a.DisplayMode = normalizeDisplayMode(a.DisplayMode)
 	id, err := h.MySQL.CreateAnnouncement(&a)
 	if err != nil {
 		writeJSON(w, 500, model.APIResponse{Code: 500, Message: err.Error()})

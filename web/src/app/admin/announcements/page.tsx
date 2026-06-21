@@ -26,6 +26,7 @@ interface Announcement {
   title: string;
   content: string;
   type: string;
+  display_mode: string;
   link: string;
   priority: number;
   enabled: boolean;
@@ -34,6 +35,11 @@ interface Announcement {
   end_at: string;
   created_at: string;
 }
+
+const MODES = [
+  { value: "banner", label: "顶部横幅" },
+  { value: "popup", label: "居中弹窗" },
+];
 
 const TYPES = [
   { value: "info", label: "信息", icon: Info, cls: "text-sky-500" },
@@ -44,7 +50,7 @@ const TYPES = [
 const typeMeta = (t: string) => TYPES.find(x => x.value === t) || TYPES[0];
 
 const emptyItem = (): Announcement => ({
-  id: 0, title: "", content: "", type: "info", link: "", priority: 0, enabled: true, dismissible: true, start_at: "", end_at: "", created_at: "",
+  id: 0, title: "", content: "", type: "info", display_mode: "banner", link: "", priority: 0, enabled: true, dismissible: true, start_at: "", end_at: "", created_at: "",
 });
 
 // datetime-local 控件值 (YYYY-MM-DDTHH:mm) ←→ 后端字符串
@@ -201,13 +207,27 @@ export default function AdminAnnouncementsPage() {
                 </div>
               </div>
               <div className="space-y-1.5">
+                <label className="text-xs font-medium text-muted-foreground">展示模式</label>
+                <div className="grid grid-cols-2 gap-1.5">
+                  {MODES.map(m => {
+                    const active = editing.display_mode === m.value;
+                    return (
+                      <button key={m.value} type="button" onClick={() => setEditing({ ...editing, display_mode: m.value })}
+                        className={`py-2 rounded-lg border text-[11px] transition-all ${active ? "border-primary bg-primary/5 text-foreground" : "border-border text-muted-foreground hover:bg-muted"}`}>
+                        {m.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+              <div className="space-y-1.5">
                 <label className="text-xs font-medium text-muted-foreground">标题</label>
                 <Input value={editing.title} onChange={e => setEditing({ ...editing, title: e.target.value })} placeholder="例如：系统维护通知" className="text-sm" />
               </div>
               <div className="space-y-1.5">
                 <label className="text-xs font-medium text-muted-foreground">内容</label>
                 <textarea value={editing.content} onChange={e => setEditing({ ...editing, content: e.target.value })}
-                  rows={2} placeholder="公告正文（顶部 Banner 展示）"
+                  rows={2} placeholder={editing.display_mode === "popup" ? "弹窗正文（支持多行，Markdown 风格）" : "公告正文（顶部 Banner 展示）"}
                   className="w-full rounded-lg border bg-background px-3 py-2 text-sm outline-none resize-none focus:ring-2 focus:ring-primary/20" />
               </div>
               <div className="space-y-1.5">
