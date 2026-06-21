@@ -165,6 +165,7 @@ func (h *Handler) CreateImageOpenAI(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	middleware.SetAPICallCost(r, cost, n)
+	middleware.SetAPICallExtra(r, req.Prompt, "")
 
 	storageCfg, _ := h.MySQL.GetStorageConfig()
 
@@ -244,6 +245,14 @@ func (h *Handler) CreateImageOpenAI(w http.ResponseWriter, r *http.Request) {
 		}(i)
 	}
 	wg.Wait()
+
+	// 回填第一个成功的图片 URL 到 API 调用日志
+	for _, res := range results {
+		if res.err == nil && res.url != "" {
+			middleware.SetAPICallExtra(r, req.Prompt, res.url)
+			break
+		}
+	}
 
 	// 组装响应：全部失败则返回错误；部分成功则返回成功项
 	data := make([]map[string]any, 0, n)

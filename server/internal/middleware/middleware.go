@@ -49,6 +49,8 @@ type APICallInfo struct {
 	APIKeyID   int64
 	TokensCost int
 	Count      int
+	Prompt     string // 生图/矢量提示词（handler 回填，最大 512 字符）
+	ImageURL   string // 代理中转后的图片地址（同步端点回填）
 }
 
 // apiCallInfo 从 context 取 holder 指针；无则返回 nil（非 API Key 采集路由）。
@@ -65,6 +67,21 @@ func SetAPICallCost(r *http.Request, tokens, count int) {
 	if info := apiCallInfo(r); info != nil {
 		info.TokensCost = tokens
 		info.Count = count
+	}
+}
+
+// SetAPICallExtra 供 handler 回填提示词与图片地址（prompt 截断 512 字符，imageURL 截断 1024）。
+// 非采集路由时安全空操作。
+func SetAPICallExtra(r *http.Request, prompt, imageURL string) {
+	if info := apiCallInfo(r); info != nil {
+		if len(prompt) > 512 {
+			prompt = prompt[:512]
+		}
+		info.Prompt = prompt
+		if len(imageURL) > 1024 {
+			imageURL = imageURL[:1024]
+		}
+		info.ImageURL = imageURL
 	}
 }
 

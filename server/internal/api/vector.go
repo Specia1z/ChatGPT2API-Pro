@@ -193,6 +193,7 @@ func (h *Handler) CreateVectorAPI(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	middleware.SetAPICallCost(r, cost, 1)
+	middleware.SetAPICallExtra(r, req.Prompt, "")
 	genID, err := h.MySQL.CreateSVGGeneration(uid, req.Prompt, svgModel)
 	if err != nil {
 		h.Redis.RefundToken(uid, capacity, refillRate, cost)

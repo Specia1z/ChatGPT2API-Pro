@@ -789,6 +789,8 @@ type APICallLog struct {
 	KeyName    string `json:"key_name"`
 	Endpoint   string `json:"endpoint"`
 	IP         string `json:"ip"`                    // 调用方 IP
+	Prompt     string `json:"prompt,omitempty"`      // 生图提示词
+	ImageURL   string `json:"image_url,omitempty"`   // 代理中转后图片地址
 	StatusCode int    `json:"status_code"`
 	TokensCost int    `json:"tokens_cost"`
 	Count      int    `json:"count"`

@@ -98,6 +98,8 @@ func (h *Handler) AdminAPILogEvents(w http.ResponseWriter, r *http.Request) {
 				"api_key_id":  record.APIKeyID,
 				"endpoint":    record.Endpoint,
 				"ip":          record.IP,
+				"prompt":      record.Prompt,
+				"image_url":   record.ImageURL,
 				"status_code": record.StatusCode,
 				"tokens_cost": record.TokensCost,
 				"count":       record.Count,

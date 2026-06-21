@@ -334,6 +334,7 @@ func (h *Handler) CreateGeneration(w http.ResponseWriter, r *http.Request) {
 
 	// 采集令牌消耗到 API 调用日志 holder（API Key 路由生效；web 路由 holder 不存在则空操作）
 	middleware.SetAPICallCost(r, cost, count)
+	middleware.SetAPICallExtra(r, req.Prompt, "")
 
 
 

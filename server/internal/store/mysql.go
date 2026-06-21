@@ -636,6 +636,8 @@ func (s *MySQLStore) autoMigrate() {
 		tokens_cost INT NOT NULL DEFAULT 0,
 		count INT NOT NULL DEFAULT 0,
 		latency_ms INT NOT NULL DEFAULT 0,
+		prompt VARCHAR(512) NOT NULL DEFAULT '',
+		image_url VARCHAR(1024) NOT NULL DEFAULT '',
 		created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
 		INDEX idx_user_created (user_id, created_at),
 		INDEX idx_user_key_created (user_id, api_key_id, created_at)
@@ -644,6 +646,13 @@ func (s *MySQLStore) autoMigrate() {
 	// 补 ip 列（旧库兼容；VARCHAR(45) 兼容 IPv6）
 	if !s.columnExists(s.currentDBName(), "api_call_logs", "ip") {
 		s.db.Exec("ALTER TABLE api_call_logs ADD COLUMN ip VARCHAR(45) NOT NULL DEFAULT '' AFTER endpoint")
+	}
+	// 补 prompt / image_url 列（旧库兼容）
+	if !s.columnExists(s.currentDBName(), "api_call_logs", "prompt") {
+		s.db.Exec("ALTER TABLE api_call_logs ADD COLUMN prompt VARCHAR(512) NOT NULL DEFAULT '' AFTER endpoint")
+	}
+	if !s.columnExists(s.currentDBName(), "api_call_logs", "image_url") {
+		s.db.Exec("ALTER TABLE api_call_logs ADD COLUMN image_url VARCHAR(1024) NOT NULL DEFAULT '' AFTER prompt")
 	}
 
 	// settings 保留期列（旧库补列；裸 ALTER 重复执行报错被忽略）

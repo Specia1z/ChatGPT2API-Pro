@@ -57,6 +57,8 @@ interface LogEntry {
   key_name: string;
   endpoint: string;
   ip: string;
+  prompt?: string;
+  image_url?: string;
   status_code: number;
   tokens_cost: number;
   latency_ms: number;
@@ -135,9 +137,9 @@ export default function AdminAPILogsPage() {
               } catch (e) { console.error(e); }
             }
           }
-        } catch (e) { console.error(e); }
-        setConnected(false);
-        await new Promise(r => setTimeout(r, 3000));
+        } catch (e) { if ((e as Error)?.name !== "AbortError") console.error(e); }
+        if (!cancelled) setConnected(false);
+        if (!cancelled) await new Promise(r => setTimeout(r, 3000));
       }
     })();
     return () => { cancelled = true; controller.abort(); };
@@ -181,6 +183,12 @@ export default function AdminAPILogsPage() {
       <span className="text-muted-foreground/80 shrink-0 w-16 sm:w-20 truncate" title={l.ip}>{l.ip || "—"}</span>
       {showUser && <span className="text-foreground/80 shrink-0 w-20 sm:w-28 truncate">{l.user_email || (l.user_id ? `#${l.user_id}` : "—")}</span>}
       <span className="text-foreground/70 shrink-0 w-16 sm:w-20 truncate">{epLabel(l.endpoint)}</span>
+      <span className="text-muted-foreground/70 shrink-0 w-24 sm:w-32 truncate" title={l.prompt}>{l.prompt || "—"}</span>
+      {l.image_url ? (
+        <a href={l.image_url} target="_blank" rel="noreferrer" className="shrink-0 w-5 text-center" title={l.image_url}>
+          <span className="text-[10px] text-primary/70 hover:text-primary">🖼</span>
+        </a>
+      ) : <span className="shrink-0 w-5" />}
       <span className={`shrink-0 w-8 text-right font-semibold ${statusTone(l.status_code)}`}>
         <span className={`inline-flex px-1.5 py-0.5 rounded text-[10px] ${statusBg(l.status_code)}`}>{l.status_code}</span>
       </span>
@@ -269,6 +277,8 @@ export default function AdminAPILogsPage() {
                   <span className="shrink-0 w-16 sm:w-20"><Globe className="size-3 inline mr-1" />IP</span>
                   <span className="shrink-0 w-20 sm:w-28">用户</span>
                   <span className="shrink-0 w-16 sm:w-20">端点</span>
+                  <span className="shrink-0 w-24 sm:w-32">提示词</span>
+                  <span className="shrink-0 w-5" />
                   <span className="shrink-0 w-8 text-right"><Hash className="size-3 inline" /></span>
                   <span className="shrink-0 w-12 text-right"><Timer className="size-3 inline mr-0.5" />耗时</span>
                   <span className="shrink-0 w-10 text-right">令牌</span>

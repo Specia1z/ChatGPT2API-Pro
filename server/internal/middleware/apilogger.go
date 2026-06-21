@@ -89,6 +89,8 @@ func APILogger(writer *apilog.Writer, endpoint string) func(http.Handler) http.H
 				APIKeyID:   info.APIKeyID,
 				Endpoint:   endpoint,
 				IP:         clientIP(r),
+				Prompt:     info.Prompt,
+				ImageURL:   info.ImageURL,
 				StatusCode: status,
 				TokensCost: tokens,
 				Count:      info.Count,

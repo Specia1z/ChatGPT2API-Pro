@@ -14,6 +14,8 @@ type Record struct {
 	APIKeyID   int64
 	Endpoint   string
 	IP         string // 调用方 IP（X-Real-IP / X-Forwarded-For / RemoteAddr）
+	Prompt     string // 生图提示词（handler 回填，截断 512）
+	ImageURL   string // 代理中转后图片地址（同步端点回填，截断 1024）
 	StatusCode int
 	TokensCost int
 	Count      int

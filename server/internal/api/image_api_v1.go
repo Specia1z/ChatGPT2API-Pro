@@ -122,6 +122,7 @@ func (h *Handler) ImageEnhanceAPI(w http.ResponseWriter, r *http.Request) {
 		h.MySQL.UpdateGeneration(genID, imageB64, "completed", "", "")
 		respURL = absoluteImageURL(r, genID)
 	}
+	middleware.SetAPICallExtra(r, prompt, respURL)
 
 	out := map[string]any{"prompt": prompt}
 	if respFormat == "url" {
