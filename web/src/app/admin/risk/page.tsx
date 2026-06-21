@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { motion } from "framer-motion";
 import { Outfit, DM_Mono } from "next/font/google";
 import {
@@ -14,6 +14,38 @@ import { Button } from "@/components/ui/button";
 
 const heading = Outfit({ subsets: ["latin"], weight: ["400", "500", "600", "700", "800"], variable: "--font-heading" });
 const mono = DM_Mono({ subsets: ["latin"], weight: ["400", "500"], variable: "--font-mono" });
+
+// 列宽拖拽 hook
+function useColumnResize(initial: Record<string, number>) {
+  const [widths, setWidths] = useState(initial);
+  const dragging = useRef<string | null>(null);
+  const startX = useRef(0);
+  const startW = useRef(0);
+
+  useEffect(() => {
+    const onMove = (e: MouseEvent) => {
+      if (!dragging.current) return;
+      const delta = e.clientX - startX.current;
+      setWidths(prev => ({ ...prev, [dragging.current!]: Math.max(40, startW.current + delta) }));
+    };
+    const onUp = () => { dragging.current = null; };
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+    return () => { window.removeEventListener("mousemove", onMove); window.removeEventListener("mouseup", onUp); };
+  }, []);
+
+  const handleProps = (key: string) => ({
+    onMouseDown: (e: React.MouseEvent) => {
+      e.preventDefault();
+      dragging.current = key;
+      startX.current = e.clientX;
+      startW.current = widths[key] || 60;
+    },
+    style: { minWidth: widths[key], width: widths[key] },
+  });
+
+  return { widths, handleProps };
+}
 
 const CARD = "rounded-2xl border bg-card";
 const stagger = { hidden: {}, visible: { transition: { staggerChildren: 0.05 } } };
@@ -57,6 +89,7 @@ export default function RiskPage() {
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
+  const col = useColumnResize({ user: 180, score: 64, level: 64, api: 64, points: 64, content: 64, account: 64, reasons: 130, time: 110 });
 
   const fetchScores = useCallback(async (p: number) => {
     setLoading(true);
@@ -137,15 +170,28 @@ export default function RiskPage() {
                 <table className="w-full text-xs">
                   <thead>
                     <tr className="text-left text-muted-foreground border-b">
-                      <th className="font-medium px-4 py-3">用户</th>
-                      <th className="font-medium px-3 py-3 text-center w-16">总分</th>
-                      <th className="font-medium px-3 py-3 text-center w-16">等级</th>
-                      <th className="hidden sm:table-cell font-medium px-3 py-3 text-center w-16"><Zap className="size-3 inline" /> API</th>
-                      <th className="hidden sm:table-cell font-medium px-3 py-3 text-center w-16"><Coins className="size-3 inline" /> 积分</th>
-                      <th className="hidden sm:table-cell font-medium px-3 py-3 text-center w-16"><Image className="size-3 inline" /> 内容</th>
-                      <th className="hidden sm:table-cell font-medium px-3 py-3 text-center w-16"><UserX className="size-3 inline" /> 账号</th>
-                      <th className="hidden sm:table-cell font-medium px-3 py-3 w-24">评分理由</th>
-                      <th className="font-medium px-4 py-3 text-right w-20">更新时间</th>
+                      {[
+                        { key: "user", label: "用户", cls: "", align: "" },
+                        { key: "score", label: "总分", cls: "text-center", align: "" },
+                        { key: "level", label: "等级", cls: "text-center", align: "" },
+                        { key: "api", label: "API", cls: "hidden sm:table-cell text-center", icon: Zap },
+                        { key: "points", label: "积分", cls: "hidden sm:table-cell text-center", icon: Coins },
+                        { key: "content", label: "内容", cls: "hidden sm:table-cell text-center", icon: Image },
+                        { key: "account", label: "账号", cls: "hidden sm:table-cell text-center", icon: UserX },
+                        { key: "reasons", label: "评分理由", cls: "hidden sm:table-cell", align: "" },
+                        { key: "time", label: "更新时间", cls: "text-right", align: "" },
+                      ].map(h => (
+                        <th key={h.key} className={`font-medium px-3 py-3 relative select-none ${h.cls}`} {...col.handleProps(h.key)}>
+                          <span className="inline-flex items-center gap-1">
+                            {h.icon && <h.icon className="size-3" />}
+                            {h.label}
+                          </span>
+                          <div
+                            className="absolute right-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-primary/30"
+                            onMouseDown={col.handleProps(h.key).onMouseDown}
+                          />
+                        </th>
+                      ))}
                     </tr>
                   </thead>
                   <tbody>
