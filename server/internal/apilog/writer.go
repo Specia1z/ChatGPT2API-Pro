@@ -13,6 +13,7 @@ type Record struct {
 	UserID     int64
 	APIKeyID   int64
 	Endpoint   string
+	IP         string // 调用方 IP（X-Real-IP / X-Forwarded-For / RemoteAddr）
 	StatusCode int
 	TokensCost int
 	Count      int
