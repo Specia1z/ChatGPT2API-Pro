@@ -151,6 +151,8 @@ mux.Handle("POST /api/user/points/exchange", middleware.RateLimit(userAuth(http.
 	mux.Handle("GET /api/admin/risk/detail", adminAuth(http.HandlerFunc(h.AdminRiskDetail)))
 	mux.Handle("POST /api/admin/risk/unban", adminAuth(http.HandlerFunc(h.AdminRiskUnban)))
 	mux.Handle("POST /api/admin/risk/batch-unban", adminAuth(http.HandlerFunc(h.AdminRiskBatchUnban)))
+	// 月配额撞额名单 + 单 Key 多 IP 告警（防二次分发，仅观测）
+	mux.Handle("GET /api/admin/quota/alerts", adminAuth(http.HandlerFunc(h.AdminQuotaAlerts)))
 
 	// API 调用日志（Admin 全局视角）
 	mux.Handle("GET /api/admin/api-logs", adminAuth(http.HandlerFunc(h.AdminListAPILogs)))

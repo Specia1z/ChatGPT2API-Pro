@@ -228,6 +228,10 @@ func (s *MySQLStore) autoMigrate() {
 	if !s.columnExists(dbName, "plans", "rate_limit_per_min") {
 		s.db.Exec("ALTER TABLE plans ADD COLUMN rate_limit_per_min INT NOT NULL DEFAULT 0 AFTER token_refill_per_hour")
 	}
+	// 套餐每月令牌配额上限（防中转站二次分发；0=不限，向后兼容）。
+	if !s.columnExists(dbName, "plans", "monthly_quota") {
+		s.db.Exec("ALTER TABLE plans ADD COLUMN monthly_quota INT NOT NULL DEFAULT 0 AFTER rate_limit_per_min")
+	}
 	// 1. 清理历史遗留的旧函数索引（如存在）
 	if s.indexExists(dbName, "checkins", "idx_user_checkin_day") {
 		s.db.Exec("ALTER TABLE checkins DROP INDEX idx_user_checkin_day")

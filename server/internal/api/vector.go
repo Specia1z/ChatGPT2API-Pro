@@ -68,10 +68,12 @@ func (h *Handler) CreateVector(w http.ResponseWriter, r *http.Request) {
 	// 套餐令牌参数 + 每次消耗
 	user, _ := h.MySQL.GetUserByID(uid)
 	capacity, refillRate, maxConcurrent := 50, 3, 1
+	monthlyQuota := 0
 	if user != nil {
 		capacity = valOr(user.TokenCapacity, 50)
 		refillRate = valOr(user.TokenRefillPerHour, 3)
 		maxConcurrent = valOr(user.PlanConcurrency, 1)
+		monthlyQuota = user.MonthlyQuota
 	}
 	cost := valOr(settings.TokensPerImage, 1)
 
@@ -81,17 +83,20 @@ func (h *Handler) CreateVector(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 429, model.APIResponse{Code: 429, Message: err.Error()})
 		return
 	}
-	// 令牌桶消耗
+	// 令牌桶消耗（撞月配额且开启降速时，恢复速率被砍低）
+	refillRate = h.quotaEffectiveRefill(r.Context(), uid, monthlyQuota, refillRate, settings.RiskConfigJSON)
 	normal, burst, okTok, waitSec, _ := h.Redis.ConsumeToken(uid, capacity, refillRate, cost)
 	if !okTok {
 		writeJSON(w, 429, model.APIResponse{Code: 429, Message: fmt.Sprintf("令牌不足 (剩余%.0f, 需%d个, 等待%ds)", normal+burst, cost, waitSec)})
 		return
 	}
+	h.recordMonthlyUsage(r.Context(), uid, monthlyQuota, cost)
 
 	// 记录
 	genID, err := h.MySQL.CreateSVGGeneration(uid, req.Prompt, svgModel)
 	if err != nil {
 		h.Redis.RefundToken(uid, capacity, refillRate, cost)
+		h.refundMonthlyUsage(r.Context(), uid, monthlyQuota, cost)
 		writeJSON(w, 500, model.APIResponse{Code: 500, Message: "创建记录失败"})
 		return
 	}
@@ -175,10 +180,12 @@ func (h *Handler) CreateVectorAPI(w http.ResponseWriter, r *http.Request) {
 
 	user, _ := h.MySQL.GetUserByID(uid)
 	capacity, refillRate, maxConcurrent := 50, 3, 1
+	monthlyQuota := 0
 	if user != nil {
 		capacity = valOr(user.TokenCapacity, 50)
 		refillRate = valOr(user.TokenRefillPerHour, 3)
 		maxConcurrent = valOr(user.PlanConcurrency, 1)
+		monthlyQuota = user.MonthlyQuota
 	}
 	cost := valOr(settings.TokensPerImage, 1)
 
@@ -187,16 +194,19 @@ func (h *Handler) CreateVectorAPI(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 429, model.APIResponse{Code: 429, Message: err.Error()})
 		return
 	}
+	refillRate = h.quotaEffectiveRefill(r.Context(), uid, monthlyQuota, refillRate, settings.RiskConfigJSON)
 	normal, burst, okTok, waitSec, _ := h.Redis.ConsumeToken(uid, capacity, refillRate, cost)
 	if !okTok {
 		writeJSON(w, 429, model.APIResponse{Code: 429, Message: fmt.Sprintf("令牌不足 (剩余%.0f, 需%d个, 等待%ds)", normal+burst, cost, waitSec)})
 		return
 	}
+	h.recordMonthlyUsage(r.Context(), uid, monthlyQuota, cost)
 	middleware.SetAPICallCost(r, cost, 1)
 	middleware.SetAPICallExtra(r, req.Prompt, "")
 	genID, err := h.MySQL.CreateSVGGeneration(uid, req.Prompt, svgModel)
 	if err != nil {
 		h.Redis.RefundToken(uid, capacity, refillRate, cost)
+		h.refundMonthlyUsage(r.Context(), uid, monthlyQuota, cost)
 		writeJSON(w, 500, model.APIResponse{Code: 500, Message: "创建记录失败"})
 		return
 	}

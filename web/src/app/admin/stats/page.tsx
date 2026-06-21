@@ -88,6 +88,18 @@ interface StatsData {
   plan_distribution: PlanDistribution[];
   revenue_composition: RevenueComposition;
   invite_leaderboard: InviteLeader[];
+  token_usage_dist: TokenUsageDist;
+}
+
+interface TokenUsageDist {
+  days: number;
+  user_count: number;
+  p50: number;
+  p90: number;
+  p95: number;
+  p99: number;
+  max: number;
+  suggested: number;
 }
 
 /* ── 图表配置 ─────────────────────────────── */
@@ -247,6 +259,7 @@ export default function StatsPage() {
   const revComp = data?.revenue_composition;
   const inviteBoard = data?.invite_leaderboard || [];
   const revTotal = revComp ? revComp.by_plan.reduce((a, b) => a + b.amount, 0) : 0;
+  const tokenDist = data?.token_usage_dist;
 
   const accountItems = s ? [
     { label: "正常", value: s.normal_accounts, color: "#10b981", icon: CheckCircle },
@@ -443,6 +456,55 @@ export default function StatsPage() {
 
             {/* ═══════════ 生成 ═══════════ */}
             {mainTab === "generation" && (<>
+
+            {/* ═══ 令牌用量分布 · 月配额参考 ═══ */}
+            <motion.div variants={fadeUp} className="rounded-2xl border bg-card p-4 sm:p-6">
+              <div className="flex items-center gap-2 mb-1">
+                <div className="size-8 rounded-lg bg-amber-500/10 flex items-center justify-center">
+                  <Coins className="size-4 text-amber-500" />
+                </div>
+                <h2 className={`${heading.className} text-sm font-semibold`}>令牌用量分布 · 月配额参考</h2>
+              </div>
+              <p className="text-[11px] text-muted-foreground mb-4 ml-10">
+                近 {tokenDist?.days ?? 30} 天每用户令牌消耗总量分布（{tokenDist?.user_count ?? 0} 位活跃用户）。
+                用于为套餐设定「每月令牌上限」——建议取 P99 的数倍，正常用户碰不到，仅工业级转卖会撞顶。
+              </p>
+              {!tokenDist || tokenDist.user_count === 0 ? (
+                <div className="flex items-center justify-center h-24 text-xs text-muted-foreground">暂无足够用量数据</div>
+              ) : (
+                <>
+                  <div className="grid grid-cols-3 sm:grid-cols-5 gap-2 sm:gap-3">
+                    {[
+                      { label: "P50 中位", v: tokenDist.p50, hint: "一半用户低于此" },
+                      { label: "P90", v: tokenDist.p90, hint: "90% 用户低于此" },
+                      { label: "P95", v: tokenDist.p95, hint: "95% 用户低于此" },
+                      { label: "P99", v: tokenDist.p99, hint: "99% 用户低于此" },
+                      { label: "Max 峰值", v: tokenDist.max, hint: "最重度用户" },
+                    ].map(c => (
+                      <div key={c.label} className="rounded-xl border bg-muted/30 p-2.5 sm:p-3">
+                        <p className="text-[10px] text-muted-foreground">{c.label}</p>
+                        <p className="text-base sm:text-lg font-semibold tabular-nums leading-tight mt-0.5">{c.v.toLocaleString()}</p>
+                        <p className="text-[9px] text-muted-foreground/70 mt-0.5">{c.hint}</p>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="mt-3 flex items-start gap-2 rounded-xl bg-amber-500/5 border border-amber-500/20 p-3">
+                    <Coins className="size-4 text-amber-500 shrink-0 mt-0.5" />
+                    <div className="text-[11px] leading-relaxed">
+                      <span className="text-muted-foreground">建议月配额（P99 × 4）：</span>
+                      <span className="font-semibold text-amber-600 dark:text-amber-400 tabular-nums text-sm ml-1">{tokenDist.suggested.toLocaleString()}</span>
+                      <span className="text-muted-foreground"> 令牌/月</span>
+                      <p className="text-muted-foreground/70 mt-0.5">在「套餐管理」中为各套餐填入「每月令牌上限」。设 0 表示不限。</p>
+                      {tokenDist.user_count < 20 && (
+                        <p className="text-amber-600/80 dark:text-amber-400/80 mt-1">
+                          ⚠ 当前仅 {tokenDist.user_count} 位用户有用量记录，样本偏少（Web 生图采集为近期接入，历史数据不全），此建议值参考意义有限。建议积累 2-4 周真实流量后再据此定配额。
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                </>
+              )}
+            </motion.div>
 
             {/* ═══ 模型分布 ═══ */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4">

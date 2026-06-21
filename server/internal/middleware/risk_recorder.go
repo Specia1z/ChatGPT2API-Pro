@@ -55,6 +55,10 @@ func RiskRecorder(redis *store.RedisStore) func(http.Handler) http.Handler {
 			ip := ClientIP(r)
 			redis.IncrRisk(ctx, uid, "qps", window)
 			redis.AddRiskIP(ctx, uid, ip, time.Hour)
+			// 单 API Key 多 IP 采集（仅 API Key 调用有 keyID；Web 会话无）：中转站转卖告警用
+			if info != nil && info.APIKeyID > 0 {
+				redis.AddKeyIP(ctx, info.APIKeyID, ip)
+			}
 
 			status := sw.status
 			if status == 0 {

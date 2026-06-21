@@ -66,7 +66,7 @@ export default function PlansPage() {
   const newPlan = () => setEditing({
     id: 0, name: "新套餐", price_monthly: 0, price_yearly: 0, duration_days: 0,
     duration_days_yearly: 0, concurrency: 1, token_capacity: 50, token_refill_per_hour: 3,
-    rate_limit_per_min: 0,
+    rate_limit_per_min: 0, monthly_quota: 0,
     features: "[]", sort_order: plans.length, highlighted: false, enabled: true,
   });
 
@@ -167,6 +167,7 @@ export default function PlansPage() {
                           { icon: Coins, color: "text-emerald-500", text: <>令牌容量 <span className="font-semibold tabular-nums">{p.token_capacity || 50}</span></> },
                           { icon: Timer, color: "text-blue-500", text: <>每小时恢复 <span className="font-semibold tabular-nums">{p.token_refill_per_hour || 3}</span> 令牌</> },
                           { icon: Gauge, color: "text-violet-500", text: <>API <span className="font-semibold tabular-nums">{p.rate_limit_per_min || 0}</span>/分钟{!p.rate_limit_per_min && <span className="text-muted-foreground">（默认）</span>}</> },
+                          { icon: Coins, color: "text-amber-500", text: p.monthly_quota > 0 ? <>月配额 <span className="font-semibold tabular-nums">{p.monthly_quota.toLocaleString()}</span> 令牌</> : <span className="text-muted-foreground">月配额不限</span> },
                         ].map((m, i) => (
                           <li key={i} className="flex items-center gap-2.5">
                             <m.icon className={`size-4 shrink-0 ${m.color}`} />
@@ -286,6 +287,14 @@ export default function PlansPage() {
                 <Input type="number" min={0} value={editing.rate_limit_per_min ?? 0}
                   onChange={e => setEditing({ ...editing, rate_limit_per_min: +e.target.value })} className={`${mono.className} text-sm`} />
                 <p className="text-[10px] text-muted-foreground">通过 API Key 调用 /v1 接口的每分钟请求上限。0 = 使用默认 600/分钟。需求量大的套餐可调高。</p>
+              </div>
+
+              {/* 每月令牌配额（防二次分发） */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-muted-foreground flex items-center gap-1"><Coins className="size-3" /> 每月令牌上限（防二次分发）</label>
+                <Input type="number" min={0} value={editing.monthly_quota ?? 0}
+                  onChange={e => setEditing({ ...editing, monthly_quota: +e.target.value })} className={`${mono.className} text-sm`} />
+                <p className="text-[10px] text-muted-foreground">本套餐每月（自然月）累计令牌消耗上限。0 = 不限。建议参考「数据统计 → 令牌用量分布」的 P99×4 设定，正常用户碰不到，仅工业级转卖会撞顶。撞顶后是否降速由「风险评分」设置控制。</p>
               </div>
 
               <div className="space-y-1.5">

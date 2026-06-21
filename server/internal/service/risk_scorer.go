@@ -2,7 +2,6 @@ package service
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"log"
 	"strings"
@@ -29,47 +28,11 @@ func NewRiskScorer(mysql *store.MySQLStore, redis *store.RedisStore, superadminE
 // 数值型字段遵循「0=用默认」（除权重外，权重允许显式 0），布尔/序列/字符串按 JSON 原值。
 // 这样旧配置 JSON 升级后新增字段自动取默认，无需迁移，也无需在 calc* 里散落 if<=0。
 func (rs *RiskScorer) loadConfig() model.RiskConfig {
-	cfg := model.DefaultRiskConfig()
 	settings, _ := rs.mysql.GetSettings()
-	if settings == nil || settings.RiskConfigJSON == "" {
-		return cfg
+	if settings == nil {
+		return model.DefaultRiskConfig()
 	}
-	var raw model.RiskConfig
-	if json.Unmarshal([]byte(settings.RiskConfigJSON), &raw) != nil {
-		return cfg
-	}
-	// 阈值与窗口（0=保留默认）
-	ovInt := func(dst *int, v int) { if v > 0 { *dst = v } }
-	ovInt(&cfg.FlagThreshold, raw.FlagThreshold)
-	ovInt(&cfg.LimitThreshold, raw.LimitThreshold)
-	ovInt(&cfg.BanThreshold, raw.BanThreshold)
-	ovInt(&cfg.ScoreIntervalMin, raw.ScoreIntervalMin)
-	ovInt(&cfg.WindowMinutes, raw.WindowMinutes)
-	// 权重：允许显式 0（某维度可被关掉），仅当四项全 0（旧配置无此段）才保留默认
-	if raw.WeightAPI != 0 || raw.WeightPoints != 0 || raw.WeightContent != 0 || raw.WeightAccount != 0 {
-		cfg.WeightAPI, cfg.WeightPoints = raw.WeightAPI, raw.WeightPoints
-		cfg.WeightContent, cfg.WeightAccount = raw.WeightContent, raw.WeightAccount
-	}
-	// 灵敏度子参数（0=保留默认）
-	ovInt(&cfg.APIRateBudgetMult, raw.APIRateBudgetMult)
-	ovInt(&cfg.APIErrMinSamples, raw.APIErrMinSamples)
-	ovInt(&cfg.APIIPThreshold, raw.APIIPThreshold)
-	ovInt(&cfg.InviteWindowDays, raw.InviteWindowDays)
-	ovInt(&cfg.DupPromptUnit, raw.DupPromptUnit)
-	ovInt(&cfg.FailRateMax, raw.FailRateMax)
-	ovInt(&cfg.SameIPUnit, raw.SameIPUnit)
-	ovInt(&cfg.SameIPMax, raw.SameIPMax)
-	ovInt(&cfg.BanHistoryScore, raw.BanHistoryScore)
-	ovInt(&cfg.NewAccountHours, raw.NewAccountHours)
-	ovInt(&cfg.NewAccountScore, raw.NewAccountScore)
-	// 封禁策略
-	cfg.BanDurationMinutes = raw.BanDurationMinutes // 允许显式 0=永久
-	cfg.BanEscalation = raw.BanEscalation
-	if len(raw.BanLadder) > 0 {
-		cfg.BanLadder = raw.BanLadder
-	}
-	cfg.AppealContact = raw.AppealContact
-	return cfg
+	return model.ParseRiskConfig(settings.RiskConfigJSON)
 }
 
 // Start 启动评分定时器。

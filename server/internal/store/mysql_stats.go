@@ -1,6 +1,8 @@
 package store
 
 import (
+	"math"
+	"sort"
 	"time"
 
 	"chatgpt2api-pro/internal/model"
@@ -343,4 +345,70 @@ func (s *MySQLStore) GetRetentionStats() (*model.RetentionStats, error) {
 		AND DATE(g.created_at) = DATE(u.created_at) + INTERVAL 7 DAY`).Scan(&rs.D7Retained)
 
 	return &rs, nil
+}
+
+// GetTokenUsageDistribution ͳ�ƽ� days �졸ÿ�û����������������ֲ�����Դ api_call_logs.tokens_cost����
+// ��ͳ�Ƴɹ����ã�status 2xx��tokens_cost>0���������������ھ�һ�¡�
+// �ٷ�λ�� Go ����㣨MySQL 8 �ޱ�ݷ�λ�ۺϣ���
+func (s *MySQLStore) GetTokenUsageDistribution(days int) (*model.TokenUsageDistribution, error) {
+	if days <= 0 {
+		days = 30
+	}
+	d := &model.TokenUsageDistribution{Days: days}
+	rows, err := s.db.Query(`SELECT COALESCE(SUM(tokens_cost),0) AS used
+		FROM api_call_logs
+		WHERE created_at >= DATE_SUB(NOW(), INTERVAL ? DAY)
+		  AND status_code BETWEEN 200 AND 299 AND tokens_cost > 0
+		GROUP BY user_id`, days)
+	if err != nil {
+		return d, err
+	}
+	defer rows.Close()
+	var vals []int
+	for rows.Next() {
+		var v int
+		if rows.Scan(&v) == nil && v > 0 {
+			vals = append(vals, v)
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return d, err
+	}
+	d.UserCount = len(vals)
+	if d.UserCount == 0 {
+		return d, nil
+	}
+	sort.Ints(vals)
+	pct := func(p float64) int {
+		// ����ȷ���idx = ceil(p/100 * n) - 1
+		idx := int(math.Ceil(p/100*float64(len(vals)))) - 1
+		if idx < 0 {
+			idx = 0
+		}
+		if idx >= len(vals) {
+			idx = len(vals) - 1
+		}
+		return vals[idx]
+	}
+	d.P50 = pct(50)
+	d.P90 = pct(90)
+	d.P95 = pct(95)
+	d.P99 = pct(99)
+	d.Max = vals[len(vals)-1]
+	// 建议月配额 = P99 × 4，按量级自适应向上取整（避免小数值被粗暴抬高）。
+	sug := d.P99 * 4
+	if sug > 0 {
+		var step int
+		switch {
+		case sug < 100:
+			step = 10
+		case sug < 1000:
+			step = 50
+		default:
+			step = 100
+		}
+		sug = ((sug + step - 1) / step) * step
+	}
+	d.Suggested = sug
+	return d, nil
 }

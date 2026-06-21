@@ -756,6 +756,32 @@ export default function SettingsPage() {
                         </div>
                       </div>
 
+                      {/* 月配额防二次分发 */}
+                      <div>
+                        <p className="text-xs font-semibold text-muted-foreground mb-2">月配额防二次分发（中转站转卖）</p>
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                          <div className="flex items-end pb-1">
+                            <label className="flex items-center gap-2 text-xs cursor-pointer">
+                              <Switch checked={rc.quota_throttle_enabled ?? false} onCheckedChange={v => setRisk("quota_throttle_enabled", v)} />
+                              <span>撞额降速</span>
+                            </label>
+                          </div>
+                          <div className="space-y-1.5">
+                            <Label>撞额后恢复速率(个/h)</Label>
+                            <Input type="number" min={0} value={rc.quota_throttle_refill ?? 1} onChange={e => setRisk("quota_throttle_refill", +e.target.value)} className={inputCls} placeholder="1" />
+                          </div>
+                          <div className="space-y-1.5">
+                            <Label>单Key告警IP数(24h)</Label>
+                            <Input type="number" min={0} value={rc.key_ip_alert_threshold ?? 50} onChange={e => setRisk("key_ip_alert_threshold", +e.target.value)} className={inputCls} placeholder="50" />
+                          </div>
+                        </div>
+                        <p className="text-[11px] text-muted-foreground mt-2 leading-relaxed">
+                          月配额上限在「套餐管理」中按套餐设定（0=不限）。开启「撞额降速」后，用户当月令牌消耗撞上配额时，令牌桶恢复速率被砍到上面的值（转卖产能归零，正常用户温和退化）。
+                          <span className="text-amber-600 dark:text-amber-400">建议先保持关闭观测撞额名单，确认无误伤再开启。</span>
+                          单 Key 24h 去重 IP 超过阈值进告警名单（仅提示，不自动封）。
+                        </p>
+                      </div>
+
                       <div className="rounded-xl bg-muted/40 p-3.5 text-xs text-muted-foreground leading-relaxed">
                         阈值：≥{rc.flag_threshold ?? 40} 观察 · ≥{rc.limit_threshold ?? 65} 限流降级（速率减半）· ≥{rc.ban_threshold ?? 85} 自动封禁。
                         评分每 {rc.score_interval_min ?? 5} 分钟刷新，高频信号按 {rc.window_minutes ?? 5} 分钟窗口采集。

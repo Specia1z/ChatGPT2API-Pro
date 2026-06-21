@@ -8,7 +8,7 @@ import { Navbar } from "@/components/navbar";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { UpgradeDialog } from "@/components/upgrade-dialog";
 import { toast } from "sonner";
-import { stagger } from "./lib/helpers";
+import { stagger, fadeUp } from "./lib/helpers";
 import { useAnimatedNumber, useCountdown } from "./lib/hooks";
 import { useUserData } from "./lib/useUserData";
 import { ExchangeDialog } from "./components/ExchangeDialog";
@@ -22,7 +22,7 @@ export default function UserPage() {
   const { user, token, loading: authLoading, logout, login } = useAuth();
   const router = useRouter();
   const {
-    keys, tokens, checkin, userCoupons, userStats, pointsLogs, pointsLogsLoaded,
+    keys, tokens, quota, checkin, userCoupons, userStats, pointsLogs, pointsLogsLoaded,
     fetchPointsLogs,
     webhook, webhookLoaded, fetchWebhook, saveWebhook, deleteWebhook,
     doCheckin, createKey, deleteKey, toggleKey, claimCoupon, doRedeem, doExchange, doChangePwd,
@@ -140,6 +140,27 @@ export default function UserPage() {
           onExchange={() => setExchangeOpen(true)}
           onRecharge={() => setRechargeOpen(true)}
         />
+
+        {/* ═══ 月配额进度（仅当套餐设了月配额）═══ */}
+        {quota && (
+          <motion.div variants={fadeUp} className="rounded-2xl border bg-card p-4 sm:p-5">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-sm font-medium">本月令牌用量</span>
+              <span className="text-xs text-muted-foreground tabular-nums">
+                {quota.used.toLocaleString()} / {quota.limit.toLocaleString()}
+              </span>
+            </div>
+            <div className="h-2 rounded-full bg-muted overflow-hidden">
+              <div className={`h-full rounded-full transition-all ${quota.used >= quota.limit ? "bg-red-500" : quota.used >= quota.limit * 0.8 ? "bg-amber-500" : "bg-primary"}`}
+                style={{ width: `${Math.min(quota.limit > 0 ? (quota.used / quota.limit) * 100 : 0, 100)}%` }} />
+            </div>
+            <p className="text-[11px] text-muted-foreground mt-2">
+              {quota.used >= quota.limit
+                ? "已达本月配额上限，生成速度已临时降低，下月 1 号自动重置。如需更高额度可升级套餐。"
+                : "每月（自然月）令牌用量上限，月初自动重置。正常使用无需担心。"}
+            </p>
+          </motion.div>
+        )}
 
         {/* ═══ 功能区 Tabs ═══ */}
         <AccountTabs

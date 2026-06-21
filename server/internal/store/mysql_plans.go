@@ -15,7 +15,7 @@ func (s *MySQLStore) ListPlans(enabledOnly bool) ([]model.Plan, error) {
 	if enabledOnly {
 		where = " WHERE enabled=1"
 	}
-	rows, err := s.db.Query("SELECT id, name, price_monthly, price_yearly, duration_days, COALESCE(duration_days_yearly,0), concurrency, token_capacity, token_refill_per_hour, COALESCE(rate_limit_per_min,0), COALESCE(features,'[]'), sort_order, highlighted, enabled, created_at FROM plans" + where + " ORDER BY sort_order")
+	rows, err := s.db.Query("SELECT id, name, price_monthly, price_yearly, duration_days, COALESCE(duration_days_yearly,0), concurrency, token_capacity, token_refill_per_hour, COALESCE(rate_limit_per_min,0), COALESCE(monthly_quota,0), COALESCE(features,'[]'), sort_order, highlighted, enabled, created_at FROM plans" + where + " ORDER BY sort_order")
 	if err != nil {
 		return nil, err
 	}
@@ -23,7 +23,7 @@ func (s *MySQLStore) ListPlans(enabledOnly bool) ([]model.Plan, error) {
 	var plans []model.Plan
 	for rows.Next() {
 		var p model.Plan
-		rows.Scan(&p.ID, &p.Name, &p.PriceMonthly, &p.PriceYearly, &p.DurationDays, &p.DurationDaysYearly, &p.Concurrency, &p.TokenCapacity, &p.TokenRefillPerHour, &p.RateLimitPerMin, &p.Features, &p.SortOrder, &p.Highlighted, &p.Enabled, &p.CreatedAt)
+		rows.Scan(&p.ID, &p.Name, &p.PriceMonthly, &p.PriceYearly, &p.DurationDays, &p.DurationDaysYearly, &p.Concurrency, &p.TokenCapacity, &p.TokenRefillPerHour, &p.RateLimitPerMin, &p.MonthlyQuota, &p.Features, &p.SortOrder, &p.Highlighted, &p.Enabled, &p.CreatedAt)
 		plans = append(plans, p)
 	}
 	if err := rows.Err(); err != nil {
@@ -33,8 +33,8 @@ func (s *MySQLStore) ListPlans(enabledOnly bool) ([]model.Plan, error) {
 }
 
 func (s *MySQLStore) CreatePlan(p *model.Plan) (int64, error) {
-	res, err := s.db.Exec(`INSERT INTO plans (name, price_monthly, price_yearly, duration_days, duration_days_yearly, concurrency, token_capacity, token_refill_per_hour, rate_limit_per_min, features, sort_order, highlighted, enabled) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-		p.Name, p.PriceMonthly, p.PriceYearly, p.DurationDays, p.DurationDaysYearly, p.Concurrency, p.TokenCapacity, p.TokenRefillPerHour, p.RateLimitPerMin, p.Features, p.SortOrder, p.Highlighted, p.Enabled)
+	res, err := s.db.Exec(`INSERT INTO plans (name, price_monthly, price_yearly, duration_days, duration_days_yearly, concurrency, token_capacity, token_refill_per_hour, rate_limit_per_min, monthly_quota, features, sort_order, highlighted, enabled) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+		p.Name, p.PriceMonthly, p.PriceYearly, p.DurationDays, p.DurationDaysYearly, p.Concurrency, p.TokenCapacity, p.TokenRefillPerHour, p.RateLimitPerMin, p.MonthlyQuota, p.Features, p.SortOrder, p.Highlighted, p.Enabled)
 	if err != nil {
 		return 0, err
 	}
@@ -43,8 +43,8 @@ func (s *MySQLStore) CreatePlan(p *model.Plan) (int64, error) {
 
 func (s *MySQLStore) UpdatePlan(p *model.Plan) error {
 	_, err := s.db.Exec(
-		`UPDATE plans SET name=?, price_monthly=?, price_yearly=?, duration_days=?, duration_days_yearly=?, concurrency=?, token_capacity=?, token_refill_per_hour=?, rate_limit_per_min=?, features=?, sort_order=?, highlighted=?, enabled=? WHERE id=?`,
-		p.Name, p.PriceMonthly, p.PriceYearly, p.DurationDays, p.DurationDaysYearly, p.Concurrency, p.TokenCapacity, p.TokenRefillPerHour, p.RateLimitPerMin, p.Features, p.SortOrder, p.Highlighted, p.Enabled, p.ID)
+		`UPDATE plans SET name=?, price_monthly=?, price_yearly=?, duration_days=?, duration_days_yearly=?, concurrency=?, token_capacity=?, token_refill_per_hour=?, rate_limit_per_min=?, monthly_quota=?, features=?, sort_order=?, highlighted=?, enabled=? WHERE id=?`,
+		p.Name, p.PriceMonthly, p.PriceYearly, p.DurationDays, p.DurationDaysYearly, p.Concurrency, p.TokenCapacity, p.TokenRefillPerHour, p.RateLimitPerMin, p.MonthlyQuota, p.Features, p.SortOrder, p.Highlighted, p.Enabled, p.ID)
 	return err
 }
 

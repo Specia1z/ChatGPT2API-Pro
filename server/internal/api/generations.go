@@ -321,6 +321,13 @@ func (h *Handler) CreateGeneration(w http.ResponseWriter, r *http.Request) {
 	perImage := valOr(settings.TokensPerImage, 1)
 	cost := count * perImage
 
+	// 月配额防二次分发：撞本月配额且开启降速时，把令牌桶恢复速率砍到极低（转卖产能归零，正常用户温和退化）。
+	monthlyQuota := 0
+	if user != nil {
+		monthlyQuota = user.MonthlyQuota
+	}
+	refillRate = h.quotaEffectiveRefill(r.Context(), userID, monthlyQuota, refillRate, settings.RiskConfigJSON)
+
 	normal, burst, ok, waitSec, _ := h.Redis.ConsumeToken(userID, capacity, refillRate, cost)
 	totalRemain := normal + burst
 
@@ -331,6 +338,9 @@ func (h *Handler) CreateGeneration(w http.ResponseWriter, r *http.Request) {
 		return
 
 	}
+
+	// 月配额计量：记录本月令牌消耗（用于撞额判定与撞额名单；超额不阻断，仅靠上面降速温和退化）
+	h.recordMonthlyUsage(r.Context(), userID, monthlyQuota, cost)
 
 	// 采集令牌消耗到 API 调用日志 holder（API Key 路由生效；web 路由 holder 不存在则空操作）
 	middleware.SetAPICallCost(r, cost, count)
@@ -352,6 +362,7 @@ func (h *Handler) CreateGeneration(w http.ResponseWriter, r *http.Request) {
 			// 退还这部分未使用的令牌（按每图倍率），避免令牌泄漏
 
 			h.Redis.RefundToken(userID, capacity, refillRate, (count-i)*perImage)
+			h.refundMonthlyUsage(r.Context(), userID, monthlyQuota, (count-i)*perImage)
 
 			writeJSON(w, 500, model.APIResponse{Code: 500, Message: err.Error()})
 
@@ -560,6 +571,16 @@ func (h *Handler) GetUserTokens(w http.ResponseWriter, r *http.Request) {
 
 	tokens := h.Redis.GetBucketTokens(uid, capacity, refill)
 
+	// 月配额（防二次分发）：0=不限。同时返回本月已用，供用户中心展示进度。
+	monthlyQuota := 0
+	monthlyUsed := 0
+	if user != nil {
+		monthlyQuota = user.MonthlyQuota
+	}
+	if monthlyQuota > 0 {
+		monthlyUsed = h.Redis.GetMonthlyUsage(r.Context(), uid)
+	}
+
 	writeJSON(w, 200, model.APIResponse{Code: 200, Data: map[string]any{
 
 		"tokens":   tokens,
@@ -571,6 +592,10 @@ func (h *Handler) GetUserTokens(w http.ResponseWriter, r *http.Request) {
 		"plan":     user.PlanName,
 
 		"concurrency": user.PlanConcurrency,
+
+		"monthly_quota": monthlyQuota,
+
+		"monthly_used":  monthlyUsed,
 
 	}})
 

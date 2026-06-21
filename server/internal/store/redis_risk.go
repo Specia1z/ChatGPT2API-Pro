@@ -67,3 +67,63 @@ func (r *RedisStore) ResetRisk(ctx context.Context, uid int64) {
 		r.client.Del(ctx, iter.Val())
 	}
 }
+
+// ═══ 月度令牌配额（防二次分发） ═══
+// Key: quota:<uid>:<YYYYMM>，按自然月累加 tokens_cost，TTL 自动跨月过期（无需重置任务）。
+
+// monthKey 返回当前自然月的配额 key。
+func monthKey(uid int64) string {
+	return fmt.Sprintf("quota:%d:%s", uid, time.Now().Format("200601"))
+}
+
+// AddMonthlyUsage 累加本月令牌消耗，返回累加后的本月累计值。
+// TTL 设 35 天，保证跨月后旧 key 自动清理（新月用新 key）。
+func (r *RedisStore) AddMonthlyUsage(ctx context.Context, uid int64, cost int) int {
+	if cost <= 0 {
+		return r.GetMonthlyUsage(ctx, uid)
+	}
+	key := monthKey(uid)
+	n, err := r.client.IncrBy(ctx, key, int64(cost)).Result()
+	if err != nil {
+		return 0
+	}
+	r.client.Expire(ctx, key, 35*24*time.Hour)
+	return int(n)
+}
+
+// GetMonthlyUsage 读取本月已用令牌数。
+func (r *RedisStore) GetMonthlyUsage(ctx context.Context, uid int64) int {
+	v, _ := r.client.Get(ctx, monthKey(uid)).Result()
+	n, _ := strconv.Atoi(v)
+	return n
+}
+
+// RefundMonthlyUsage 退还本月令牌消耗（生图失败/退款时，与令牌桶退款保持一致）。
+func (r *RedisStore) RefundMonthlyUsage(ctx context.Context, uid int64, cost int) {
+	if cost <= 0 {
+		return
+	}
+	key := monthKey(uid)
+	// 仅当 key 存在时递减，避免凭空造负数 key
+	if r.client.Exists(ctx, key).Val() == 1 {
+		r.client.DecrBy(ctx, key, int64(cost))
+	}
+}
+
+// ═══ 单 API Key 多 IP 采集（中转站转卖告警） ═══
+// 中转站特征：一个 Key 被大量不同终端 IP 调用。Key: keyip:<apiKeyID>，24h 去重 Set。
+
+// AddKeyIP 记录某 API Key 被调用的来源 IP（去重，24h 过期）。
+func (r *RedisStore) AddKeyIP(ctx context.Context, apiKeyID int64, ip string) {
+	if apiKeyID <= 0 || ip == "" {
+		return
+	}
+	key := fmt.Sprintf("keyip:%d", apiKeyID)
+	r.client.SAdd(ctx, key, ip)
+	r.client.Expire(ctx, key, 24*time.Hour)
+}
+
+// GetKeyIPCount 返回某 API Key 近 24h 的去重 IP 数。
+func (r *RedisStore) GetKeyIPCount(ctx context.Context, apiKeyID int64) int {
+	return int(r.client.SCard(ctx, fmt.Sprintf("keyip:%d", apiKeyID)).Val())
+}

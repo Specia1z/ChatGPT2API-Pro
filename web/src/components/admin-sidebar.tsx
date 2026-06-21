@@ -9,7 +9,7 @@ import {
   LayoutDashboard, Zap, Shield, Settings, ImageIcon,
   Package, Users, LogOut, Ticket, BarChart3, ChevronRight,
   ShoppingCart, Tag, Database, Sun, Moon, Palette, Mail,
-  Menu, X, Megaphone, ShieldCheck, ShieldAlert, Wallet, Activity, Shapes, ScrollText,
+  Menu, X, Megaphone, ShieldCheck, ShieldAlert, Wallet, Activity, Shapes, ScrollText, Coins,
 } from "lucide-react";
 import { setToken, BASE } from "@/lib/api";
 
@@ -24,6 +24,7 @@ const navGroups = [
       { href: "/admin/sysmonitor", icon: Activity, label: "系统监控" },
       { href: "/admin/apilogs", icon: ScrollText, label: "API 调用日志" },
       { href: "/admin/risk", icon: ShieldAlert, label: "风险评分" },
+      { href: "/admin/quota", icon: Coins, label: "配额告警" },
     ],
   },
   {

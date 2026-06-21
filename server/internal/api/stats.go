@@ -114,6 +114,9 @@ func (h *Handler) GetAdminStats(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// 令牌月用量分布（近30天，帮管理员定月配额；失败不阻断整页，返回零值）
+	tokenDist, _ := h.MySQL.GetTokenUsageDistribution(30)
+
 	writeJSON(w, 200, model.APIResponse{Code: 200, Data: map[string]any{
 		"stats":                stats,
 		"trends":               trends,
@@ -128,5 +131,6 @@ func (h *Handler) GetAdminStats(w http.ResponseWriter, r *http.Request) {
 		"plan_distribution":    planDist,
 		"revenue_composition":  revComp,
 		"invite_leaderboard":   inviteBoard,
+		"token_usage_dist":     tokenDist,
 	}})
 }

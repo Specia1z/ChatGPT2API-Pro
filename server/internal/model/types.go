@@ -1,6 +1,9 @@
 package model
 
-import "time"
+import (
+	"encoding/json"
+	"time"
+)
 
 type Account struct {
 	ID                 int64      `json:"id" db:"id"`
@@ -151,6 +154,7 @@ type User struct {
 	TokenCapacity        int        `json:"token_capacity"`
 	TokenRefillPerHour   int        `json:"token_refill_per_hour"`
 	RateLimitPerMin      int        `json:"rate_limit_per_min,omitempty"`
+	MonthlyQuota         int        `json:"monthly_quota,omitempty"` // 当前套餐每月令牌配额；0=不限
 	APIKeyID             int64      `json:"-"` // 本次认证命中的 API Key 行 id（仅请求内用，不返回前端）
 	Avatar               string     `json:"avatar,omitempty"`        // 头像 URL（Linux Do OAuth 登录自动获取）
 	LinuxDoID            int64      `json:"-"` // Linux Do OAuth 用户 id（仅内部用，不外泄）
@@ -203,6 +207,7 @@ type Plan struct {
 	TokenCapacity        int    `json:"token_capacity"`
 	TokenRefillPerHour   int    `json:"token_refill_per_hour"`
 	RateLimitPerMin      int    `json:"rate_limit_per_min"` // API 每分钟请求上限；0=用默认 600/min
+	MonthlyQuota         int    `json:"monthly_quota"`      // 每月令牌配额上限；0=不限（防二次分发）
 	Features          string  `json:"features"`
 	SortOrder         int     `json:"sort_order"`
 	Highlighted  bool   `json:"highlighted"`
@@ -553,6 +558,19 @@ type AdminStats struct {
 	DisabledAccounts int     `json:"disabled_accounts"`
 }
 
+// TokenUsageDistribution 近 N 天「每用户令牌消耗总量」的分布（用于管理员定月配额参考）。
+// 数据源 api_call_logs.tokens_cost（与月配额计量同一口径）。
+type TokenUsageDistribution struct {
+	Days       int   `json:"days"`        // 统计窗口天数
+	UserCount  int   `json:"user_count"`  // 有消耗的去重用户数
+	P50        int   `json:"p50"`
+	P90        int   `json:"p90"`
+	P95        int   `json:"p95"`
+	P99        int   `json:"p99"`
+	Max        int   `json:"max"`
+	Suggested  int   `json:"suggested"`   // 建议月配额 = P99 × 4（向上取整到百）
+}
+
 type TrendPoint struct {
 	Date  string  `json:"date"`
 	Value float64 `json:"value"`
@@ -843,6 +861,11 @@ type RiskConfig struct {
 	BanEscalation      bool   `json:"ban_escalation"`       // 阶梯封禁开关
 	BanLadder          []int  `json:"ban_ladder"`           // 阶梯时长序列（分钟），0=永久；超出序列长度用最后一级。默认 [60,1440,0]
 	AppealContact      string `json:"appeal_contact"`       // 申诉联系方式，注入封禁提示（如邮箱/TG/QQ群）
+
+	// ── 月配额防二次分发 ──
+	QuotaThrottleEnabled bool `json:"quota_throttle_enabled"` // 撞月配额后是否降速（默认关，先观测）
+	QuotaThrottleRefill  int  `json:"quota_throttle_refill"`  // 撞额后令牌桶恢复速率（个/小时），默认 1
+	KeyIPAlertThreshold  int  `json:"key_ip_alert_threshold"` // 单 API Key 24h 去重 IP 数告警阈值，默认 50
 }
 
 // DefaultRiskConfig 返回合理且不误判的默认值。
@@ -883,7 +906,62 @@ func DefaultRiskConfig() RiskConfig {
 		BanEscalation:      true,                    // 默认开启阶梯
 		BanLadder:          []int{60, 1440, 10080},  // 第1次1h，第2次1天，第3次起7天（全临时，可自动解封）
 		AppealContact:      "",
+
+		QuotaThrottleEnabled: false, // 默认关——先观测撞额名单，确认无误伤再开降速
+		QuotaThrottleRefill:  1,     // 撞额后令牌桶恢复速率砍到 1/h，转卖产能归零
+		KeyIPAlertThreshold:  50,    // 单 Key 24h 去重 IP > 50 进告警名单
 	}
+}
+
+// ParseRiskConfig 以 default-base 覆盖方式解析 risk_config JSON：
+// 以 DefaultRiskConfig 为底，JSON 中显式提供的字段覆盖之。数值型遵循「0=用默认」
+// （权重例外：四项任一非 0 即整体采用，允许显式置 0 关闭某维度）。
+// 旧配置 JSON 升级后新增字段自动取默认，无需迁移。scorer 与生图 handler 共用。
+func ParseRiskConfig(jsonStr string) RiskConfig {
+	cfg := DefaultRiskConfig()
+	if jsonStr == "" {
+		return cfg
+	}
+	var raw RiskConfig
+	if json.Unmarshal([]byte(jsonStr), &raw) != nil {
+		return cfg
+	}
+	ovInt := func(dst *int, v int) {
+		if v > 0 {
+			*dst = v
+		}
+	}
+	ovInt(&cfg.FlagThreshold, raw.FlagThreshold)
+	ovInt(&cfg.LimitThreshold, raw.LimitThreshold)
+	ovInt(&cfg.BanThreshold, raw.BanThreshold)
+	ovInt(&cfg.ScoreIntervalMin, raw.ScoreIntervalMin)
+	ovInt(&cfg.WindowMinutes, raw.WindowMinutes)
+	if raw.WeightAPI != 0 || raw.WeightPoints != 0 || raw.WeightContent != 0 || raw.WeightAccount != 0 {
+		cfg.WeightAPI, cfg.WeightPoints = raw.WeightAPI, raw.WeightPoints
+		cfg.WeightContent, cfg.WeightAccount = raw.WeightContent, raw.WeightAccount
+	}
+	ovInt(&cfg.APIRateBudgetMult, raw.APIRateBudgetMult)
+	ovInt(&cfg.APIErrMinSamples, raw.APIErrMinSamples)
+	ovInt(&cfg.APIIPThreshold, raw.APIIPThreshold)
+	ovInt(&cfg.InviteWindowDays, raw.InviteWindowDays)
+	ovInt(&cfg.DupPromptUnit, raw.DupPromptUnit)
+	ovInt(&cfg.FailRateMax, raw.FailRateMax)
+	ovInt(&cfg.SameIPUnit, raw.SameIPUnit)
+	ovInt(&cfg.SameIPMax, raw.SameIPMax)
+	ovInt(&cfg.BanHistoryScore, raw.BanHistoryScore)
+	ovInt(&cfg.NewAccountHours, raw.NewAccountHours)
+	ovInt(&cfg.NewAccountScore, raw.NewAccountScore)
+	cfg.BanDurationMinutes = raw.BanDurationMinutes // 允许显式 0=永久
+	cfg.BanEscalation = raw.BanEscalation
+	if len(raw.BanLadder) > 0 {
+		cfg.BanLadder = raw.BanLadder
+	}
+	cfg.AppealContact = raw.AppealContact
+	// 月配额防分发
+	cfg.QuotaThrottleEnabled = raw.QuotaThrottleEnabled
+	ovInt(&cfg.QuotaThrottleRefill, raw.QuotaThrottleRefill)
+	ovInt(&cfg.KeyIPAlertThreshold, raw.KeyIPAlertThreshold)
+	return cfg
 }
 
 // UserRiskScore 用户风险评分记录（DB 表 user_risk_scores）。
