@@ -114,7 +114,7 @@ curl -X POST /v1/images/generations \
 | **图片懒加载** | 管理端列表不查 `MEDIUMTEXT` 大字段，通过 `/api/images/{id}` 代理按需加载，避免每页响应膨胀数十 MB | `io.Copy` |
 | **优雅退出** | `defer` 链保证日志缓冲 flush、DB/Redis 连接关闭，显式 `http.Server` 超时配置 | `defer` |
 
-> 💡 **设计哲学**：热路径上所有操作均使用原子指令、channel 或无锁结构，GC 友好的值类型传递。每请求额外分配 ≤ 1 次（`APICallInfo` 结构体）。写操作全部异步批量，读操作带缓存。
+> 💡 热路径零阻塞，写操作异步批，读操作带缓存——每请求只多分配一个 `APICallInfo` 结构体，剩下的全是纯原子操作和 channel，主打一个快且不崩。
 
 ---
 
