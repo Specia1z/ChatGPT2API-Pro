@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { Outfit, DM_Mono } from "next/font/google";
 import * as LucideIcons from "lucide-react";
-const { Palette, Plus, Trash2, Settings2, RefreshCw, Save, RotateCcw } = LucideIcons;
+const { Palette, Plus, Trash2, Settings2, RefreshCw, Save, RotateCcw, Sparkles, Loader2 } = LucideIcons;
 import { toast } from "sonner";
 import { api } from "@/lib/api";
 import { AdminSidebar } from "@/components/admin-sidebar";
@@ -48,6 +48,29 @@ export default function AdminStylesPage() {
   const [restoreOpen, setRestoreOpen] = useState(false);
   const [iconSearch, setIconSearch] = useState("");
   const [iconPickerOpen, setIconPickerOpen] = useState(false);
+  const [aiLoading, setAiLoading] = useState(false);
+
+  // AI 智能优化：输入风格名称，AI 自动填充 图标/描述/英文提示词
+  const aiGenerate = async () => {
+    if (!editing) return;
+    const name = editing.label.trim();
+    if (!name) { toast.error("请先填写风格名称"); return; }
+    setAiLoading(true);
+    try {
+      const r = await api("/api/admin/style-presets/generate", { method: "POST", body: JSON.stringify({ name }) });
+      const d = r.data || {};
+      setEditing(prev => prev ? {
+        ...prev,
+        icon: d.icon || prev.icon,
+        desc: d.desc || prev.desc,
+        hint: d.hint || prev.hint,
+      } : prev);
+      toast.success("AI 已填充图标/描述/提示词");
+    } catch (e: any) {
+      toast.error(e.message || "AI 生成失败");
+    }
+    setAiLoading(false);
+  };
 
   const load = async () => {
     try {
@@ -75,7 +98,7 @@ export default function AdminStylesPage() {
     setSaving(false);
   };
 
-  const addNew = () => setEditing(emptyStyle(styles.length));
+  const addNew = () => setEditing(emptyStyle(styles.length + 1));
 
   const editItem = (s: StyleItem) => setEditing({ ...s });
 
@@ -215,8 +238,17 @@ export default function AdminStylesPage() {
             <div className="space-y-4 mt-1">
               <div className="space-y-1.5">
                 <label className="text-xs font-medium text-muted-foreground">名称</label>
-                <Input value={editing.label} onChange={e => setEditing({ ...editing, label: e.target.value })}
-                  placeholder="赛博朋克" className="text-sm" />
+                <div className="flex items-center gap-2">
+                  <Input value={editing.label} onChange={e => setEditing({ ...editing, label: e.target.value })}
+                    placeholder="赛博朋克" className="text-sm flex-1" />
+                  <Button type="button" variant="outline" size="sm" disabled={aiLoading || !editing.label.trim()}
+                    onClick={aiGenerate}
+                    className="shrink-0 h-9 gap-1.5 text-xs border-primary/30 text-primary hover:bg-primary/10 disabled:opacity-50">
+                    {aiLoading ? <Loader2 className="size-3.5 animate-spin" /> : <Sparkles className="size-3.5" />}
+                    {aiLoading ? "生成中" : "AI 优化"}
+                  </Button>
+                </div>
+                <p className="text-[10px] text-muted-foreground/70">填写名称后点「AI 优化」，自动生成图标、描述与英文提示词</p>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1.5">

@@ -186,6 +186,7 @@ mux.Handle("POST /api/user/points/exchange", middleware.RateLimit(userAuth(http.
 	mux.Handle("GET /api/settings", middleware.RateLimitPublic(http.HandlerFunc(h.GetSettings)))
 	mux.Handle("POST /api/settings", adminAuth(http.HandlerFunc(h.SaveSettings)))
 	mux.Handle("GET /api/admin/style-presets/defaults", adminAuth(http.HandlerFunc(h.GetDefaultStylePresets)))
+	mux.Handle("POST /api/admin/style-presets/generate", adminAuth(http.HandlerFunc(h.AdminGenerateStylePreset)))
 
 	// 监控
 	mux.Handle("GET /api/monitor", adminAuth(http.HandlerFunc(h.GetMonitorConfig)))
