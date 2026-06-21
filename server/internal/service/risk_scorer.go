@@ -14,12 +14,13 @@ import (
 
 // RiskScorer 用户风险评分定时器。
 type RiskScorer struct {
-	mysql *store.MySQLStore
-	redis *store.RedisStore
+	mysql           *store.MySQLStore
+	redis           *store.RedisStore
+	superadminEmail string
 }
 
-func NewRiskScorer(mysql *store.MySQLStore, redis *store.RedisStore) *RiskScorer {
-	return &RiskScorer{mysql: mysql, redis: redis}
+func NewRiskScorer(mysql *store.MySQLStore, redis *store.RedisStore, superadminEmail string) *RiskScorer {
+	return &RiskScorer{mysql: mysql, redis: redis, superadminEmail: superadminEmail}
 }
 
 // loadConfig 从 settings 加载风险配置，缺失时回退默认值。
@@ -69,6 +70,13 @@ func (rs *RiskScorer) run() {
 	riskThrottled := map[int64]bool{}
 
 	for _, uid := range ids {
+		// 跳过 superadmin（role=0 但 .env 指定，不受评分系统限制）
+		if rs.superadminEmail != "" {
+			user, _ := rs.mysql.GetUserByID(uid)
+			if user != nil && user.Email == rs.superadminEmail {
+				continue
+			}
+		}
 		snap := rs.redis.GetRiskSnapshot(ctx, uid)
 
 		scoreAPI := calcAPIScore(snap)

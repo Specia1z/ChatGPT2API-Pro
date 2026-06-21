@@ -58,7 +58,7 @@ func main() {
 	service.GetMonitor(mysql).Start()
 
 	// 启动用户风险评分定时器（每 5 分钟）
-	service.NewRiskScorer(mysql, redis).Start()
+	service.NewRiskScorer(mysql, redis, cfg.SuperAdminEmail).Start()
 
 	// 本地储存定时清理
 	settings, _ := mysql.GetSettings()
