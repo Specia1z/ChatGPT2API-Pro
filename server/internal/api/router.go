@@ -129,6 +129,7 @@ mux.Handle("POST /api/user/points/exchange", middleware.RateLimit(userAuth(http.
 	mux.Handle("GET /api/admin/generations", adminAuth(http.HandlerFunc(h.GetAllGenerations)))
 	mux.Handle("GET /api/admin/svg-generations", adminAuth(http.HandlerFunc(h.GetAllSVGGenerations)))
 	mux.Handle("DELETE /api/admin/generations", adminAuth(http.HandlerFunc(h.AdminDeleteGeneration)))
+	mux.Handle("POST /api/admin/generations/batch-delete", adminAuth(http.HandlerFunc(h.AdminBatchDeleteGenerations)))
 	mux.Handle("GET /api/admin/scheduler/stats", adminAuth(http.HandlerFunc(h.GetSchedulerStats)))
 	mux.Handle("GET /api/admin/scheduler/config", adminAuth(http.HandlerFunc(h.GetSchedulerConfig)))
 	mux.Handle("POST /api/admin/scheduler/config", adminAuth(http.HandlerFunc(h.SetSchedulerConfig)))

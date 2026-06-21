@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import {
-  ImageIcon, RefreshCw, X, Trash2, Eye, ImagePlus, Share2,
+  ImageIcon, RefreshCw, X, Trash2, Eye, ImagePlus, Share2, Trash,
 } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
@@ -26,6 +26,7 @@ export default function AdminGenerationsPage() {
   const [preview, setPreview] = useState<string | null>(null);
   const [loadedImages, setLoadedImages] = useState<Set<string>>(new Set());
   const [deleteTarget, setDeleteTarget] = useState<any>(null);
+  const [batchDeleting, setBatchDeleting] = useState(false);
   const observerRef = useRef<IntersectionObserver | null>(null);
   const sentinelRef = useRef<HTMLDivElement>(null);
   const pageSize = 20;
@@ -65,6 +66,16 @@ export default function AdminGenerationsPage() {
       setTotal(t => t - 1);
       toast.success("已删除"); setDeleteTarget(null);
     } catch { toast.error("删除失败"); }
+  };
+
+  const batchDelete = async () => {
+    setBatchDeleting(true);
+    try {
+      const r = await api("/api/admin/generations/batch-delete", { method: "POST", body: JSON.stringify({ status: "failed" }) });
+      toast.success(r.data?.message || `已清空 ${r.data?.deleted || 0} 条`);
+      setGenerations([]); setPage(1); fetchGens(1, false);
+    } catch { toast.error("批量删除失败"); }
+    finally { setBatchDeleting(false); }
   };
 
   const adminUnshare = async (e: React.MouseEvent, g: any) => {
@@ -108,10 +119,18 @@ export default function AdminGenerationsPage() {
               </p>
             </div>
           </div>
-          <Button variant="ghost" size="sm" onClick={() => { setPage(1); fetchGens(1, false); }}
-            className="gap-1 sm:gap-1.5 h-7 text-[10px] text-muted-foreground hover:text-foreground px-1.5 sm:px-2 shrink-0">
-            <RefreshCw className={`w-3 h-3 ${loading ? "animate-spin" : ""}`} /> <span className="hidden sm:inline">刷新</span>
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button variant="ghost" size="sm" onClick={() => { setPage(1); fetchGens(1, false); }}
+              className="gap-1 sm:gap-1.5 h-7 text-[10px] text-muted-foreground hover:text-foreground px-1.5 sm:px-2 shrink-0">
+              <RefreshCw className={`w-3 h-3 ${loading ? "animate-spin" : ""}`} /> <span className="hidden sm:inline">刷新</span>
+            </Button>
+            {stats.failedCount > 0 && (
+              <Button variant="ghost" size="sm" onClick={batchDelete} disabled={batchDeleting}
+                className="gap-1 h-7 text-[10px] text-red-500 hover:text-red-600 hover:bg-red-500/10 px-1.5 sm:px-2 shrink-0">
+                <Trash className="w-3 h-3" /> <span className="hidden sm:inline">{batchDeleting ? "清空中…" : `清空失败 (${stats.failedCount})`}</span>
+              </Button>
+            )}
+          </div>
         </div>
 
         <div className="flex-1 p-4 sm:p-6 lg:p-8 overflow-auto scrollbar-thin">

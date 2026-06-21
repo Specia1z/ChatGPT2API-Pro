@@ -720,3 +720,39 @@ func (h *Handler) GetAllSVGGenerations(w http.ResponseWriter, r *http.Request) {
 	}})
 }
 
+
+// POST /api/admin/generations/batch-delete — 一键清空失败/无效的生图记录。
+func (h *Handler) AdminBatchDeleteGenerations(w http.ResponseWriter, r *http.Request) {
+	var req struct{ Status string `json:"status"` }
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeJSON(w, 400, model.APIResponse{Code: 400, Message: "参数错误"})
+		return
+	}
+	if req.Status == "" {
+		req.Status = "failed"
+	}
+	if req.Status != "failed" && req.Status != "pending" {
+		writeJSON(w, 400, model.APIResponse{Code: 400, Message: "status 仅支持 failed 或 pending"})
+		return
+	}
+
+	// 先取所有待删记录（用于清理外部存储对象）
+	delGens, err := h.MySQL.GetGenerationsByStatus(req.Status)
+	if err != nil {
+		writeJSON(w, 500, model.APIResponse{Code: 500, Message: "查询失败"})
+		return
+	}
+
+	// 清理外部存储（best-effort）
+	for _, g := range delGens {
+		h.deleteStoredObject(&g)
+	}
+
+	n, err := h.MySQL.DeleteGenerationsByStatus(req.Status)
+	if err != nil {
+		writeJSON(w, 500, model.APIResponse{Code: 500, Message: err.Error()})
+		return
+	}
+	statusLabel := map[string]string{"failed": "失败", "pending": "处理中"}[req.Status]
+	writeJSON(w, 200, model.APIResponse{Code: 200, Data: map[string]any{"deleted": n}, Message: fmt.Sprintf("已清空 %d 条%s记录", n, statusLabel)})
+}

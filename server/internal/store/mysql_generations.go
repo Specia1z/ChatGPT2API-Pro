@@ -208,3 +208,31 @@ func (s *MySQLStore) GetAllSVGGenerations(page, pageSize int) ([]model.Generatio
 	}
 	return gens, total, nil
 }
+
+// GetGenerationsByStatus 返回指定状态的生图记录（id + user_id + image_url），用于批量删除前清理外部存储。
+func (s *MySQLStore) GetGenerationsByStatus(status string) ([]model.Generation, error) {
+	rows, err := s.db.Query("SELECT id, user_id, COALESCE(image_url,'') FROM generations WHERE status=? AND gen_type='image'", status)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var gens []model.Generation
+	for rows.Next() {
+		var g model.Generation
+		if err := rows.Scan(&g.ID, &g.UserID, &g.ImageURL); err != nil {
+			return nil, err
+		}
+		gens = append(gens, g)
+	}
+	return gens, rows.Err()
+}
+
+// DeleteGenerationsByStatus 按状态批量删除记录，返回删除行数。
+func (s *MySQLStore) DeleteGenerationsByStatus(status string) (int64, error) {
+	res, err := s.db.Exec("DELETE FROM generations WHERE status=? AND gen_type='image'", status)
+	if err != nil {
+		return 0, err
+	}
+	n, _ := res.RowsAffected()
+	return n, nil
+}
