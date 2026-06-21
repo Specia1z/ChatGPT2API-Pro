@@ -76,9 +76,11 @@ func (s *MySQLStore) BatchResetRiskScores(olderThan time.Duration) (int64, error
 
 // ── 评分辅助查询 ──
 
-// CountActiveUsers 返回最近 N 小时内有过 API 调用的用户数（含 ID 列表）。
+// GetActiveUserIDs 返回最近 N 小时内有过 API 调用的普通用户（排除管理员）。
 func (s *MySQLStore) GetActiveUserIDs(sinceHours int) ([]int64, error) {
-	rows, err := s.db.Query("SELECT DISTINCT user_id FROM api_call_logs WHERE user_id > 0 AND created_at > DATE_SUB(NOW(), INTERVAL ? HOUR)", sinceHours)
+	rows, err := s.db.Query(`SELECT DISTINCT l.user_id FROM api_call_logs l
+		JOIN users u ON l.user_id=u.id
+		WHERE l.user_id > 0 AND u.role=0 AND l.created_at > DATE_SUB(NOW(), INTERVAL ? HOUR)`, sinceHours)
 	if err != nil {
 		return nil, err
 	}
