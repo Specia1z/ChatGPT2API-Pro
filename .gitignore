@@ -43,6 +43,9 @@ npm-debug.log*
 # ───── 根目录开发垃圾（旧副本 / 一次性脚本，不入库）─────
 /mysql.go
 /fix-sizes.js
+/test_email.js
+/deploy-src.tar.gz
+/backend-src.tar.gz
 
 # ───── 本地环境特定测试（硬编码本地 DB/Redis，不入 CI）─────
 /server/internal/api/admin_login_test.go
