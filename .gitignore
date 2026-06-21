@@ -55,6 +55,7 @@ npm-debug.log*
 
 # ───── 构建归档 / 临时包 ─────
 *.tar.gz
+*.zip
 
 # ───── 跨平台编译产物 ─────
 server/server_*
