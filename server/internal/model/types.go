@@ -790,6 +790,7 @@ type APICallLog struct {
 	APIKeyID   int64  `json:"api_key_id"`
 	KeyName    string `json:"key_name"`
 	Endpoint   string `json:"endpoint"`
+	Source     string `json:"source,omitempty"`      // 调用来源：api / web
 	IP         string `json:"ip"`                    // 调用方 IP
 	Prompt     string `json:"prompt,omitempty"`      // 生图提示词
 	ImageURL   string `json:"image_url,omitempty"`   // 代理中转后图片地址
@@ -804,6 +805,8 @@ type APICallLog struct {
 // ── 用户风险评分 ──────────────────────────────────────────
 
 // RiskConfig 风险评分阈值配置（存于 settings 表 JSON 列）。
+// 所有数值型灵敏度参数遵循「0=用内置默认」约定，loadConfig 会补齐缺失项，
+// 故旧配置 JSON 升级后新增字段自动取默认值，无需迁移。
 type RiskConfig struct {
 	// 自动处置阈值（0-100）
 	FlagThreshold  int `json:"flag_threshold"`  // 标记观察阈值，默认 30
@@ -811,29 +814,75 @@ type RiskConfig struct {
 	BanThreshold   int `json:"ban_threshold"`   // 自动封禁阈值，默认 80
 	// 评分窗口
 	ScoreIntervalMin int `json:"score_interval_min"` // 评分计算间隔（分钟），默认 5
+	WindowMinutes    int `json:"window_minutes"`     // 高频信号采集窗口（分钟），默认 5。RiskRecorder 与评分共用
 	// 权重（百分比，四项加起来应=100）
 	WeightAPI     int `json:"weight_api"`     // API 滥用权重，默认 35
 	WeightPoints  int `json:"weight_points"`  // 积分滥用权重，默认 25
 	WeightContent int `json:"weight_content"` // 内容滥用权重，默认 20
 	WeightAccount int `json:"weight_account"` // 账号异常权重，默认 20
-	// 封禁策略
-	BanDurationMinutes int  `json:"ban_duration_minutes"` // 单次封禁时长（分钟），0=永久，默认 0
-	BanEscalation      bool `json:"ban_escalation"`       // 阶梯封禁：第1次1h，第2次24h，第3次永久
+
+	// ── 灵敏度子参数（决定各维度子项打分的快慢，0=用内置默认）──
+	// API 维度
+	APIRateBudgetMult int `json:"api_rate_budget_mult"` // 窗口配额倍数：合理请求数 = 速率/min × 此值，默认 5
+	APIErrMinSamples  int `json:"api_err_min_samples"`  // 错误率计分的最小样本量（窗口请求数），默认 10
+	APIIPThreshold    int `json:"api_ip_threshold"`     // 触满 IP 子项的去重 IP 数，默认 10
+	// 积分维度
+	InviteWindowDays int `json:"invite_window_days"` // 邀请裂变作弊统计窗口（天），默认 7
+	// 内容维度
+	DupPromptUnit  int `json:"dup_prompt_unit"`  // 每个重复 prompt 计分，默认 30
+	FailRateMax    int `json:"fail_rate_max"`    // 失败率子项满分上限，默认 20
+	// 账号维度
+	SameIPUnit       int `json:"same_ip_unit"`        // 每个同 IP 关联账号计分，默认 20
+	SameIPMax        int `json:"same_ip_max"`         // 同 IP 子项上限，默认 60
+	BanHistoryScore  int `json:"ban_history_score"`   // 有被封历史加分，默认 50
+	NewAccountHours  int `json:"new_account_hours"`   // 判定「新账号」的小时数，默认 24
+	NewAccountScore  int `json:"new_account_score"`   // 新账号加分，默认 30
+
+	// ── 封禁策略 ──
+	BanDurationMinutes int    `json:"ban_duration_minutes"` // 未开阶梯时的单次封禁时长（分钟），0=永久，默认 0
+	BanEscalation      bool   `json:"ban_escalation"`       // 阶梯封禁开关
+	BanLadder          []int  `json:"ban_ladder"`           // 阶梯时长序列（分钟），0=永久；超出序列长度用最后一级。默认 [60,1440,0]
+	AppealContact      string `json:"appeal_contact"`       // 申诉联系方式，注入封禁提示（如邮箱/TG/QQ群）
 }
 
 // DefaultRiskConfig 返回合理且不误判的默认值。
+//
+// 设计原则（防误封优先）：
+//  1. 总分 = 各维度分(0-100) × 权重 / 100，权重和=100。单一维度满分最多只贡献「该维度权重」分，
+//     故封禁必须多维度共振——这是最强的防误封保障。
+//  2. 误判率最高的「同 IP」信号降权（账号权重仅 15）并提高触发门槛（每账号 12 分、上限 50），
+//     公司/校园/家庭/CGNAT 共享出口的正常用户不会被单点打满。
+//  3. 最硬、最可归因的 API 滥用信号给最高权重（40）；错误率需 ≥20 样本才计分，避免低频用户偶发失败被误判。
+//  4. 阶梯封禁默认全为「临时」（1h→1d→7d，可自动解封），不默认永久封禁——
+//     误封代价可逆，永久封禁应由管理员手动决定。
 func DefaultRiskConfig() RiskConfig {
 	return RiskConfig{
-		FlagThreshold:    30,
-		LimitThreshold:   50,
-		BanThreshold:     80,
+		FlagThreshold:    40, // 观察（仅标记，无实际处置）
+		LimitThreshold:   65, // 限流降级（速率减半，处置温和）
+		BanThreshold:     85, // 自动封禁（需多维度高度共振才触发）
 		ScoreIntervalMin: 5,
-		WeightAPI:        35,
-		WeightPoints:     25,
-		WeightContent:    20,
-		WeightAccount:    20,
-		BanDurationMinutes: 0,  // 0=永久，建议首次部署设 60（1小时）观察
-		BanEscalation:     true, // 默认开启阶梯，避免永久误封
+		WindowMinutes:    5,
+		WeightAPI:        40, // 最硬信号，最高权重
+		WeightContent:    25,
+		WeightPoints:     20,
+		WeightAccount:    15, // 同 IP 误判率最高，最低权重
+
+		APIRateBudgetMult: 6,  // 略大于窗口(5)，给突发 20% 缓冲，持续顶格才满分
+		APIErrMinSamples:  20, // 至少 20 次请求才计错误率，过滤偶发失败
+		APIIPThreshold:    15, // API Key 多 IP 调用常见，15 个去重 IP 才满分
+		InviteWindowDays:  7,
+		DupPromptUnit:     20, // 重复 prompt 是正常创作行为，需 5 次才满分
+		FailRateMax:       20,
+		SameIPUnit:        12, // 约 5 个同 IP 账号才到上限
+		SameIPMax:         50,
+		BanHistoryScore:   40,
+		NewAccountHours:   24,
+		NewAccountScore:   20, // 新账号本身非重罪，降低加分
+
+		BanDurationMinutes: 60,                      // 关闭阶梯时的固定时长（1h）
+		BanEscalation:      true,                    // 默认开启阶梯
+		BanLadder:          []int{60, 1440, 10080},  // 第1次1h，第2次1天，第3次起7天（全临时，可自动解封）
+		AppealContact:      "",
 	}
 }
 
@@ -848,6 +897,10 @@ type UserRiskScore struct {
 	TotalScore   int    `json:"total_score"`        // 加权总分
 	Reasons      string `json:"reasons,omitempty"`  // 评分理由简述（如"QPS超限+多IP"）
 	UpdatedAt    string `json:"updated_at"`
+	// 封禁状态（列表状态列用；JOIN users 实时带出）
+	Banned    bool   `json:"banned"`               // 当前是否被封禁（status=0）
+	BanUntil  string `json:"ban_until,omitempty"`  // 临时封禁到期时间（空=永久或未封）
+	BanReason string `json:"ban_reason,omitempty"` // 封禁原因
 }
 
 // RiskDetail 评分明细（Admin 单个用户详情用）。
@@ -856,4 +909,9 @@ type RiskDetail struct {
 	Email     string         `json:"email"`
 	Scores    UserRiskScore  `json:"scores"`
 	Snapshots map[string]int `json:"snapshots"` // Redis 实时指标快照
+	// 封禁状态
+	Banned    bool   `json:"banned"`
+	BanUntil  string `json:"ban_until,omitempty"`
+	BanReason string `json:"ban_reason,omitempty"`
+	CreatedAt string `json:"created_at,omitempty"` // 注册时间（辅助判断新账号）
 }

@@ -30,7 +30,8 @@ func (s *MySQLStore) GetRiskScores(page, pageSize int, minScore int) ([]model.Us
 	s.db.QueryRow("SELECT COUNT(*) FROM user_risk_scores r JOIN users u ON r.user_id=u.id "+where, args...).Scan(&total)
 
 	rows, err := s.db.Query(`SELECT u.id, COALESCE(u.email,''), r.score_api, r.score_points, r.score_content, r.score_account, r.total_score,
-		DATE_FORMAT(r.updated_at,'%Y-%m-%d %H:%i:%s')
+		DATE_FORMAT(r.updated_at,'%Y-%m-%d %H:%i:%s'),
+		u.status, COALESCE(DATE_FORMAT(u.ban_until,'%Y-%m-%d %H:%i:%s'),''), COALESCE(u.ban_reason,'')
 		FROM user_risk_scores r JOIN users u ON r.user_id=u.id `+where+
 		` ORDER BY r.total_score DESC LIMIT ? OFFSET ?`, append(args, pageSize, (page-1)*pageSize)...)
 	if err != nil {
@@ -40,8 +41,10 @@ func (s *MySQLStore) GetRiskScores(page, pageSize int, minScore int) ([]model.Us
 	scores := make([]model.UserRiskScore, 0)
 	for rows.Next() {
 		var s model.UserRiskScore
-		if rows.Scan(&s.UserID, &s.Email, &s.ScoreAPI, &s.ScorePoints, &s.ScoreContent, &s.ScoreAccount, &s.TotalScore, &s.UpdatedAt) == nil {
+		var status bool
+		if rows.Scan(&s.UserID, &s.Email, &s.ScoreAPI, &s.ScorePoints, &s.ScoreContent, &s.ScoreAccount, &s.TotalScore, &s.UpdatedAt, &status, &s.BanUntil, &s.BanReason) == nil {
 			s.Reasons = ScoreReasons(s)
+			s.Banned = !status
 			scores = append(scores, s)
 		}
 	}
@@ -162,15 +165,11 @@ func ScoreReasons(s model.UserRiskScore) string {
 			parts = append(parts, label)
 		}
 	}
-	add("QPS超限", s.ScoreAPI, 15)
-	add("多IP", s.ScoreAPI, 10)
-	add("高错误率", s.ScoreAPI, 20)
+	add("API滥用", s.ScoreAPI, 30)
 	add("刷邀请", s.ScorePoints, 20)
-	add("同IP多号", s.ScorePoints, 15)
 	add("重复prompt", s.ScoreContent, 20)
 	add("高失败率", s.ScoreContent, 10)
-	add("被封历史", s.ScoreAccount, 30)
-	add("新账号", s.ScoreAccount, 20)
+	add("账号异常", s.ScoreAccount, 30)
 	if len(parts) == 0 {
 		return ""
 	}

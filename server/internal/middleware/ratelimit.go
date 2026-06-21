@@ -25,6 +25,12 @@ func SetDefaultUserRate(n int) {
 	atomic.StoreInt64(&defaultUserRate, int64(n))
 }
 
+// GetDefaultUserRate 读取后台配置的默认限速（每分钟请求数）。0 表示未配置。
+// 供风险评分器复用限流器的生效速率解析，保持量纲一致。
+func GetDefaultUserRate() int {
+	return int(atomic.LoadInt64(&defaultUserRate))
+}
+
 // riskLimitedUIDs 风险评分 ≥ limit_threshold 的用户集合。
 // 由 RiskScorer 每轮评分后写入，UserRateLimit 读取。
 var riskLimitedUIDs sync.Map

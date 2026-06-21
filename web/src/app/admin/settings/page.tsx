@@ -610,62 +610,156 @@ export default function SettingsPage() {
               <Card id="risk" icon={ShieldAlert} color="text-red-500" bg="bg-red-500/10" title="风险评分" desc="多维度用户风险评估阈值（修改后即时生效）">
                 {(() => {
                   const rc = (() => { try { return JSON.parse(cfg?.risk_config || "{}"); } catch { return {}; } })();
-                  const setRisk = (k: string, v: number | boolean) => {
+                  const setRisk = (k: string, v: number | boolean | string | number[]) => {
                     const next = { ...rc, [k]: v };
                     setCfg((p: any) => ({ ...p, risk_config: JSON.stringify(next) }));
                   };
+                  const ladderStr = Array.isArray(rc.ban_ladder) ? rc.ban_ladder.join(",") : "60,1440,10080";
+                  const weightSum = (rc.weight_api ?? 40) + (rc.weight_points ?? 20) + (rc.weight_content ?? 25) + (rc.weight_account ?? 15);
                   return (
-                    <div className="space-y-4">
-                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                        <div className="space-y-1.5">
-                          <Label>标记观察 ≥</Label>
-                          <Input type="number" min={0} max={100} value={rc.flag_threshold ?? 30} onChange={e => setRisk("flag_threshold", +e.target.value)} className={inputCls} placeholder="30" />
-                        </div>
-                        <div className="space-y-1.5">
-                          <Label>限流降级 ≥</Label>
-                          <Input type="number" min={0} max={100} value={rc.limit_threshold ?? 50} onChange={e => setRisk("limit_threshold", +e.target.value)} className={inputCls} placeholder="50" />
-                        </div>
-                        <div className="space-y-1.5">
-                          <Label>自动封禁 ≥</Label>
-                          <Input type="number" min={0} max={100} value={rc.ban_threshold ?? 80} onChange={e => setRisk("ban_threshold", +e.target.value)} className={inputCls} placeholder="80" />
-                        </div>
-                      </div>
-                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                        <div className="space-y-1.5">
-                          <Label>封禁时长(分钟)</Label>
-                          <Input type="number" min={0} max={43200} value={rc.ban_duration_minutes ?? 0} onChange={e => setRisk("ban_duration_minutes", +e.target.value)} className={inputCls} placeholder="0" />
-                        </div>
-                        <div className="space-y-1.5">
-                          <Label>评分间隔(分钟)</Label>
-                          <Input type="number" min={1} max={60} value={rc.score_interval_min ?? 5} onChange={e => setRisk("score_interval_min", +e.target.value)} className={inputCls} placeholder="5" />
-                        </div>
-                        <div className="flex items-end pb-1">
-                          <label className="flex items-center gap-2 text-xs cursor-pointer">
-                            <Switch checked={rc.ban_escalation ?? true} onCheckedChange={v => setRisk("ban_escalation", v)} />
-                            <span>阶梯封禁<span className="text-muted-foreground ml-1">第1次1h·第2次24h·第3次永久</span></span>
-                          </label>
+                    <div className="space-y-5">
+                      {/* 处置阈值 */}
+                      <div>
+                        <p className="text-xs font-semibold text-muted-foreground mb-2">处置阈值（总分 0-100）</p>
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                          <div className="space-y-1.5">
+                            <Label>标记观察 ≥</Label>
+                            <Input type="number" min={0} max={100} value={rc.flag_threshold ?? 40} onChange={e => setRisk("flag_threshold", +e.target.value)} className={inputCls} placeholder="40" />
+                          </div>
+                          <div className="space-y-1.5">
+                            <Label>限流降级 ≥</Label>
+                            <Input type="number" min={0} max={100} value={rc.limit_threshold ?? 65} onChange={e => setRisk("limit_threshold", +e.target.value)} className={inputCls} placeholder="65" />
+                          </div>
+                          <div className="space-y-1.5">
+                            <Label>自动封禁 ≥</Label>
+                            <Input type="number" min={0} max={100} value={rc.ban_threshold ?? 85} onChange={e => setRisk("ban_threshold", +e.target.value)} className={inputCls} placeholder="85" />
+                          </div>
                         </div>
                       </div>
-                      <div className="grid grid-cols-1 sm:grid-cols-5 gap-3">
-                        <div className="space-y-1.5">
-                          <Label>API 权重 %</Label>
-                          <Input type="number" min={0} max={100} value={rc.weight_api ?? 35} onChange={e => setRisk("weight_api", +e.target.value)} className={inputCls} placeholder="35" />
-                        </div>
-                        <div className="space-y-1.5">
-                          <Label>积分权重 %</Label>
-                          <Input type="number" min={0} max={100} value={rc.weight_points ?? 25} onChange={e => setRisk("weight_points", +e.target.value)} className={inputCls} placeholder="25" />
-                        </div>
-                        <div className="space-y-1.5">
-                          <Label>内容权重 %</Label>
-                          <Input type="number" min={0} max={100} value={rc.weight_content ?? 20} onChange={e => setRisk("weight_content", +e.target.value)} className={inputCls} placeholder="20" />
-                        </div>
-                        <div className="space-y-1.5">
-                          <Label>账号权重 %</Label>
-                          <Input type="number" min={0} max={100} value={rc.weight_account ?? 20} onChange={e => setRisk("weight_account", +e.target.value)} className={inputCls} placeholder="20" />
+
+                      {/* 维度权重 */}
+                      <div>
+                        <p className="text-xs font-semibold text-muted-foreground mb-2">
+                          维度权重 %（合计应 = 100，当前 <span className={weightSum === 100 ? "text-emerald-500" : "text-red-500"}>{weightSum}</span>）
+                        </p>
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                          <div className="space-y-1.5">
+                            <Label>API 滥用</Label>
+                            <Input type="number" min={0} max={100} value={rc.weight_api ?? 40} onChange={e => setRisk("weight_api", +e.target.value)} className={inputCls} placeholder="40" />
+                          </div>
+                          <div className="space-y-1.5">
+                            <Label>积分滥用</Label>
+                            <Input type="number" min={0} max={100} value={rc.weight_points ?? 20} onChange={e => setRisk("weight_points", +e.target.value)} className={inputCls} placeholder="20" />
+                          </div>
+                          <div className="space-y-1.5">
+                            <Label>内容滥用</Label>
+                            <Input type="number" min={0} max={100} value={rc.weight_content ?? 25} onChange={e => setRisk("weight_content", +e.target.value)} className={inputCls} placeholder="25" />
+                          </div>
+                          <div className="space-y-1.5">
+                            <Label>账号异常</Label>
+                            <Input type="number" min={0} max={100} value={rc.weight_account ?? 15} onChange={e => setRisk("weight_account", +e.target.value)} className={inputCls} placeholder="15" />
+                          </div>
                         </div>
                       </div>
+
+                      {/* 采集与评分窗口 */}
+                      <div>
+                        <p className="text-xs font-semibold text-muted-foreground mb-2">采集与评分</p>
+                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                          <div className="space-y-1.5">
+                            <Label>评分间隔(分钟)</Label>
+                            <Input type="number" min={1} max={60} value={rc.score_interval_min ?? 5} onChange={e => setRisk("score_interval_min", +e.target.value)} className={inputCls} placeholder="5" />
+                          </div>
+                          <div className="space-y-1.5">
+                            <Label>采集窗口(分钟)</Label>
+                            <Input type="number" min={1} max={60} value={rc.window_minutes ?? 5} onChange={e => setRisk("window_minutes", +e.target.value)} className={inputCls} placeholder="5" />
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* 灵敏度子参数 */}
+                      <div>
+                        <p className="text-xs font-semibold text-muted-foreground mb-2">灵敏度（决定各维度子项打分快慢，0=内置默认）</p>
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                          <div className="space-y-1.5">
+                            <Label>API 配额倍数</Label>
+                            <Input type="number" min={0} value={rc.api_rate_budget_mult ?? 6} onChange={e => setRisk("api_rate_budget_mult", +e.target.value)} className={inputCls} placeholder="6" />
+                          </div>
+                          <div className="space-y-1.5">
+                            <Label>错误率最小样本</Label>
+                            <Input type="number" min={0} value={rc.api_err_min_samples ?? 20} onChange={e => setRisk("api_err_min_samples", +e.target.value)} className={inputCls} placeholder="20" />
+                          </div>
+                          <div className="space-y-1.5">
+                            <Label>IP 数阈值</Label>
+                            <Input type="number" min={0} value={rc.api_ip_threshold ?? 15} onChange={e => setRisk("api_ip_threshold", +e.target.value)} className={inputCls} placeholder="15" />
+                          </div>
+                          <div className="space-y-1.5">
+                            <Label>邀请统计窗口(天)</Label>
+                            <Input type="number" min={0} value={rc.invite_window_days ?? 7} onChange={e => setRisk("invite_window_days", +e.target.value)} className={inputCls} placeholder="7" />
+                          </div>
+                          <div className="space-y-1.5">
+                            <Label>每重复prompt分</Label>
+                            <Input type="number" min={0} value={rc.dup_prompt_unit ?? 20} onChange={e => setRisk("dup_prompt_unit", +e.target.value)} className={inputCls} placeholder="20" />
+                          </div>
+                          <div className="space-y-1.5">
+                            <Label>失败率满分上限</Label>
+                            <Input type="number" min={0} max={100} value={rc.fail_rate_max ?? 20} onChange={e => setRisk("fail_rate_max", +e.target.value)} className={inputCls} placeholder="20" />
+                          </div>
+                          <div className="space-y-1.5">
+                            <Label>每同IP账号分</Label>
+                            <Input type="number" min={0} value={rc.same_ip_unit ?? 12} onChange={e => setRisk("same_ip_unit", +e.target.value)} className={inputCls} placeholder="12" />
+                          </div>
+                          <div className="space-y-1.5">
+                            <Label>同IP分上限</Label>
+                            <Input type="number" min={0} max={100} value={rc.same_ip_max ?? 50} onChange={e => setRisk("same_ip_max", +e.target.value)} className={inputCls} placeholder="50" />
+                          </div>
+                          <div className="space-y-1.5">
+                            <Label>被封历史加分</Label>
+                            <Input type="number" min={0} max={100} value={rc.ban_history_score ?? 40} onChange={e => setRisk("ban_history_score", +e.target.value)} className={inputCls} placeholder="40" />
+                          </div>
+                          <div className="space-y-1.5">
+                            <Label>新账号判定(小时)</Label>
+                            <Input type="number" min={0} value={rc.new_account_hours ?? 24} onChange={e => setRisk("new_account_hours", +e.target.value)} className={inputCls} placeholder="24" />
+                          </div>
+                          <div className="space-y-1.5">
+                            <Label>新账号加分</Label>
+                            <Input type="number" min={0} max={100} value={rc.new_account_score ?? 20} onChange={e => setRisk("new_account_score", +e.target.value)} className={inputCls} placeholder="20" />
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* 封禁策略 */}
+                      <div>
+                        <p className="text-xs font-semibold text-muted-foreground mb-2">封禁策略</p>
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                          <div className="flex items-end pb-1">
+                            <label className="flex items-center gap-2 text-xs cursor-pointer">
+                              <Switch checked={rc.ban_escalation ?? true} onCheckedChange={v => setRisk("ban_escalation", v)} />
+                              <span>阶梯封禁</span>
+                            </label>
+                          </div>
+                          {(rc.ban_escalation ?? true) ? (
+                            <div className="space-y-1.5 sm:col-span-2">
+                              <Label>阶梯时长序列(分钟,逗号分隔,0=永久)</Label>
+                              <Input value={ladderStr} onChange={e => setRisk("ban_ladder", e.target.value.split(",").map(s => parseInt(s.trim(), 10)).filter(n => !isNaN(n)))} className={inputCls} placeholder="60,1440,10080" />
+                            </div>
+                          ) : (
+                            <div className="space-y-1.5">
+                              <Label>固定封禁时长(分钟,0=永久)</Label>
+                              <Input type="number" min={0} max={43200} value={rc.ban_duration_minutes ?? 60} onChange={e => setRisk("ban_duration_minutes", +e.target.value)} className={inputCls} placeholder="60" />
+                            </div>
+                          )}
+                        </div>
+                        <div className="space-y-1.5 mt-3">
+                          <Label>申诉联系方式（注入封禁提示，留空用通用文案）</Label>
+                          <Input value={rc.appeal_contact ?? ""} onChange={e => setRisk("appeal_contact", e.target.value)} className={inputCls} placeholder="如 邮箱 admin@example.com / TG @xxx / QQ群 12345" />
+                        </div>
+                      </div>
+
                       <div className="rounded-xl bg-muted/40 p-3.5 text-xs text-muted-foreground leading-relaxed">
-                        四项权重应合计 100。阈值：≥{rc.flag_threshold ?? 30} 观察 · ≥{rc.limit_threshold ?? 50} 限流 · ≥{rc.ban_threshold ?? 80} 封禁。评分每 {rc.score_interval_min ?? 5} 分钟刷新。封禁时长 0=永久；开启阶梯后第 1 次 1h、第 2 次 24h、第 3 次永久。点击底部「保存设置」即时生效。
+                        阈值：≥{rc.flag_threshold ?? 40} 观察 · ≥{rc.limit_threshold ?? 65} 限流降级（速率减半）· ≥{rc.ban_threshold ?? 85} 自动封禁。
+                        评分每 {rc.score_interval_min ?? 5} 分钟刷新，高频信号按 {rc.window_minutes ?? 5} 分钟窗口采集。
+                        开启阶梯后按序列逐级升级时长（默认 1h→1天→7天，超出序列用最后一级），关闭则每次都用固定时长。临时封禁到期自动解封。点击底部「保存设置」即时生效。
                       </div>
                     </div>
                   );

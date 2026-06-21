@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"strings"
 	"time"
 
 	"chatgpt2api-pro/internal/middleware"
@@ -23,23 +24,60 @@ func NewRiskScorer(mysql *store.MySQLStore, redis *store.RedisStore, superadminE
 	return &RiskScorer{mysql: mysql, redis: redis, superadminEmail: superadminEmail}
 }
 
-// loadConfig 从 settings 加载风险配置，缺失时回退默认值。
+// loadConfig 从 settings 加载风险配置。
+// 采用 default-base 覆盖：以 DefaultRiskConfig 为底，再用 JSON 中显式提供的字段覆盖，
+// 数值型字段遵循「0=用默认」（除权重外，权重允许显式 0），布尔/序列/字符串按 JSON 原值。
+// 这样旧配置 JSON 升级后新增字段自动取默认，无需迁移，也无需在 calc* 里散落 if<=0。
 func (rs *RiskScorer) loadConfig() model.RiskConfig {
+	cfg := model.DefaultRiskConfig()
 	settings, _ := rs.mysql.GetSettings()
-	if settings != nil && settings.RiskConfigJSON != "" {
-		var cfg model.RiskConfig
-		if json.Unmarshal([]byte(settings.RiskConfigJSON), &cfg) == nil {
-			if cfg.ScoreIntervalMin <= 0 { cfg.ScoreIntervalMin = 5 }
-			return cfg
-		}
+	if settings == nil || settings.RiskConfigJSON == "" {
+		return cfg
 	}
-	return model.DefaultRiskConfig()
+	var raw model.RiskConfig
+	if json.Unmarshal([]byte(settings.RiskConfigJSON), &raw) != nil {
+		return cfg
+	}
+	// 阈值与窗口（0=保留默认）
+	ovInt := func(dst *int, v int) { if v > 0 { *dst = v } }
+	ovInt(&cfg.FlagThreshold, raw.FlagThreshold)
+	ovInt(&cfg.LimitThreshold, raw.LimitThreshold)
+	ovInt(&cfg.BanThreshold, raw.BanThreshold)
+	ovInt(&cfg.ScoreIntervalMin, raw.ScoreIntervalMin)
+	ovInt(&cfg.WindowMinutes, raw.WindowMinutes)
+	// 权重：允许显式 0（某维度可被关掉），仅当四项全 0（旧配置无此段）才保留默认
+	if raw.WeightAPI != 0 || raw.WeightPoints != 0 || raw.WeightContent != 0 || raw.WeightAccount != 0 {
+		cfg.WeightAPI, cfg.WeightPoints = raw.WeightAPI, raw.WeightPoints
+		cfg.WeightContent, cfg.WeightAccount = raw.WeightContent, raw.WeightAccount
+	}
+	// 灵敏度子参数（0=保留默认）
+	ovInt(&cfg.APIRateBudgetMult, raw.APIRateBudgetMult)
+	ovInt(&cfg.APIErrMinSamples, raw.APIErrMinSamples)
+	ovInt(&cfg.APIIPThreshold, raw.APIIPThreshold)
+	ovInt(&cfg.InviteWindowDays, raw.InviteWindowDays)
+	ovInt(&cfg.DupPromptUnit, raw.DupPromptUnit)
+	ovInt(&cfg.FailRateMax, raw.FailRateMax)
+	ovInt(&cfg.SameIPUnit, raw.SameIPUnit)
+	ovInt(&cfg.SameIPMax, raw.SameIPMax)
+	ovInt(&cfg.BanHistoryScore, raw.BanHistoryScore)
+	ovInt(&cfg.NewAccountHours, raw.NewAccountHours)
+	ovInt(&cfg.NewAccountScore, raw.NewAccountScore)
+	// 封禁策略
+	cfg.BanDurationMinutes = raw.BanDurationMinutes // 允许显式 0=永久
+	cfg.BanEscalation = raw.BanEscalation
+	if len(raw.BanLadder) > 0 {
+		cfg.BanLadder = raw.BanLadder
+	}
+	cfg.AppealContact = raw.AppealContact
+	return cfg
 }
 
 // Start 启动评分定时器。
 func (rs *RiskScorer) Start() {
 	cfg := rs.loadConfig()
 	interval := time.Duration(cfg.ScoreIntervalMin) * time.Minute
+	// 启动即把采集窗口同步给 RiskRecorder，保证首轮前的采集就用正确窗口。
+	middleware.SetRiskWindow(cfg.WindowMinutes)
 	go func() {
 		// 启动时先清空 Redis 中所有旧计数器，避免上次运行时积压的数据虚高首轮评分
 		ids, _ := rs.mysql.GetActiveUserIDs(1)
@@ -60,6 +98,9 @@ func (rs *RiskScorer) run() {
 	ctx := context.Background()
 	cfg := rs.loadConfig()
 
+	// 热同步采集窗口给 RiskRecorder（后台改窗口后下一轮生效）。
+	middleware.SetRiskWindow(cfg.WindowMinutes)
+
 	ids, err := rs.mysql.GetActiveUserIDs(1)
 	if err != nil {
 		log.Printf("[risk] 获取活跃用户失败: %v", err)
@@ -70,19 +111,17 @@ func (rs *RiskScorer) run() {
 	riskThrottled := map[int64]bool{}
 
 	for _, uid := range ids {
+		user, _ := rs.mysql.GetUserByID(uid)
 		// 跳过 superadmin（role=0 但 .env 指定，不受评分系统限制）
-		if rs.superadminEmail != "" {
-			user, _ := rs.mysql.GetUserByID(uid)
-			if user != nil && user.Email == rs.superadminEmail {
-				continue
-			}
+		if rs.superadminEmail != "" && user != nil && user.Email == rs.superadminEmail {
+			continue
 		}
 		snap := rs.redis.GetRiskSnapshot(ctx, uid)
 
-		scoreAPI := calcAPIScore(snap)
-		scorePoints := rs.calcPointsScore(uid)
-		scoreContent := rs.calcContentScore(uid)
-		scoreAccount := rs.calcAccountScore(uid)
+		scoreAPI := calcAPIScore(snap, user, cfg)
+		scorePoints := rs.calcPointsScore(uid, cfg)
+		scoreContent := rs.calcContentScore(uid, cfg)
+		scoreAccount := rs.calcAccountScore(uid, cfg)
 
 		total := (scoreAPI*cfg.WeightAPI + scorePoints*cfg.WeightPoints +
 			scoreContent*cfg.WeightContent + scoreAccount*cfg.WeightAccount) / 100
@@ -121,23 +160,20 @@ func (rs *RiskScorer) run() {
 		}
 
 		duration := cfg.BanDurationMinutes
-		if cfg.BanEscalation {
-			switch banCount {
-			case 0: duration = 60
-			case 1: duration = 1440
-			default: duration = 0
+		if cfg.BanEscalation && len(cfg.BanLadder) > 0 {
+			// 阶梯：按历史封禁次数取对应档位；超出序列长度用最后一级。
+			idx := banCount
+			if idx >= len(cfg.BanLadder) {
+				idx = len(cfg.BanLadder) - 1
 			}
+			duration = cfg.BanLadder[idx]
 		}
-		var reason string
-		if duration > 0 {
-			reason = fmt.Sprintf("总分 %d，%s。第 %d 次违规，封禁 %d 分钟。如有疑问请联系管理员。", score, reasons, banCount+1, duration)
-		} else {
-			reason = fmt.Sprintf("总分 %d，%s。第 %d 次违规，永久封禁。如有疑问请联系管理员。", score, reasons, banCount+1)
-		}
+
+		reason := buildBanReason(score, reasons, banCount+1, duration, cfg.AppealContact)
 		rs.mysql.BanUserWithDuration(uid, reason, duration)
 		rs.mysql.InsertAccountEvent(uid, "ban", "risk_score_auto",
-			fmt.Sprintf("评分 %d，第 %d 次，封禁 %d 分钟", score, banCount+1, duration))
-		log.Printf("[risk] 自动封禁 uid=%d (%s) 评分=%d 第%d次 时长=%dmin", uid, user.Email, score, banCount+1, duration)
+			fmt.Sprintf("评分 %d，第 %d 次，%s", score, banCount+1, banDurationText(duration)))
+		log.Printf("[risk] 自动封禁 uid=%d (%s) 评分=%d 第%d次 时长=%s", uid, user.Email, score, banCount+1, banDurationText(duration))
 	}
 
 	// 检查是否有已过期的临时封禁需自动解封
@@ -153,65 +189,133 @@ func (rs *RiskScorer) run() {
 	log.Printf("[risk] 评分完成：活跃 %d，封禁 %d", len(ids), len(autoBanIDs))
 }
 
-func calcAPIScore(snap map[string]int) int {
-	qps := snap["qps"]
-	planLimit := 30
-	scoreQPS := clamp(qps*30/max(planLimit, 1), 0, 30)
+// calcAPIScore 计算 API 滥用分（0-100）。
+// 注意：snap["qps"] 实为窗口内的请求计数（RiskRecorder 每请求 +1），并非每秒 QPS。
+func calcAPIScore(snap map[string]int, user *model.User, cfg model.RiskConfig) int {
+	// reqCount: 采集窗口内的请求总数。
+	reqCount := snap["qps"]
+
+	// 镜像 UserRateLimit 的生效速率解析（套餐 > 后台默认 > 内置兜底 30），保持量纲一致。
+	// 内置兜底 30/min 对齐 router.go 传入 UserRateLimit 的基线。
+	ratePerMin := 30
+	if d := middleware.GetDefaultUserRate(); d > 0 {
+		ratePerMin = d
+	}
+	if user != nil && user.RateLimitPerMin > 0 {
+		ratePerMin = user.RateLimitPerMin
+	}
+	reqBudget := ratePerMin * cfg.APIRateBudgetMult // 窗口配额 = 速率/min × 倍数
+	scoreReq := clamp(reqCount*30/max(reqBudget, 1), 0, 30)
+
+	// 错误率：需足够样本量，避免低频用户单次失败即满分。
 	errs := snap["errors"]
-	total := max(qps, 1)
-	scoreErr := clamp(errs*40/total, 0, 40)
+	scoreErr := 0
+	if reqCount >= cfg.APIErrMinSamples {
+		scoreErr = clamp(errs*40/reqCount, 0, 40)
+	}
+
+	// IP 切换数：达到阈值个去重 IP 即触满。
 	ips := snap["ips"]
-	scoreIP := clamp(ips*30/10, 0, 30)
+	scoreIP := clamp(ips*30/max(cfg.APIIPThreshold, 1), 0, 30)
+
+	// 令牌消耗：按套餐令牌桶容量衡量。
+	tokenBudget := 50
+	if user != nil && user.TokenCapacity > 0 {
+		tokenBudget = user.TokenCapacity
+	}
 	tokens := snap["tokens"]
-	scoreTokens := clamp(tokens*20/max(planLimit, 1), 0, 20)
-	score := scoreQPS + scoreErr + scoreIP + scoreTokens
-	if score > 100 {
-		score = 100
-	}
-	return score
+	scoreTokens := clamp(tokens*20/max(tokenBudget, 1), 0, 20)
+
+	return clamp(scoreReq+scoreErr+scoreIP+scoreTokens, 0, 100)
 }
 
-func (rs *RiskScorer) calcPointsScore(uid int64) int {
-	inv := rs.mysql.CountInviteRegs(uid, 7)
-	own := rs.mysql.CountOwnRegs(uid, 7)
-	scoreInvite := 0
-	if own > 0 {
-		scoreInvite = clamp(inv*50/own, 0, 50)
+func (rs *RiskScorer) calcPointsScore(uid int64, cfg model.RiskConfig) int {
+	// 积分滥用维度：聚焦邀请裂变作弊（邀请注册数 / 自身相关注册数 的异常比例）。
+	// 同 IP 多号信号统一归入「账号异常」维度（calcAccountScore），此处不再重复计分。
+	inv := rs.mysql.CountInviteRegs(uid, cfg.InviteWindowDays)
+	own := rs.mysql.CountOwnRegs(uid, cfg.InviteWindowDays)
+	if own <= 0 {
+		return 0
 	}
-	sameIP := rs.mysql.CountSameIPUsers(uid)
-	scoreIP := clamp(sameIP*15, 0, 50)
-	return scoreInvite + scoreIP
+	return clamp(inv*100/own, 0, 100)
 }
 
-func (rs *RiskScorer) calcContentScore(uid int64) int {
+func (rs *RiskScorer) calcContentScore(uid int64, cfg model.RiskConfig) int {
 	failed := rs.mysql.CountFailedGens24h(uid)
 	total := rs.mysql.CountTotalGens24h(uid)
 	scoreFail := 0
 	if total > 0 {
-		scoreFail = clamp(failed*20/total, 0, 20)
+		scoreFail = clamp(failed*cfg.FailRateMax/total, 0, cfg.FailRateMax)
 	}
 	dup := rs.mysql.CountDupPrompts24h(uid)
-	scoreDup := clamp(dup*30, 0, 80)
-	return scoreFail + scoreDup
+	// 重复 prompt 子项上限 = 100 - 失败率上限，保证两项相加不超 100。
+	dupMax := clamp(100-cfg.FailRateMax, 0, 100)
+	scoreDup := clamp(dup*cfg.DupPromptUnit, 0, dupMax)
+	return clamp(scoreFail+scoreDup, 0, 100)
 }
 
-func (rs *RiskScorer) calcAccountScore(uid int64) int {
+func (rs *RiskScorer) calcAccountScore(uid int64, cfg model.RiskConfig) int {
 	score := 0
 	sameIP := rs.mysql.CountSameIPUsers(uid)
-	score += clamp(sameIP*20, 0, 60)
+	score += clamp(sameIP*cfg.SameIPUnit, 0, cfg.SameIPMax)
 	if rs.mysql.CountBanEvents(uid) > 0 {
-		score += 50
+		score += cfg.BanHistoryScore
 	}
-	if rs.mysql.AccountAgeHours(uid) < 24 {
-		score += 30
+	if rs.mysql.AccountAgeHours(uid) < float64(cfg.NewAccountHours) {
+		score += cfg.NewAccountScore
 	}
-	return score
+	// 各子项相加可能超 100，需夹到 0-100，否则代入加权公式会使总分超过 100，破坏阈值语义。
+	return clamp(score, 0, 100)
 }
 
 func totalScore(s *store.MySQLStore, uid int64) int {
 	var t int
 	s.RawQueryRow("SELECT total_score FROM user_risk_scores WHERE user_id=?", uid).Scan(&t)
 	return t
+}
+
+// banDurationText 把封禁时长（分钟）格式化为人性化文案。0=永久。
+func banDurationText(minutes int) string {
+	switch {
+	case minutes <= 0:
+		return "永久封禁"
+	case minutes < 60:
+		return fmt.Sprintf("封禁 %d 分钟", minutes)
+	case minutes%1440 == 0:
+		return fmt.Sprintf("封禁 %d 天", minutes/1440)
+	case minutes%60 == 0:
+		return fmt.Sprintf("封禁 %d 小时", minutes/60)
+	default:
+		return fmt.Sprintf("封禁 %d 小时 %d 分钟", minutes/60, minutes%60)
+	}
+}
+
+// buildBanReason 组装面向用户的封禁提示：处置结果 + 触发原因 + 解封说明 + 申诉入口。
+func buildBanReason(score int, reasons string, violationNo, durationMin int, appeal string) string {
+	var b strings.Builder
+	// 1) 处置结果（放最前，用户一眼看到）
+	b.WriteString("您的账号已被系统自动")
+	b.WriteString(banDurationText(durationMin))
+	b.WriteString("。")
+	// 2) 触发原因（去掉裸分数，改为风险类型；分数仅作技术参考保留括号内）
+	if reasons != "" && reasons != "综合风险" {
+		b.WriteString(fmt.Sprintf("触发原因：%s（风险评分 %d）。", reasons, score))
+	} else {
+		b.WriteString(fmt.Sprintf("触发原因：综合风险评分过高（%d）。", score))
+	}
+	// 3) 次数与解封说明
+	if durationMin > 0 {
+		b.WriteString(fmt.Sprintf("这是第 %d 次触发，到期后将自动解封；若再次触发，封禁时长会升级。", violationNo))
+	} else {
+		b.WriteString(fmt.Sprintf("这是第 %d 次触发，已永久封禁。", violationNo))
+	}
+	// 4) 申诉入口
+	if appeal != "" {
+		b.WriteString(fmt.Sprintf("如系误判，请通过 %s 联系管理员申诉。", appeal))
+	} else {
+		b.WriteString("如有疑问或认为系误判，请联系管理员申诉。")
+	}
+	return b.String()
 }
 
 func clamp(v, lo, hi int) int {

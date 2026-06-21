@@ -7,6 +7,7 @@ import (
 	"strconv"
 
 	"chatgpt2api-pro/internal/model"
+	"chatgpt2api-pro/internal/store"
 )
 
 // GET /api/admin/risk/scores — 风险评分排行
@@ -33,17 +34,24 @@ func (h *Handler) AdminRiskDetail(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 400, model.APIResponse{Code: 400, Message: "参数错误"})
 		return
 	}
-	// 从 DB 查评分
+	// 从 DB 查评分 + 封禁状态
 	var score model.UserRiskScore
 	var email string
+	var status bool
+	var banUntil, banReason, createdAt string
 	err := h.MySQL.RawQueryRow(
-		"SELECT u.email, r.score_api, r.score_points, r.score_content, r.score_account, r.total_score FROM user_risk_scores r JOIN users u ON r.user_id=u.id WHERE r.user_id=?",
-		uid).Scan(&email, &score.ScoreAPI, &score.ScorePoints, &score.ScoreContent, &score.ScoreAccount, &score.TotalScore)
+		`SELECT u.email, r.score_api, r.score_points, r.score_content, r.score_account, r.total_score,
+			u.status, COALESCE(DATE_FORMAT(u.ban_until,'%Y-%m-%d %H:%i:%s'),''), COALESCE(u.ban_reason,''),
+			COALESCE(DATE_FORMAT(u.created_at,'%Y-%m-%d %H:%i:%s'),'')
+		FROM user_risk_scores r JOIN users u ON r.user_id=u.id WHERE r.user_id=?`,
+		uid).Scan(&email, &score.ScoreAPI, &score.ScorePoints, &score.ScoreContent, &score.ScoreAccount, &score.TotalScore,
+		&status, &banUntil, &banReason, &createdAt)
 	if err != nil {
 		writeJSON(w, 404, model.APIResponse{Code: 404, Message: "无评分记录"})
 		return
 	}
 	score.UserID = uid
+	score.Reasons = store.ScoreReasons(score)
 	// Redis 实时快照
 	snap := h.Redis.GetRiskSnapshot(r.Context(), uid)
 	detail := model.RiskDetail{
@@ -51,6 +59,10 @@ func (h *Handler) AdminRiskDetail(w http.ResponseWriter, r *http.Request) {
 		Email:     email,
 		Scores:    score,
 		Snapshots: snap,
+		Banned:    !status,
+		BanUntil:  banUntil,
+		BanReason: banReason,
+		CreatedAt: createdAt,
 	}
 	writeJSON(w, 200, model.APIResponse{Code: 200, Data: detail})
 }
