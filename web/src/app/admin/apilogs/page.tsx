@@ -66,11 +66,6 @@ interface StatsData {
   total_calls: number; success_calls: number; failed_calls: number;
   rate_limited: number; total_tokens: number; active_users: number; active_keys: number;
 }
-interface HistoryPage {
-  items: LogEntry[];
-  total: number;
-}
-
 const PAGE_SIZE = 20;
 
 export default function AdminAPILogsPage() {
@@ -137,10 +132,10 @@ export default function AdminAPILogsPage() {
                     return next;
                   });
                 }
-              } catch {}
+              } catch (e) { console.error(e); }
             }
           }
-        } catch {}
+        } catch (e) { console.error(e); }
         setConnected(false);
         await new Promise(r => setTimeout(r, 3000));
       }
@@ -164,7 +159,7 @@ export default function AdminAPILogsPage() {
       const body = await res.json();
       setHistory(body.data?.items || []);
       setHistoryTotal(body.data?.total || 0);
-    } catch {}
+    } catch (e) { console.error(e); }
     finally { setLoadingHistory(false); }
   };
   useEffect(() => { if (tab === "history") fetchHistory(); }, [tab, page, filterEmail, filterEndpoint, filterStatus]);
@@ -213,7 +208,7 @@ export default function AdminAPILogsPage() {
             </h1>
             <p className="text-[10px] sm:text-xs text-muted-foreground mt-0.5">
               实时监控全站 API 调用 · 已捕获 {liveLogs.length} 条实时日志
-              {stats ? ` · QPS ≈ ${stats.total_calls}` : ""}
+              {stats ? ` · 窗口调用 ${stats.total_calls}` : ""}
             </p>
           </div>
         </div>
