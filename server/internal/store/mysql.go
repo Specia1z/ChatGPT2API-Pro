@@ -678,6 +678,10 @@ func (s *MySQLStore) autoMigrate() {
 
 	// settings 保留期列（旧库补列；裸 ALTER 重复执行报错被忽略）
 	s.db.Exec("ALTER TABLE settings ADD COLUMN api_log_retention_days INT NOT NULL DEFAULT 0 AFTER api_image_ttl_min")
+	// 风险评分配置
+	if !s.columnExists(s.currentDBName(), "settings", "risk_config") {
+		s.db.Exec("ALTER TABLE settings ADD COLUMN risk_config TEXT AFTER api_log_retention_days")
+	}
 }
 
 // currentDBName 返回当前连接的数据库名（用于 information_schema 查询）

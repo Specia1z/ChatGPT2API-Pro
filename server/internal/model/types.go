@@ -288,6 +288,7 @@ type Settings struct {
 	APINoPersist bool `json:"api_no_persist"` // 开：API Key 生成的图/SVG 不永久落地，只短时缓存 + 代理地址（省空间）
 	APIImageTTLMin int `json:"api_image_ttl_min"` // API 短时缓存有效期（分钟，0=用内置默认 30）
 	APILogRetentionDays int `json:"api_log_retention_days"` // API 调用日志保留天数（0=用内置默认 30）
+	RiskConfigJSON string `json:"risk_config"` // JSON：风险评分阈值配置（RiskConfig）
 }
 
 // ShopItem 积分商城商品（第一期：积分换套餐时长）。存于 settings.shop_config 的 JSON 数组。

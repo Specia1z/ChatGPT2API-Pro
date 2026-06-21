@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"log"
 	"strconv"
 	"time"
@@ -20,9 +21,22 @@ func NewRiskScorer(mysql *store.MySQLStore, redis *store.RedisStore) *RiskScorer
 	return &RiskScorer{mysql: mysql, redis: redis}
 }
 
+// loadConfig 从 settings 加载风险配置，缺失时回退默认值。
+func (rs *RiskScorer) loadConfig() model.RiskConfig {
+	settings, _ := rs.mysql.GetSettings()
+	if settings != nil && settings.RiskConfigJSON != "" {
+		var cfg model.RiskConfig
+		if json.Unmarshal([]byte(settings.RiskConfigJSON), &cfg) == nil {
+			if cfg.ScoreIntervalMin <= 0 { cfg.ScoreIntervalMin = 5 }
+			return cfg
+		}
+	}
+	return model.DefaultRiskConfig()
+}
+
 // Start 启动评分定时器。
 func (rs *RiskScorer) Start() {
-	cfg := model.DefaultRiskConfig()
+	cfg := rs.loadConfig()
 	interval := time.Duration(cfg.ScoreIntervalMin) * time.Minute
 	go func() {
 		rs.run()
@@ -37,7 +51,7 @@ func (rs *RiskScorer) Start() {
 
 func (rs *RiskScorer) run() {
 	ctx := context.Background()
-	cfg := model.DefaultRiskConfig()
+	cfg := rs.loadConfig()
 
 	ids, err := rs.mysql.GetActiveUserIDs(1)
 	if err != nil {

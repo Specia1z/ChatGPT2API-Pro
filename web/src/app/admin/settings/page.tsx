@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { Outfit, DM_Mono } from "next/font/google";
-import { Globe, Shield, Save, Gauge, Gift, Database, Users, Activity, Rocket, Coins, Layers, Shapes, RefreshCw, ShoppingBag, Plus, Trash2, Upload, KeyRound } from "lucide-react";
+import { Globe, Shield, Save, Gauge, Gift, Database, Users, Activity, Rocket, Coins, Layers, Shapes, RefreshCw, ShoppingBag, Plus, Trash2, Upload, KeyRound, ShieldAlert } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
 import { AdminSidebar } from "@/components/admin-sidebar";
@@ -30,6 +30,7 @@ const SECTIONS = [
   { id: "freequota", label: "无套餐额度", icon: Layers, color: "text-sky-500", bg: "bg-sky-500/10" },
   { id: "perf", label: "性能调优", icon: Rocket, color: "text-orange-500", bg: "bg-orange-500/10" },
   { id: "storage", label: "存储清理", icon: Database, color: "text-violet-500", bg: "bg-violet-500/10" },
+  { id: "risk", label: "风险评分", icon: ShieldAlert, color: "text-red-500", bg: "bg-red-500/10" },
 ];
 
 /* ── 开关行 ─────────────────────────────────── */
@@ -603,6 +604,60 @@ export default function SettingsPage() {
                       : "当前设为 0，表示不自动清理。"}
                   </div>
                 </div>
+              </Card>
+
+              {/* ═══ 风险评分 ═══ */}
+              <Card id="risk" icon={ShieldAlert} color="text-red-500" bg="bg-red-500/10" title="风险评分" desc="多维度用户风险评估阈值（修改后即时生效）">
+                {(() => {
+                  const rc = (() => { try { return JSON.parse(cfg?.risk_config || "{}"); } catch { return {}; } })();
+                  const setRisk = (k: string, v: number) => {
+                    const next = { ...rc, [k]: v };
+                    setCfg((p: any) => ({ ...p, risk_config: JSON.stringify(next) }));
+                  };
+                  return (
+                    <div className="space-y-4">
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                        <div className="space-y-1.5">
+                          <Label>标记观察 ≥</Label>
+                          <Input type="number" min={0} max={100} value={rc.flag_threshold ?? 30} onChange={e => setRisk("flag_threshold", +e.target.value)} className={inputCls} placeholder="30" />
+                        </div>
+                        <div className="space-y-1.5">
+                          <Label>限流降级 ≥</Label>
+                          <Input type="number" min={0} max={100} value={rc.limit_threshold ?? 50} onChange={e => setRisk("limit_threshold", +e.target.value)} className={inputCls} placeholder="50" />
+                        </div>
+                        <div className="space-y-1.5">
+                          <Label>自动封禁 ≥</Label>
+                          <Input type="number" min={0} max={100} value={rc.ban_threshold ?? 80} onChange={e => setRisk("ban_threshold", +e.target.value)} className={inputCls} placeholder="80" />
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-5 gap-3">
+                        <div className="space-y-1.5">
+                          <Label>评分间隔(分钟)</Label>
+                          <Input type="number" min={1} max={60} value={rc.score_interval_min ?? 5} onChange={e => setRisk("score_interval_min", +e.target.value)} className={inputCls} placeholder="5" />
+                        </div>
+                        <div className="space-y-1.5">
+                          <Label>API 权重 %</Label>
+                          <Input type="number" min={0} max={100} value={rc.weight_api ?? 35} onChange={e => setRisk("weight_api", +e.target.value)} className={inputCls} placeholder="35" />
+                        </div>
+                        <div className="space-y-1.5">
+                          <Label>积分权重 %</Label>
+                          <Input type="number" min={0} max={100} value={rc.weight_points ?? 25} onChange={e => setRisk("weight_points", +e.target.value)} className={inputCls} placeholder="25" />
+                        </div>
+                        <div className="space-y-1.5">
+                          <Label>内容权重 %</Label>
+                          <Input type="number" min={0} max={100} value={rc.weight_content ?? 20} onChange={e => setRisk("weight_content", +e.target.value)} className={inputCls} placeholder="20" />
+                        </div>
+                        <div className="space-y-1.5">
+                          <Label>账号权重 %</Label>
+                          <Input type="number" min={0} max={100} value={rc.weight_account ?? 20} onChange={e => setRisk("weight_account", +e.target.value)} className={inputCls} placeholder="20" />
+                        </div>
+                      </div>
+                      <div className="rounded-xl bg-muted/40 p-3.5 text-xs text-muted-foreground leading-relaxed">
+                        四项权重应合计 100。阈值说明：≥{rc.flag_threshold ?? 30} 标记观察 · ≥{rc.limit_threshold ?? 50} 限流降级 · ≥{rc.ban_threshold ?? 80} 自动封禁。评分每 {rc.score_interval_min ?? 5} 分钟刷新。修改后点击底部「保存设置」即时生效。
+                      </div>
+                    </div>
+                  );
+                })()}
               </Card>
 
               <p className="text-xs text-muted-foreground text-center pb-2">站点设置统一保存 · 调度器配置需在对应卡片单独应用</p>
