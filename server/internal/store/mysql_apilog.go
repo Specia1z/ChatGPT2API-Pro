@@ -15,14 +15,14 @@ func (s *MySQLStore) BatchInsertAPICallLogs(batch []apilog.Record) error {
 		return nil
 	}
 	var sb strings.Builder
-	sb.WriteString("INSERT INTO api_call_logs (user_id, api_key_id, endpoint, status_code, tokens_cost, count, latency_ms) VALUES ")
+	sb.WriteString("INSERT INTO api_call_logs (user_id, api_key_id, endpoint, ip, status_code, tokens_cost, count, latency_ms) VALUES ")
 	args := make([]any, 0, len(batch)*7)
 	for i, r := range batch {
 		if i > 0 {
 			sb.WriteString(",")
 		}
-		sb.WriteString("(?,?,?,?,?,?,?)")
-		args = append(args, r.UserID, r.APIKeyID, r.Endpoint, r.StatusCode, r.TokensCost, r.Count, r.LatencyMs)
+		sb.WriteString("(?,?,?,?,?,?,?,?)")
+		args = append(args, r.UserID, r.APIKeyID, r.Endpoint, r.IP, r.StatusCode, r.TokensCost, r.Count, r.LatencyMs)
 	}
 	_, err := s.db.Exec(sb.String(), args...)
 	return err
@@ -144,7 +144,7 @@ func (s *MySQLStore) GetAPICallLogs(userID int64, page, pageSize int, keyID int6
 	var total int
 	s.db.QueryRow("SELECT COUNT(*) FROM api_call_logs l "+where, args...).Scan(&total)
 
-	q := "SELECT l.id, l.api_key_id, COALESCE(k.name,''), l.endpoint, l.status_code, l.tokens_cost, l.count, l.latency_ms, DATE_FORMAT(l.created_at,'%Y-%m-%d %H:%i:%s') " +
+	q := "SELECT l.id, l.api_key_id, COALESCE(k.name,''), l.endpoint, l.ip, l.status_code, l.tokens_cost, l.count, l.latency_ms, DATE_FORMAT(l.created_at,'%Y-%m-%d %H:%i:%s') " +
 		"FROM api_call_logs l LEFT JOIN user_api_keys k ON l.api_key_id=k.id " + where +
 		" ORDER BY l.id DESC LIMIT " + strconv.Itoa(pageSize) + " OFFSET " + strconv.Itoa((page-1)*pageSize)
 	rows, err := s.db.Query(q, args...)
@@ -155,7 +155,7 @@ func (s *MySQLStore) GetAPICallLogs(userID int64, page, pageSize int, keyID int6
 	out := []model.APICallLog{}
 	for rows.Next() {
 		var l model.APICallLog
-		if rows.Scan(&l.ID, &l.APIKeyID, &l.KeyName, &l.Endpoint, &l.StatusCode, &l.TokensCost, &l.Count, &l.LatencyMs, &l.CreatedAt) == nil {
+		if rows.Scan(&l.ID, &l.APIKeyID, &l.KeyName, &l.Endpoint, &l.IP, &l.StatusCode, &l.TokensCost, &l.Count, &l.LatencyMs, &l.CreatedAt) == nil {
 			if l.KeyName == "" {
 				l.KeyName = "未知"
 			}
@@ -163,4 +163,180 @@ func (s *MySQLStore) GetAPICallLogs(userID int64, page, pageSize int, keyID int6
 		}
 	}
 	return out, total, rows.Err()
+}
+
+// GetAllAPICallLogs 全站分页查询 API 调用明细（Admin 视角，跨用户）。
+// 支持按 user_id / email（LIKE 模糊）/ endpoint / status / key_id 筛选。
+// email 非空时走子查询转 user_id 列表，避免 JOIN users 的全表扫。
+func (s *MySQLStore) GetAllAPICallLogs(userID int64, email string, page, pageSize int, endpoint string, status int, keyID int64) ([]model.APICallLog, int, error) {
+	if page < 1 {
+		page = 1
+	}
+	if pageSize < 1 || pageSize > 100 {
+		pageSize = 20
+	}
+
+	where := "WHERE 1=1"
+	args := []any{}
+
+	if userID > 0 {
+		where += " AND l.user_id=?"
+		args = append(args, userID)
+	}
+	if email != "" {
+		where += " AND l.user_id IN (SELECT id FROM users WHERE email LIKE ?)"
+		args = append(args, "%"+email+"%")
+	}
+	if endpoint != "" {
+		where += " AND l.endpoint=?"
+		args = append(args, endpoint)
+	}
+	if status > 0 {
+		where += " AND l.status_code=?"
+		args = append(args, status)
+	}
+	if keyID > 0 {
+		where += " AND l.api_key_id=?"
+		args = append(args, keyID)
+	}
+
+	var total int
+	countSQL := "SELECT COUNT(*) FROM api_call_logs l " + where
+	s.db.QueryRow(countSQL, args...).Scan(&total)
+
+	selectSQL := "SELECT l.id, l.api_key_id, COALESCE(k.name,''), l.endpoint, l.ip, l.status_code, l.tokens_cost, l.count, l.latency_ms, DATE_FORMAT(l.created_at,'%Y-%m-%d %H:%i:%s'), COALESCE(u.email,'') " +
+		"FROM api_call_logs l " +
+		"LEFT JOIN user_api_keys k ON l.api_key_id=k.id " +
+		"LEFT JOIN users u ON l.user_id=u.id " +
+		where +
+		" ORDER BY l.id DESC LIMIT ? OFFSET ?"
+	args = append(args, pageSize, (page-1)*pageSize)
+	rows, err := s.db.Query(selectSQL, args...)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer rows.Close()
+
+	out := []model.APICallLog{}
+	for rows.Next() {
+		var l model.APICallLog
+		if rows.Scan(&l.ID, &l.APIKeyID, &l.KeyName, &l.Endpoint, &l.IP, &l.StatusCode, &l.TokensCost, &l.Count, &l.LatencyMs, &l.CreatedAt, &l.UserEmail) == nil {
+			if l.KeyName == "" {
+				l.KeyName = "未知"
+			}
+			out = append(out, l)
+		}
+	}
+	return out, total, rows.Err()
+}
+
+// GetAPIStatsGlobal 全站 API 调用聚合统计。minutes 为最近 N 分钟窗口（0=最近5分钟）。
+func (s *MySQLStore) GetAPIStatsGlobal(minutes int) (*model.APIStatsGlobal, error) {
+	if minutes <= 0 {
+		minutes = 5
+	}
+	since := time.Now().Add(-time.Duration(minutes) * time.Minute)
+
+	st := &model.APIStatsGlobal{
+		ByEndpoint:   []model.APIUsageDimension{},
+		ByStatus:     []model.APIStatsStatusDim{},
+		TopUsers:     []model.APIStatsUserDim{},
+		TrendMinutes: []model.APIStatsTrendMinute{},
+	}
+
+	// 概览
+	s.db.QueryRow(`SELECT
+		COUNT(*),
+		COALESCE(SUM(CASE WHEN status_code BETWEEN 200 AND 299 THEN 1 ELSE 0 END),0),
+		COALESCE(SUM(CASE WHEN status_code < 200 OR status_code >= 300 THEN 1 ELSE 0 END),0),
+		COALESCE(SUM(CASE WHEN status_code = 429 THEN 1 ELSE 0 END),0),
+		COALESCE(SUM(tokens_cost),0),
+		COUNT(DISTINCT user_id),
+		COUNT(DISTINCT api_key_id)
+		FROM api_call_logs WHERE created_at >= ?`, since).
+		Scan(&st.TotalCalls, &st.SuccessCalls, &st.FailedCalls, &st.RateLimited, &st.TotalTokens, &st.ActiveUsers, &st.ActiveKeys)
+
+	// 按端点
+	if rows, err := s.db.Query(`SELECT endpoint, COUNT(*), COALESCE(SUM(tokens_cost),0)
+		FROM api_call_logs WHERE created_at >= ?
+		GROUP BY endpoint ORDER BY COUNT(*) DESC LIMIT 20`, since); err == nil {
+		defer rows.Close()
+		for rows.Next() {
+			var d model.APIUsageDimension
+			if rows.Scan(&d.Name, &d.Calls, &d.Tokens) == nil {
+				st.ByEndpoint = append(st.ByEndpoint, d)
+			}
+		}
+	}
+
+	// 按状态码
+	if rows, err := s.db.Query(`SELECT status_code, COUNT(*)
+		FROM api_call_logs WHERE created_at >= ?
+		GROUP BY status_code ORDER BY COUNT(*) DESC`, since); err == nil {
+		defer rows.Close()
+		for rows.Next() {
+			var d model.APIStatsStatusDim
+			if rows.Scan(&d.Code, &d.Count) == nil {
+				st.ByStatus = append(st.ByStatus, d)
+			}
+		}
+	}
+
+	// Top 用户（按调用量）
+	if rows, err := s.db.Query(`SELECT l.user_id, COALESCE(u.email,''), COUNT(*), COALESCE(SUM(l.tokens_cost),0)
+		FROM api_call_logs l LEFT JOIN users u ON l.user_id=u.id
+		WHERE l.created_at >= ?
+		GROUP BY l.user_id, u.email ORDER BY COUNT(*) DESC LIMIT 10`, since); err == nil {
+		defer rows.Close()
+		for rows.Next() {
+			var d model.APIStatsUserDim
+			if rows.Scan(&d.UserID, &d.Email, &d.Calls, &d.Tokens) == nil {
+				st.TopUsers = append(st.TopUsers, d)
+			}
+		}
+	}
+
+	// 按分钟趋势（最近 N 分钟）
+	if rows, err := s.db.Query(`SELECT DATE_FORMAT(created_at,'%H:%i') AS m, COUNT(*),
+		COALESCE(SUM(CASE WHEN status_code NOT BETWEEN 200 AND 299 THEN 1 ELSE 0 END),0)
+		FROM api_call_logs WHERE created_at >= ?
+		GROUP BY m ORDER BY m`, since); err == nil {
+		defer rows.Close()
+		for rows.Next() {
+			var d model.APIStatsTrendMinute
+			if rows.Scan(&d.Minute, &d.Calls, &d.Errors) == nil {
+				st.TrendMinutes = append(st.TrendMinutes, d)
+			}
+		}
+	}
+
+	return st, nil
+}
+
+// GetRecentAPICallLogs 取最近 N 条全站调用日志（SSE 首帧历史用）。
+func (s *MySQLStore) GetRecentAPICallLogs(limit int) ([]model.APICallLog, error) {
+	if limit <= 0 || limit > 100 {
+		limit = 50
+	}
+	rows, err := s.db.Query(
+		"SELECT l.id, l.api_key_id, COALESCE(k.name,''), l.endpoint, l.ip, l.status_code, l.tokens_cost, l.count, l.latency_ms, DATE_FORMAT(l.created_at,'%Y-%m-%d %H:%i:%s'), COALESCE(u.email,'') "+
+			"FROM api_call_logs l "+
+			"LEFT JOIN user_api_keys k ON l.api_key_id=k.id "+
+			"LEFT JOIN users u ON l.user_id=u.id "+
+			"ORDER BY l.id DESC LIMIT ?", limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []model.APICallLog{}
+	for rows.Next() {
+		var l model.APICallLog
+		if rows.Scan(&l.ID, &l.APIKeyID, &l.KeyName, &l.Endpoint, &l.IP, &l.StatusCode, &l.TokensCost, &l.Count, &l.LatencyMs, &l.CreatedAt, &l.UserEmail) == nil {
+			if l.KeyName == "" {
+				l.KeyName = "未知"
+			}
+			out = append(out, l)
+		}
+	}
+	return out, rows.Err()
 }

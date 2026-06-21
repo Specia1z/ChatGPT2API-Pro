@@ -641,6 +641,11 @@ func (s *MySQLStore) autoMigrate() {
 		INDEX idx_user_key_created (user_id, api_key_id, created_at)
 	) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`)
 
+	// 补 ip 列（旧库兼容；VARCHAR(45) 兼容 IPv6）
+	if !s.columnExists(s.currentDBName(), "api_call_logs", "ip") {
+		s.db.Exec("ALTER TABLE api_call_logs ADD COLUMN ip VARCHAR(45) NOT NULL DEFAULT '' AFTER endpoint")
+	}
+
 	// settings 保留期列（旧库补列；裸 ALTER 重复执行报错被忽略）
 	s.db.Exec("ALTER TABLE settings ADD COLUMN api_log_retention_days INT NOT NULL DEFAULT 0 AFTER api_image_ttl_min")
 }

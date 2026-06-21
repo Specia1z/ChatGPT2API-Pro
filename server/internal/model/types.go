@@ -745,15 +745,53 @@ type APIUsageTrendPoint struct {
 	Failed  int    `json:"failed"`
 }
 
-// APICallLog 单条调用明细（GET /api/user/api-usage/logs 返回）。
+// APIStatsGlobal 全站 API 调用聚合统计（Admin 视角）。
+type APIStatsGlobal struct {
+	TotalCalls   int                   `json:"total_calls"`
+	SuccessCalls int                   `json:"success_calls"`
+	FailedCalls  int                   `json:"failed_calls"`
+	RateLimited  int                   `json:"rate_limited"`
+	TotalTokens  int                   `json:"total_tokens"`
+	ActiveUsers  int                   `json:"active_users"`
+	ActiveKeys   int                   `json:"active_keys"`
+	ByEndpoint   []APIUsageDimension   `json:"by_endpoint"`
+	ByStatus     []APIStatsStatusDim   `json:"by_status"`
+	TopUsers     []APIStatsUserDim     `json:"top_users"`
+	TrendMinutes []APIStatsTrendMinute `json:"trend_minutes"`
+}
+
+// APIStatsStatusDim 按状态码聚合。
+type APIStatsStatusDim struct {
+	Code  int `json:"code"`
+	Count int `json:"count"`
+}
+
+// APIStatsUserDim 按用户聚合（Top 用户排行）。
+type APIStatsUserDim struct {
+	UserID int64  `json:"user_id"`
+	Email  string `json:"email"`
+	Calls  int    `json:"calls"`
+	Tokens int    `json:"tokens"`
+}
+
+// APIStatsTrendMinute 按分钟趋势点。
+type APIStatsTrendMinute struct {
+	Minute string `json:"minute"` // HH:MM
+	Calls  int    `json:"calls"`
+	Errors int    `json:"errors"`
+}
+
+// APICallLog 单条调用明细（GET /api/user/api-usage/logs 返回；Admin 端复用）。
 type APICallLog struct {
 	ID         int64  `json:"id"`
 	APIKeyID   int64  `json:"api_key_id"`
 	KeyName    string `json:"key_name"`
 	Endpoint   string `json:"endpoint"`
+	IP         string `json:"ip"`                    // 调用方 IP
 	StatusCode int    `json:"status_code"`
 	TokensCost int    `json:"tokens_cost"`
 	Count      int    `json:"count"`
 	LatencyMs  int    `json:"latency_ms"`
 	CreatedAt  string `json:"created_at"`
+	UserEmail  string `json:"user_email,omitempty"`  // Admin 全站查询时附带
 }
