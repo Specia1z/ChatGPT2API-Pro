@@ -802,6 +802,20 @@ export default function SettingsPage() {
                         </p>
                       </div>
 
+                      {/* AI 智能风控 */}
+                      <div>
+                        <p className="text-xs font-semibold text-muted-foreground mb-2">AI 智能风控（实验性）</p>
+                        <label className="flex items-center gap-2 text-xs cursor-pointer">
+                          <Switch checked={rc.ai_scoring_enabled ?? false} onCheckedChange={v => setRisk("ai_scoring_enabled", v)} />
+                          <span>启用 AI 风险分析</span>
+                        </label>
+                        <p className="text-[11px] text-muted-foreground mt-2 leading-relaxed">
+                          开启后，风险评分页的用户详情会出现「AI 分析」按钮——由大模型基于用户多维画像（账号年龄/付费/同IP关联/实时信号/行为）评估风险并给出分数、理由与建议。
+                          <span className="text-foreground/80">仅供人工研判参考，不自动处置</span>（不会自动限流/封号）。按需触发，复用站点已配模型（同 AI 矢量模型），不额外扣用户令牌。
+                          <span className="text-amber-600 dark:text-amber-400">建议先积累一段真实运营数据后再开启，AI 判断质量依赖样本充分性。</span>
+                        </p>
+                      </div>
+
                       <div className="rounded-xl bg-muted/40 p-3.5 text-xs text-muted-foreground leading-relaxed">
                         阈值：≥{rc.flag_threshold ?? 40} 观察 · ≥{rc.limit_threshold ?? 65} 限流降级（速率减半）· ≥{rc.ban_threshold ?? 85} 自动封禁。
                         评分每 {rc.score_interval_min ?? 5} 分钟刷新，高频信号按 {rc.window_minutes ?? 5} 分钟窗口采集。

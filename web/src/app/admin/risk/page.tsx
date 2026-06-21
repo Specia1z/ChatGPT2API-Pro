@@ -6,7 +6,7 @@ import { Outfit, DM_Mono } from "next/font/google";
 import {
   ShieldAlert, AlertTriangle, Users, Eye,
   Zap, Coins, Image, UserX, ChevronLeft, ChevronRight, Unlock,
-  RefreshCw, Ban, CheckCircle2, Clock, Activity, Globe,
+  RefreshCw, Ban, CheckCircle2, Clock, Activity, Globe, Brain, Sparkles, Loader2,
 } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
@@ -101,6 +101,9 @@ export default function RiskPage() {
   const [minScore, setMinScore] = useState(0);
   const [detail, setDetail] = useState<RiskDetail | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
+  const [aiEnabled, setAiEnabled] = useState(false);
+  const [aiResult, setAiResult] = useState<{ score: number; level: string; reason: string; verdict: string } | null>(null);
+  const [aiLoading, setAiLoading] = useState(false);
   const col = useColumnResize({ user: 180, score: 64, level: 70, api: 70, points: 70, content: 70, account: 70, status: 110, reasons: 130, time: 110, action: 60 });
 
   // 分级函数：基于后台阈值动态判定
@@ -154,6 +157,7 @@ export default function RiskPage() {
   const openDetail = async (uid: number) => {
     setDetailLoading(true);
     setDetail({ user_id: uid } as RiskDetail);
+    setAiResult(null);
     try {
       const r = await api(`/api/admin/risk/detail?id=${uid}`);
       setDetail(r.data);
@@ -162,6 +166,22 @@ export default function RiskPage() {
       setDetail(null);
     }
     setDetailLoading(false);
+    // 拉取 AI 开关状态（决定是否展示 AI 分析按钮）
+    try {
+      const pr = await api(`/api/admin/risk/profile?id=${uid}`);
+      setAiEnabled(!!pr.data?.ai_enabled);
+    } catch { setAiEnabled(false); }
+  };
+
+  const aiAnalyze = async (uid: number) => {
+    setAiLoading(true);
+    try {
+      const r = await api("/api/admin/risk/ai-analyze", { method: "POST", body: JSON.stringify({ user_id: uid }) });
+      setAiResult(r.data);
+    } catch (e: any) {
+      toast.error(e.message || "AI 分析失败");
+    }
+    setAiLoading(false);
   };
 
   const unbanUser = async (uid: number) => {
@@ -444,6 +464,36 @@ export default function RiskPage() {
                   采集窗口 {th.window} 分钟（IP 去重固定 1 小时）· 评分更新于 {detail.scores?.updated_at || "—"}
                 </p>
               </div>
+
+              {/* AI 智能风控分析（仅当后台开启 ai_scoring_enabled） */}
+              {aiEnabled && (
+                <div className="rounded-xl border border-violet-500/20 bg-violet-500/5 p-3">
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-[11px] font-semibold text-violet-600 dark:text-violet-400 flex items-center gap-1">
+                      <Brain className="size-3.5" />AI 智能风控
+                    </span>
+                    <Button variant="outline" size="sm" disabled={aiLoading}
+                      onClick={() => aiAnalyze(detail.user_id)}
+                      className="h-6 text-[10px] border-violet-500/30 text-violet-600 hover:bg-violet-500/10">
+                      {aiLoading ? <Loader2 className="size-3 mr-1 animate-spin" /> : <Sparkles className="size-3 mr-1" />}
+                      {aiLoading ? "分析中" : aiResult ? "重新分析" : "AI 分析"}
+                    </Button>
+                  </div>
+                  {aiResult ? (
+                    <div className="space-y-1.5">
+                      <div className="flex items-center gap-2">
+                        <span className={`inline-flex items-center justify-center px-2 h-6 rounded-md text-[11px] font-bold tabular-nums ${scoreColor(aiResult.score)} ${scoreBg(aiResult.score)}`}>{aiResult.score}</span>
+                        <Badge variant="outline" className={`text-[10px] ${scoreColor(aiResult.score)}`}>AI 判定：{aiResult.level}风险</Badge>
+                        <Badge variant="outline" className="text-[10px]">建议：{aiResult.verdict}</Badge>
+                      </div>
+                      <p className="text-[11px] text-muted-foreground leading-relaxed">{aiResult.reason}</p>
+                      <p className="text-[9px] text-muted-foreground/60">AI 分析仅供人工研判参考，不自动处置。</p>
+                    </div>
+                  ) : (
+                    <p className="text-[10px] text-muted-foreground">点击「AI 分析」让大模型基于该用户多维画像评估风险并给出建议（仅参考）。</p>
+                  )}
+                </div>
+              )}
 
               {/* 操作 */}
               {detail.banned && (

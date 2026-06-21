@@ -868,6 +868,9 @@ type RiskConfig struct {
 	QuotaThrottleMode    string `json:"quota_throttle_mode"`    // 降速模式：fixed=固定速率 / percent=按套餐速率百分比，默认 fixed
 	QuotaThrottlePercent int    `json:"quota_throttle_percent"` // percent 模式下保留套餐速率的百分比（1-100），默认 10
 	KeyIPAlertThreshold  int    `json:"key_ip_alert_threshold"` // 单 API Key 24h 去重 IP 数告警阈值，默认 50
+
+	// ── AI 智能风控（默认关，攒够样本后由管理员手动开启） ──
+	AIScoringEnabled bool `json:"ai_scoring_enabled"` // 是否启用 AI 风险分析（默认关）
 }
 
 // DefaultRiskConfig 返回合理且不误判的默认值。
@@ -969,6 +972,7 @@ func ParseRiskConfig(jsonStr string) RiskConfig {
 	}
 	ovInt(&cfg.QuotaThrottlePercent, raw.QuotaThrottlePercent)
 	ovInt(&cfg.KeyIPAlertThreshold, raw.KeyIPAlertThreshold)
+	cfg.AIScoringEnabled = raw.AIScoringEnabled
 	return cfg
 }
 
@@ -1000,4 +1004,54 @@ type RiskDetail struct {
 	BanUntil  string `json:"ban_until,omitempty"`
 	BanReason string `json:"ban_reason,omitempty"`
 	CreatedAt string `json:"created_at,omitempty"` // 注册时间（辅助判断新账号）
+}
+
+// UserRiskProfile 用户风险画像聚合（多维信号汇总，供人工研判 + AI 风控输入）。
+type UserRiskProfile struct {
+	UserID    int64  `json:"user_id"`
+	Email     string `json:"email"`
+	PlanName  string `json:"plan_name"`
+	CreatedAt string `json:"created_at"`
+
+	// 账号基础
+	AccountAgeHours float64 `json:"account_age_hours"` // 注册至今小时数
+	IsPaid          bool    `json:"is_paid"`           // 是否有过付费订单
+	Points          int     `json:"points"`            // 当前积分
+	Banned          bool    `json:"banned"`            // 当前是否封禁
+	BanCount        int     `json:"ban_count"`         // 历史被封次数
+
+	// 风控四维分（来自 user_risk_scores）
+	ScoreAPI     int `json:"score_api"`
+	ScorePoints  int `json:"score_points"`
+	ScoreContent int `json:"score_content"`
+	ScoreAccount int `json:"score_account"`
+	TotalScore   int `json:"total_score"`
+
+	// 实时/行为信号
+	Snapshots     map[string]int `json:"snapshots"`      // Redis 实时（qps/errors/ips/tokens）
+	SameIPUsers   int            `json:"same_ip_users"`  // 同 IP 关联其他账号数（24h）
+	InviteRegs7d  int            `json:"invite_regs_7d"` // 近 7 天邀请注册数
+	OwnRegs7d     int            `json:"own_regs_7d"`    // 近 7 天自身注册事件
+	FailedGens24h int            `json:"failed_gens_24h"`
+	TotalGens24h  int            `json:"total_gens_24h"`
+	DupPrompts24h int            `json:"dup_prompts_24h"` // 24h 内 ≥3 次重复 prompt 数
+
+	// 月配额
+	MonthlyQuota int `json:"monthly_quota"`
+	MonthlyUsed  int `json:"monthly_used"`
+
+	// AI 风控结果（按需触发后填充；未分析时为零值）
+	AIScore    int    `json:"ai_score,omitempty"`    // AI 风险分 0-100
+	AILevel    string `json:"ai_level,omitempty"`    // AI 风险等级（低/中/高）
+	AIReason   string `json:"ai_reason,omitempty"`   // AI 判定理由
+	AIVerdict  string `json:"ai_verdict,omitempty"`  // AI 建议处置（观察/限流/封禁/正常）
+	AIAnalyzed bool   `json:"ai_analyzed,omitempty"` // 本次是否已执行 AI 分析
+}
+
+// AIRiskResult AI 风控引擎对单个画像的评估结果。
+type AIRiskResult struct {
+	Score   int    `json:"score"`   // 0-100
+	Level   string `json:"level"`   // 低 / 中 / 高
+	Reason  string `json:"reason"`  // 简短理由
+	Verdict string `json:"verdict"` // 正常 / 观察 / 限流 / 封禁（仅建议）
 }
