@@ -5,8 +5,9 @@ import { motion } from "framer-motion";
 import { Outfit, DM_Mono } from "next/font/google";
 import {
   ShieldAlert, AlertTriangle, Users, Eye,
-  Zap, Coins, Image, UserX, ChevronLeft, ChevronRight,
+  Zap, Coins, Image, UserX, ChevronLeft, ChevronRight, Unlock,
 } from "lucide-react";
+import { toast } from "sonner";
 import { api } from "@/lib/api";
 import { AdminSidebar } from "@/components/admin-sidebar";
 import { Badge } from "@/components/ui/badge";
@@ -103,6 +104,22 @@ export default function RiskPage() {
 
   useEffect(() => { fetchScores(page); }, [page, fetchScores]);
 
+  const unbanUser = async (uid: number) => {
+    try {
+      const r = await api("/api/admin/risk/unban", { method: "POST", body: JSON.stringify({ user_id: uid }) });
+      toast.success(r.message || "已解封");
+      fetchScores(page);
+    } catch { toast.error("解封失败"); }
+  };
+
+  const batchUnban = async () => {
+    try {
+      const r = await api("/api/admin/risk/batch-unban", { method: "POST", body: JSON.stringify({ max_score: 50 }) });
+      toast.success(r.message || `已解封 ${r.data?.count || 0} 位`);
+      fetchScores(page);
+    } catch { toast.error("批量解封失败"); }
+  };
+
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const highRisk = scores.filter(s => s.total_score >= 80).length;
   const suspicious = scores.filter(s => s.total_score >= 50 && s.total_score < 80).length;
@@ -137,6 +154,12 @@ export default function RiskPage() {
             <h1 className={`${heading.className} text-sm sm:text-base font-semibold tracking-tight flex items-center gap-2`}>
               风险评分
               <span className="text-[10px] font-medium text-muted-foreground ml-1">用户风险 4 维度评估</span>
+              {highRisk > 0 && (
+                <Button variant="outline" size="sm" onClick={batchUnban}
+                  className="ml-2 h-7 text-[10px] text-muted-foreground hover:text-foreground">
+                  <Unlock className="size-3 mr-1" />批量解封 ≤50
+                </Button>
+              )}
             </h1>
             <p className="text-[10px] sm:text-xs text-muted-foreground mt-0.5">
               评分 {total} 用户 · 每 5 分钟自动更新 · ≥30 观察 · ≥50 可疑 · ≥80 自动封禁
@@ -179,7 +202,8 @@ export default function RiskPage() {
                         { key: "content", label: "内容", cls: "hidden sm:table-cell text-center", icon: Image },
                         { key: "account", label: "账号", cls: "hidden sm:table-cell text-center", icon: UserX },
                         { key: "reasons", label: "评分理由", cls: "hidden sm:table-cell", align: "" },
-                        { key: "time", label: "更新时间", cls: "text-right", align: "" },
+                        { key: "action", label: "", cls: "hidden sm:table-cell", align: "" },
+                      { key: "time", label: "更新时间", cls: "text-right", align: "" },
                       ].map(h => (
                         <th key={h.key} className={`font-medium px-3 py-3 relative select-none ${h.cls}`} {...col.handleProps(h.key)}>
                           <span className="inline-flex items-center gap-1">
@@ -196,7 +220,7 @@ export default function RiskPage() {
                   </thead>
                   <tbody>
                     {scores.length === 0 ? (
-                      <tr><td colSpan={9} className="text-center py-16 text-muted-foreground">暂无风险评分数据</td></tr>
+                      <tr><td colSpan={10} className="text-center py-16 text-muted-foreground">暂无风险评分数据</td></tr>
                     ) : scores.map(s => (
                       <tr key={s.user_id} className="border-b border-border/50 last:border-0 hover:bg-muted/30 transition-colors">
                         <td className="px-4 py-3">
@@ -213,6 +237,7 @@ export default function RiskPage() {
                         <td className="hidden sm:table-cell px-3 py-3"><BarGauge value={s.score_content} label="" max={100} /></td>
                         <td className="hidden sm:table-cell px-3 py-3"><BarGauge value={s.score_account} label="" max={100} /></td>
                         <td className="hidden sm:table-cell px-3 py-3 text-[10px] text-muted-foreground truncate max-w-[140px]" title={s.reasons}>{s.reasons || "—"}</td>
+                        <td className="hidden sm:table-cell px-3 py-3"><Button variant="ghost" size="sm" onClick={() => unbanUser(s.user_id)} className="h-6 text-[10px] text-muted-foreground hover:text-green-500"><Unlock className="size-3" /></Button></td>
                         <td className="px-4 py-3 text-right tabular-nums text-muted-foreground text-[10px]">{s.updated_at?.slice(5, 16) || "—"}</td>
                       </tr>
                     ))}

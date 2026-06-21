@@ -190,3 +190,36 @@ func (s *MySQLStore) InsertAccountEvent(uid int64, eventType, source, reason str
 func (s *MySQLStore) RawQueryRow(query string, args ...any) *sql.Row {
 	return s.db.QueryRow(query, args...)
 }
+
+// UnbanUser 解封用户（恢复 status=1 + 清除封禁原因 + 删除评分记录）。
+func (s *MySQLStore) UnbanUser(uid int64) error {
+	_, err := s.db.Exec("UPDATE users SET status=1, ban_reason='' WHERE id=?", uid)
+	if err != nil {
+		return err
+	}
+	s.db.Exec("DELETE FROM user_risk_scores WHERE user_id=?", uid)
+	return nil
+}
+
+// BatchUnbanRisk 批量解封所有风险评分低于阈值的用户（用于误封恢复）。
+func (s *MySQLStore) BatchUnbanRisk(maxScore int) (int64, error) {
+	rows, err := s.db.Query("SELECT user_id FROM user_risk_scores r JOIN users u ON r.user_id=u.id WHERE u.status=0 AND r.total_score <= ?", maxScore)
+	if err != nil {
+		return 0, err
+	}
+	defer rows.Close()
+	var ids []int64
+	for rows.Next() {
+		var id int64
+		if rows.Scan(&id) == nil {
+			ids = append(ids, id)
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return 0, err
+	}
+	for _, id := range ids {
+		s.UnbanUser(id)
+	}
+	return int64(len(ids)), nil
+}
