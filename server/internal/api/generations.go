@@ -569,17 +569,29 @@ func (h *Handler) GetUserTokens(w http.ResponseWriter, r *http.Request) {
 
 	}
 
-	tokens := h.Redis.GetBucketTokens(uid, capacity, refill)
-
-	// 月配额（防二次分发）：0=不限。同时返回本月已用，供用户中心展示进度。
+	// 月配额（防二次分发）：0=不限。
 	monthlyQuota := 0
 	monthlyUsed := 0
 	if user != nil {
 		monthlyQuota = user.MonthlyQuota
 	}
+
+	// 生效恢复速率：撞月配额且开启降速时，refill 被砍低——这是真实生效值（与生图扣令牌一致）。
+	// 用它读令牌桶 + 返回前端，保证用户中心显示的恢复速率/令牌数/倒计时与实际一致。
+	settings, _ := h.MySQL.GetSettings()
+	riskJSON := ""
+	if settings != nil {
+		riskJSON = settings.RiskConfigJSON
+	}
+	effectiveRefill := refill
+	throttled := false
 	if monthlyQuota > 0 {
 		monthlyUsed = h.Redis.GetMonthlyUsage(r.Context(), uid)
+		effectiveRefill = h.quotaEffectiveRefill(r.Context(), uid, monthlyQuota, refill, riskJSON)
+		throttled = effectiveRefill != refill
 	}
+
+	tokens := h.Redis.GetBucketTokens(uid, capacity, effectiveRefill)
 
 	writeJSON(w, 200, model.APIResponse{Code: 200, Data: map[string]any{
 
@@ -587,7 +599,11 @@ func (h *Handler) GetUserTokens(w http.ResponseWriter, r *http.Request) {
 
 		"capacity": capacity,
 
-		"refill":   refill,
+		"refill":   effectiveRefill, // 当前生效速率（撞额降速后为降速值）
+
+		"plan_refill": refill, // 套餐原始速率（用于展示「10/h → 1/h」）
+
+		"throttled": throttled, // 是否处于撞额降速状态
 
 		"plan":     user.PlanName,
 

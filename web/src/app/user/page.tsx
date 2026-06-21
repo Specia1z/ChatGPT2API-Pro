@@ -91,7 +91,9 @@ export default function UserPage() {
   const copyKey = async (k: string) => { await navigator.clipboard.writeText(k); setCopied(k); toast.success("已复制"); setTimeout(() => setCopied(null), 1500); };
 
   const capacity = user?.token_capacity || 50;
-  const refill = user?.token_refill_per_hour || 3;
+  const planRefill = user?.token_refill_per_hour || 3;
+  // 撞额降速时用生效速率（后端返回），否则用套餐速率——保证倒计时/恢复速率与实际一致
+  const refill = quota?.throttled ? quota.refill : planRefill;
   const concurrency = user?.plan_concurrency || 1;
   const tokenVal = tokens ?? capacity;
   const isPro = user?.plan_name ? user.plan_name !== "免费版" : false;
@@ -155,9 +157,17 @@ export default function UserPage() {
                 style={{ width: `${Math.min(quota.limit > 0 ? (quota.used / quota.limit) * 100 : 0, 100)}%` }} />
             </div>
             <p className="text-[11px] text-muted-foreground mt-2">
-              {quota.used >= quota.limit
-                ? "已达本月配额上限，生成速度已临时降低，下月 1 号自动重置。如需更高额度可升级套餐。"
-                : "每月（自然月）令牌用量上限，月初自动重置。正常使用无需担心。"}
+              {quota.throttled ? (
+                <>
+                  已达本月用量上限，令牌恢复速率已临时放缓
+                  <span className="text-amber-600 dark:text-amber-400 font-medium"> {quota.planRefill}/h → {quota.refill}/h</span>
+                  （连续生成需等待更久，画质与单张速度不受影响），下月 1 号自动重置。如需更高额度可升级套餐。
+                </>
+              ) : quota.used >= quota.limit ? (
+                "已达本月用量上限，生成仍可正常进行，下月 1 号自动重置。"
+              ) : (
+                "每月（自然月）令牌用量上限，月初自动重置。正常使用无需担心。"
+              )}
             </p>
           </motion.div>
         )}

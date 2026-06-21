@@ -259,7 +259,7 @@ function DocsContent() {
               <code className="font-mono text-[13px] text-zinc-700 dark:text-zinc-300">/api/v1/user/tokens</code>
             </div>
             <p className="text-sm text-zinc-600 dark:text-zinc-400 leading-relaxed">
-              查询当前可用令牌、桶容量、恢复速率与并发上限，便于在调用前判断额度。
+              查询当前可用令牌、桶容量、恢复速率、并发上限，以及本月令牌配额用量，便于在调用前判断额度。
             </p>
             <CodeBlock lang="json" code={`{
   "code": 200,
@@ -267,10 +267,29 @@ function DocsContent() {
     "tokens": 48.5,
     "capacity": 50,
     "refill": 3,
+    "plan_refill": 3,
+    "throttled": false,
     "plan": "免费版",
-    "concurrency": 1
+    "concurrency": 1,
+    "monthly_quota": 5000,
+    "monthly_used": 1280
   }
 }`} />
+            <h3 className="text-[13px] font-semibold text-zinc-700 dark:text-zinc-300 pt-1">字段说明</h3>
+            <FieldTable rows={[
+              { name: "tokens", type: "number", required: "—", desc: "当前可用令牌（正常+突发，实时按恢复速率折算）" },
+              { name: "capacity", type: "int", required: "—", desc: "令牌桶容量上限" },
+              { name: "refill", type: "int", required: "—", desc: "当前生效的每小时恢复速率（撞月配额降速后为降速值）" },
+              { name: "plan_refill", type: "int", required: "—", desc: "套餐原始每小时恢复速率（未降速时与 refill 相同）" },
+              { name: "throttled", type: "bool", required: "—", desc: "是否处于撞月配额降速状态（true 时 refill < plan_refill）" },
+              { name: "concurrency", type: "int", required: "—", desc: "并发生成上限" },
+              { name: "monthly_quota", type: "int", required: "—", desc: "本月令牌配额上限，0=不限" },
+              { name: "monthly_used", type: "int", required: "—", desc: "本月已消耗令牌数（自然月，月初重置）" },
+            ]} />
+            <p className="text-xs text-amber-600 dark:text-amber-400 flex items-start gap-1.5">
+              <AlertTriangle className="w-3.5 h-3.5 mt-0.5 shrink-0" />
+              <span>当 <code className="font-mono px-1 py-0.5 rounded bg-amber-500/10">monthly_used</code> 达到 <code className="font-mono px-1 py-0.5 rounded bg-amber-500/10">monthly_quota</code> 时，令牌恢复速率会临时放缓（<code className="font-mono px-1 py-0.5 rounded bg-amber-500/10">throttled=true</code>），下月 1 号自动重置。这不影响单张图的画质与生成速度，仅限制持续高频调用的产能。</span>
+            </p>
           </Section>
 
           {/* OpenAI 兼容 */}

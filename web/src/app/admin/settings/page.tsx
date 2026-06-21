@@ -767,16 +767,36 @@ export default function SettingsPage() {
                             </label>
                           </div>
                           <div className="space-y-1.5">
-                            <Label>撞额后恢复速率(个/h)</Label>
-                            <Input type="number" min={0} value={rc.quota_throttle_refill ?? 1} onChange={e => setRisk("quota_throttle_refill", +e.target.value)} className={inputCls} placeholder="1" />
+                            <Label>降速模式</Label>
+                            <div className="flex items-center gap-1 p-0.5 rounded-lg border bg-muted/30 h-9">
+                              {([["fixed", "固定速率"], ["percent", "按比例"]] as const).map(([v, lbl]) => (
+                                <button key={v} type="button" onClick={() => setRisk("quota_throttle_mode", v)}
+                                  className={`flex-1 h-7 rounded-md text-[11px] font-medium transition-colors ${(rc.quota_throttle_mode ?? "fixed") === v ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}>
+                                  {lbl}
+                                </button>
+                              ))}
+                            </div>
                           </div>
+                          {(rc.quota_throttle_mode ?? "fixed") === "percent" ? (
+                            <div className="space-y-1.5">
+                              <Label>保留套餐速率(%)</Label>
+                              <Input type="number" min={1} max={100} value={rc.quota_throttle_percent ?? 10} onChange={e => setRisk("quota_throttle_percent", +e.target.value)} className={inputCls} placeholder="10" />
+                            </div>
+                          ) : (
+                            <div className="space-y-1.5">
+                              <Label>撞额后恢复速率(个/h)</Label>
+                              <Input type="number" min={0} value={rc.quota_throttle_refill ?? 1} onChange={e => setRisk("quota_throttle_refill", +e.target.value)} className={inputCls} placeholder="1" />
+                            </div>
+                          )}
                           <div className="space-y-1.5">
                             <Label>单Key告警IP数(24h)</Label>
                             <Input type="number" min={0} value={rc.key_ip_alert_threshold ?? 50} onChange={e => setRisk("key_ip_alert_threshold", +e.target.value)} className={inputCls} placeholder="50" />
                           </div>
                         </div>
                         <p className="text-[11px] text-muted-foreground mt-2 leading-relaxed">
-                          月配额上限在「套餐管理」中按套餐设定（0=不限）。开启「撞额降速」后，用户当月令牌消耗撞上配额时，令牌桶恢复速率被砍到上面的值（转卖产能归零，正常用户温和退化）。
+                          月配额上限在「套餐管理」中按套餐设定（0=不限）。开启「撞额降速」后，用户当月令牌消耗撞上配额时令牌桶恢复速率被砍低。
+                          <span className="text-foreground/80">固定速率</span>：所有撞额用户统一砍到 N/h（防转卖最彻底，但高套餐用户体感落差大）；
+                          <span className="text-foreground/80">按比例</span>：保留套餐速率的 X%（高套餐降后仍较快，体验更平滑，但转卖仍留部分产能）。
                           <span className="text-amber-600 dark:text-amber-400">建议先保持关闭观测撞额名单，确认无误伤再开启。</span>
                           单 Key 24h 去重 IP 超过阈值进告警名单（仅提示，不自动封）。
                         </p>

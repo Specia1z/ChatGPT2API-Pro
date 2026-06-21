@@ -19,6 +19,18 @@ func (h *Handler) quotaEffectiveRefill(ctx context.Context, userID int64, monthl
 		return baseRefill
 	}
 	if h.Redis.GetMonthlyUsage(ctx, userID) >= monthlyQuota {
+		// percent 模式：按套餐速率百分比降速（高套餐降后仍较快）；fixed 模式：统一固定速率。
+		if rc.QuotaThrottleMode == "percent" {
+			pct := rc.QuotaThrottlePercent
+			if pct <= 0 || pct >= 100 {
+				pct = 10
+			}
+			throttled := baseRefill * pct / 100
+			if throttled < 1 {
+				throttled = 1 // 至少保底 1/h，避免完全停滞
+			}
+			return throttled
+		}
 		return rc.QuotaThrottleRefill
 	}
 	return baseRefill

@@ -864,8 +864,10 @@ type RiskConfig struct {
 
 	// ── 月配额防二次分发 ──
 	QuotaThrottleEnabled bool `json:"quota_throttle_enabled"` // 撞月配额后是否降速（默认关，先观测）
-	QuotaThrottleRefill  int  `json:"quota_throttle_refill"`  // 撞额后令牌桶恢复速率（个/小时），默认 1
-	KeyIPAlertThreshold  int  `json:"key_ip_alert_threshold"` // 单 API Key 24h 去重 IP 数告警阈值，默认 50
+	QuotaThrottleRefill  int    `json:"quota_throttle_refill"`  // 撞额后令牌桶恢复速率（fixed 模式：个/小时），默认 1
+	QuotaThrottleMode    string `json:"quota_throttle_mode"`    // 降速模式：fixed=固定速率 / percent=按套餐速率百分比，默认 fixed
+	QuotaThrottlePercent int    `json:"quota_throttle_percent"` // percent 模式下保留套餐速率的百分比（1-100），默认 10
+	KeyIPAlertThreshold  int    `json:"key_ip_alert_threshold"` // 单 API Key 24h 去重 IP 数告警阈值，默认 50
 }
 
 // DefaultRiskConfig 返回合理且不误判的默认值。
@@ -908,7 +910,9 @@ func DefaultRiskConfig() RiskConfig {
 		AppealContact:      "",
 
 		QuotaThrottleEnabled: false, // 默认关——先观测撞额名单，确认无误伤再开降速
-		QuotaThrottleRefill:  1,     // 撞额后令牌桶恢复速率砍到 1/h，转卖产能归零
+		QuotaThrottleRefill:  1,     // fixed 模式撞额后恢复速率砍到 1/h，转卖产能归零
+		QuotaThrottleMode:    "fixed",
+		QuotaThrottlePercent: 10, // percent 模式：保留套餐速率的 10%
 		KeyIPAlertThreshold:  50,    // 单 Key 24h 去重 IP > 50 进告警名单
 	}
 }
@@ -960,6 +964,10 @@ func ParseRiskConfig(jsonStr string) RiskConfig {
 	// 月配额防分发
 	cfg.QuotaThrottleEnabled = raw.QuotaThrottleEnabled
 	ovInt(&cfg.QuotaThrottleRefill, raw.QuotaThrottleRefill)
+	if raw.QuotaThrottleMode == "percent" || raw.QuotaThrottleMode == "fixed" {
+		cfg.QuotaThrottleMode = raw.QuotaThrottleMode
+	}
+	ovInt(&cfg.QuotaThrottlePercent, raw.QuotaThrottlePercent)
 	ovInt(&cfg.KeyIPAlertThreshold, raw.KeyIPAlertThreshold)
 	return cfg
 }

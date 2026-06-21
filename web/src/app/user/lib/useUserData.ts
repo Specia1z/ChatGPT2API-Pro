@@ -8,7 +8,7 @@ export function useUserData(user: any, token: string | null, authLoading: boolea
   const router = useRouter();
   const [keys, setKeys] = useState<any[]>([]);
   const [tokens, setTokens] = useState<number | null>(null);
-  const [quota, setQuota] = useState<{ limit: number; used: number } | null>(null);
+  const [quota, setQuota] = useState<{ limit: number; used: number; throttled: boolean; refill: number; planRefill: number } | null>(null);
   const [checkin, setCheckin] = useState<any>(null);
   const [userCoupons, setUserCoupons] = useState<any[]>([]);
   const [userStats, setUserStats] = useState<any>(null);
@@ -20,7 +20,7 @@ export function useUserData(user: any, token: string | null, authLoading: boolea
   const fetchUserStats = async () => { try { const r = await api("/api/user/stats"); if (r.data) setUserStats(r.data); } catch {} };
   const refreshProfile = async () => { try { const r = await api("/api/user/profile"); if (r.data && token) login(r.data, token); } catch {} };
   const fetchKeys = async () => { try { const r = await api("/api/user/keys"); setKeys(r.data || []); } catch {} };
-  const fetchTokens = async () => { try { const r = await api("/api/user/tokens"); if (r.data?.tokens !== undefined) setTokens(r.data.tokens); if (r.data?.monthly_quota > 0) setQuota({ limit: r.data.monthly_quota, used: r.data.monthly_used || 0 }); else setQuota(null); } catch {} };
+  const fetchTokens = async () => { try { const r = await api("/api/user/tokens"); if (r.data?.tokens !== undefined) setTokens(r.data.tokens); if (r.data?.monthly_quota > 0) setQuota({ limit: r.data.monthly_quota, used: r.data.monthly_used || 0, throttled: !!r.data.throttled, refill: r.data.refill ?? 0, planRefill: r.data.plan_refill ?? r.data.refill ?? 0 }); else setQuota(null); } catch {} };
   const fetchCheckin = async () => { try { const r = await api("/api/user/checkin/status"); setCheckin(r.data); } catch {} };
   const fetchCoupons = async () => { try { const r = await api("/api/user/coupons"); setUserCoupons(r.data || []); } catch {} };
   const fetchPointsLogs = async () => { try { const r = await api("/api/user/points/logs?page=1&page_size=50"); setPointsLogs(r.data?.items || []); } catch {} finally { setPointsLogsLoaded(true); } };
