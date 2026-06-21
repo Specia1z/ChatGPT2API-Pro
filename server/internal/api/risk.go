@@ -41,10 +41,12 @@ func (h *Handler) AdminRiskDetail(w http.ResponseWriter, r *http.Request) {
 	var banUntil, banReason, createdAt string
 	err := h.MySQL.RawQueryRow(
 		`SELECT u.email, r.score_api, r.score_points, r.score_content, r.score_account, r.total_score,
+			COALESCE(DATE_FORMAT(r.updated_at,'%Y-%m-%d %H:%i:%s'),''),
 			u.status, COALESCE(DATE_FORMAT(u.ban_until,'%Y-%m-%d %H:%i:%s'),''), COALESCE(u.ban_reason,''),
 			COALESCE(DATE_FORMAT(u.created_at,'%Y-%m-%d %H:%i:%s'),'')
 		FROM user_risk_scores r JOIN users u ON r.user_id=u.id WHERE r.user_id=?`,
 		uid).Scan(&email, &score.ScoreAPI, &score.ScorePoints, &score.ScoreContent, &score.ScoreAccount, &score.TotalScore,
+		&score.UpdatedAt,
 		&status, &banUntil, &banReason, &createdAt)
 	if err != nil {
 		writeJSON(w, 404, model.APIResponse{Code: 404, Message: "无评分记录"})

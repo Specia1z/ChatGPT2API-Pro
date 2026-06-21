@@ -28,12 +28,14 @@ func NewRouter(mysql *store.MySQLStore, redis *store.RedisStore, cleaner *servic
 	// 采集中间件工厂（按来源区分）：
 	// apiLogged — 开发者 API Key 接口（source=api），用于 /api/v1 与 /v1。
 	// webLogged — 站内 Web UI 生成类接口（source=web），仅消耗资源的生成操作，
-	//             不含状态轮询/列表查询，最外层叠加 RiskRecorder 补齐 Web 风控盲区。
+	//             不含状态轮询/列表查询，叠加 RiskRecorder 补齐 Web 风控盲区。
+	// ⚠ 顺序：APILogger 必须在最外层创建 *APICallInfo holder，RiskRecorder 在其内层，
+	//   这样 auth 回填到 holder 的 uid 才能被 RiskRecorder 读到（详见 RiskRecorder 注释）。
 	apiLogged := func(ep string, hh http.Handler) http.Handler {
-		return middleware.APILogger(apiLogWriter, ep, "api")(hh)
+		return middleware.APILogger(apiLogWriter, ep, "api")(middleware.RiskRecorder(redis)(hh))
 	}
 	webLogged := func(ep string, hh http.Handler) http.Handler {
-		return middleware.RiskRecorder(redis)(middleware.APILogger(apiLogWriter, ep, "web")(hh))
+		return middleware.APILogger(apiLogWriter, ep, "web")(middleware.RiskRecorder(redis)(hh))
 	}
 
 	mux := http.NewServeMux()
@@ -102,22 +104,21 @@ mux.Handle("POST /api/user/points/exchange", middleware.RateLimit(userAuth(http.
 	// API v1 (API Key 认证)：IP 粗限流 + 按 uid 精确限流（防多 IP 绕过）。
 	// 内置兜底 30/min；后台「默认限速」与套餐 rate_limit_per_min 可逐级覆盖（见 UserRateLimit）。
 	apiUserRL := func(h http.Handler) http.Handler { return middleware.UserRateLimit(redis, 30, time.Minute)(h) }
-	// apiLogged/webLogged 见上方定义。v1 路由把采集包在最外层（限流之前），
-	// 顺序：riskRec( APILogger(ep)( RateLimit( apiKeyAuth( apiUserRL( handler )))))，故 IP 限流 429 也能记录。
-	riskRec := middleware.RiskRecorder(redis)
-	mux.Handle("POST /api/v1/images/generations", riskRec(apiLogged("images.generations", middleware.RateLimit(apiKeyAuth(apiUserRL(http.HandlerFunc(h.CreateGeneration)))))))
-	mux.Handle("GET /api/v1/images/generations", riskRec(apiLogged("images.query", apiKeyAuth(apiUserRL(http.HandlerFunc(h.GetUserGenerations))))))
-	mux.Handle("POST /api/v1/vector", riskRec(apiLogged("vector", middleware.RateLimit(apiKeyAuth(apiUserRL(http.HandlerFunc(h.CreateVectorAPI)))))))
-	mux.Handle("GET /api/v1/user/tokens", riskRec(apiLogged("user.tokens", apiKeyAuth(apiUserRL(http.HandlerFunc(h.GetUserTokens))))))
+	// apiLogged/webLogged 见上方定义（APILogger 在外创建 holder，RiskRecorder 在内读取）。
+	// v1 路由把采集包在限流之前，故 IP 限流 429 也能记录。
+	mux.Handle("POST /api/v1/images/generations", apiLogged("images.generations", middleware.RateLimit(apiKeyAuth(apiUserRL(http.HandlerFunc(h.CreateGeneration))))))
+	mux.Handle("GET /api/v1/images/generations", apiLogged("images.query", apiKeyAuth(apiUserRL(http.HandlerFunc(h.GetUserGenerations)))))
+	mux.Handle("POST /api/v1/vector", apiLogged("vector", middleware.RateLimit(apiKeyAuth(apiUserRL(http.HandlerFunc(h.CreateVectorAPI))))))
+	mux.Handle("GET /api/v1/user/tokens", apiLogged("user.tokens", apiKeyAuth(apiUserRL(http.HandlerFunc(h.GetUserTokens)))))
 	// 图像理解/增强（开发者 API）：反推中文提示词 / 一键智能增强（同步出图）
-	mux.Handle("POST /api/v1/image-to-text", riskRec(apiLogged("image-to-text", middleware.RateLimit(apiKeyAuth(apiUserRL(http.HandlerFunc(h.ImageToText)))))))
-	mux.Handle("POST /api/v1/image-enhance", riskRec(apiLogged("image-enhance", middleware.RateLimit(apiKeyAuth(apiUserRL(http.HandlerFunc(h.ImageEnhanceAPI)))))))
-	mux.Handle("POST /api/v1/removebg", riskRec(apiLogged("removebg", middleware.RateLimit(apiKeyAuth(apiUserRL(http.HandlerFunc(h.RemoveBackground)))))))
+	mux.Handle("POST /api/v1/image-to-text", apiLogged("image-to-text", middleware.RateLimit(apiKeyAuth(apiUserRL(http.HandlerFunc(h.ImageToText))))))
+	mux.Handle("POST /api/v1/image-enhance", apiLogged("image-enhance", middleware.RateLimit(apiKeyAuth(apiUserRL(http.HandlerFunc(h.ImageEnhanceAPI))))))
+	mux.Handle("POST /api/v1/removebg", apiLogged("removebg", middleware.RateLimit(apiKeyAuth(apiUserRL(http.HandlerFunc(h.RemoveBackground))))))
 
 	// OpenAI 兼容接口（同步返回，标准 /v1 路径，API Key 认证 + IP/uid 双限流）
-	mux.Handle("POST /v1/images/generations", riskRec(apiLogged("openai.images", middleware.RateLimit(apiKeyAuth(apiUserRL(http.HandlerFunc(h.CreateImageOpenAI)))))))
+	mux.Handle("POST /v1/images/generations", apiLogged("openai.images", middleware.RateLimit(apiKeyAuth(apiUserRL(http.HandlerFunc(h.CreateImageOpenAI))))))
 	// /v1/models：OpenAI SDK/LangChain 等连接时会先探测，缺失会 404 导致连接失败
-	mux.Handle("GET /v1/models", riskRec(apiLogged("openai.models", apiKeyAuth(http.HandlerFunc(h.ListModelsOpenAI)))))
+	mux.Handle("GET /v1/models", apiLogged("openai.models", apiKeyAuth(http.HandlerFunc(h.ListModelsOpenAI))))
 
 	// 注：管理员登录已统一到 /api/auth/login（按 users.role / .env SUPERADMIN_EMAIL 鉴权），
 	// 旧的独立 /api/admin/login 已废弃移除。

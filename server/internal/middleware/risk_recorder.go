@@ -26,7 +26,12 @@ func riskWindow() time.Duration {
 }
 
 // RiskRecorder 在 API 调用后累加 Redis 风险计数器（QPS/错误/IP/令牌）。
-// 嵌在 APILogger 之后、RateLimit 之前即可。
+//
+// ⚠ 必须嵌在 APILogger 之内层（APILogger 在外、RiskRecorder 在内），因为：
+// auth 中间件用 r.WithContext 派生子 context 设置 UserIDKey，更外层的 r.Context()
+// 读不到子 context 的值。故 uid 不能从 context.Value 读，而要从 APILogger 创建、
+// auth 原地回填的 *APICallInfo holder 指针读（holder 跨父子 context 共享同一指针）。
+// 同理 TokensCost 也走 holder。
 func RiskRecorder(redis *store.RedisStore) func(http.Handler) http.Handler {
 	ctx := context.Background()
 	return func(next http.Handler) http.Handler {
@@ -34,7 +39,15 @@ func RiskRecorder(redis *store.RedisStore) func(http.Handler) http.Handler {
 			sw := &statusWriter{ResponseWriter: w}
 			next.ServeHTTP(sw, r)
 
-			uid, _ := r.Context().Value(UserIDKey).(int64)
+			info := apiCallInfo(r)
+			// 优先从 holder 读 uid（auth 原地回填）；holder 缺失时回退 context（兼容旧布线）。
+			var uid int64
+			if info != nil {
+				uid = info.UserID
+			}
+			if uid <= 0 {
+				uid, _ = r.Context().Value(UserIDKey).(int64)
+			}
 			if uid <= 0 {
 				return
 			}
@@ -56,14 +69,9 @@ func RiskRecorder(redis *store.RedisStore) func(http.Handler) http.Handler {
 				redis.IncrRiskBy(ctx, uid, "errors", 1, window)
 			}
 
-			if info := APICallInfoFromContext(r); info != nil && info.TokensCost > 0 {
+			if info != nil && info.TokensCost > 0 {
 				redis.IncrRiskBy(ctx, uid, "tokens", info.TokensCost, window)
 			}
 		})
 	}
-}
-
-// APICallInfoFromContext 从 context 取 holder 指针。
-func APICallInfoFromContext(r *http.Request) *APICallInfo {
-	return apiCallInfo(r)
 }
