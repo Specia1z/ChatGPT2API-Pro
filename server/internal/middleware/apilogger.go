@@ -4,6 +4,7 @@ import (
 	"context"
 	"net"
 	"net/http"
+	"strings"
 	"time"
 
 	"chatgpt2api-pro/internal/apilog"
@@ -18,12 +19,10 @@ func clientIP(r *http.Request) string {
 	}
 	if fwd := r.Header.Get("X-Forwarded-For"); fwd != "" {
 		// 取逗号分隔的第一个 IP
-		for i := 0; i < len(fwd); i++ {
-			if fwd[i] == ',' {
-				return fwd[:i]
-			}
+		if idx := strings.IndexByte(fwd, ','); idx >= 0 {
+			return strings.TrimSpace(fwd[:idx])
 		}
-		return fwd
+		return strings.TrimSpace(fwd)
 	}
 	host, _, err := net.SplitHostPort(r.RemoteAddr)
 	if err != nil {

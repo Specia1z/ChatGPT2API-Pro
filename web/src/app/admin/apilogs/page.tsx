@@ -162,6 +162,7 @@ export default function AdminAPILogsPage() {
     } catch (e) { console.error(e); }
     finally { setLoadingHistory(false); }
   };
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- fetchHistory reads these deps; adding it would cause re-render churn
   useEffect(() => { if (tab === "history") fetchHistory(); }, [tab, page, filterEmail, filterEndpoint, filterStatus]);
 
   const totalPages = Math.max(1, Math.ceil(historyTotal / PAGE_SIZE));

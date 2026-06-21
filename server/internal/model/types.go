@@ -784,6 +784,7 @@ type APIStatsTrendMinute struct {
 // APICallLog 单条调用明细（GET /api/user/api-usage/logs 返回；Admin 端复用）。
 type APICallLog struct {
 	ID         int64  `json:"id"`
+	UserID     int64  `json:"user_id"`
 	APIKeyID   int64  `json:"api_key_id"`
 	KeyName    string `json:"key_name"`
 	Endpoint   string `json:"endpoint"`
