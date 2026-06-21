@@ -40,14 +40,19 @@ func (rs *RiskScorer) Start() {
 	cfg := rs.loadConfig()
 	interval := time.Duration(cfg.ScoreIntervalMin) * time.Minute
 	go func() {
-		rs.run()
+		// 启动时先清空 Redis 中所有旧计数器，避免上次运行时积压的数据虚高首轮评分
+		ids, _ := rs.mysql.GetActiveUserIDs(1)
+		for _, uid := range ids {
+			rs.redis.ResetRisk(context.Background(), uid)
+		}
+		// 等第一个间隔后再跑首轮，让中间件重新采集新鲜数据
 		ticker := time.NewTicker(interval)
 		defer ticker.Stop()
 		for range ticker.C {
 			rs.run()
 		}
 	}()
-	log.Printf("[risk] 评分定时器已启动，间隔 %v", interval)
+	log.Printf("[risk] 评分定时器已启动，间隔 %v（首轮将在 %v 后运行）", interval, interval)
 }
 
 func (rs *RiskScorer) run() {
