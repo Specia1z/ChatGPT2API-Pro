@@ -110,19 +110,31 @@ func (rs *RiskScorer) run() {
 		}
 		score := totalScore(rs.mysql, uid)
 		banCount := rs.mysql.GetUserBanCount(uid)
+
+		// 读取各维度分数，拼入封禁原因
+		var dimScore struct {
+			API, Points, Content, Account int
+		}
+		rs.mysql.RawQueryRow("SELECT COALESCE(score_api,0), COALESCE(score_points,0), COALESCE(score_content,0), COALESCE(score_account,0) FROM user_risk_scores WHERE user_id=?", uid).
+			Scan(&dimScore.API, &dimScore.Points, &dimScore.Content, &dimScore.Account)
+
 		duration := cfg.BanDurationMinutes
 		if cfg.BanEscalation {
 			switch banCount {
-			case 0: duration = 60    // 首次：1 小时
-			case 1: duration = 1440  // 二次：24 小时
-			default: duration = 0   // 三次及以上：永久
+			case 0:
+				duration = 60
+			case 1:
+				duration = 1440
+			default:
+				duration = 0
 			}
 		}
+		detail := fmt.Sprintf("API滥用 %d / 积分滥用 %d / 内容滥用 %d / 账号异常 %d", dimScore.API, dimScore.Points, dimScore.Content, dimScore.Account)
 		var reason string
 		if duration > 0 {
-			reason = fmt.Sprintf("风险评分 %d 分（阈值 %d），第 %d 次违规，封禁 %d 分钟。", score, cfg.BanThreshold, banCount+1, duration)
+			reason = fmt.Sprintf("风险评分 %d 分（阈值 %d），%s。第 %d 次违规，封禁 %d 分钟。", score, cfg.BanThreshold, detail, banCount+1, duration)
 		} else {
-			reason = fmt.Sprintf("风险评分 %d 分（阈值 %d），第 %d 次违规，永久封禁。如有疑问请联系管理员。", score, cfg.BanThreshold, banCount+1)
+			reason = fmt.Sprintf("风险评分 %d 分（阈值 %d），%s。第 %d 次违规，永久封禁。如有疑问请联系管理员。", score, cfg.BanThreshold, detail, banCount+1)
 		}
 		rs.mysql.BanUserWithDuration(uid, reason, duration)
 		rs.mysql.InsertAccountEvent(uid, "ban", "risk_score_auto",
