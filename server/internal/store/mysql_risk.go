@@ -23,10 +23,10 @@ func (s *MySQLStore) GetRiskScores(page, pageSize int, minScore int) ([]model.Us
 	if page < 1 { page = 1 }
 	if pageSize < 1 || pageSize > 100 { pageSize = 20 }
 
-	where := "WHERE total_score >= ?"
+	where := "WHERE r.total_score >= ? AND u.status=1"
 	args := []any{minScore}
 	var total int
-	s.db.QueryRow("SELECT COUNT(*) FROM user_risk_scores "+where, args...).Scan(&total)
+	s.db.QueryRow("SELECT COUNT(*) FROM user_risk_scores r JOIN users u ON r.user_id=u.id "+where, args...).Scan(&total)
 
 	rows, err := s.db.Query(`SELECT u.id, COALESCE(u.email,''), r.score_api, r.score_points, r.score_content, r.score_account, r.total_score,
 		DATE_FORMAT(r.updated_at,'%Y-%m-%d %H:%i:%s')

@@ -107,6 +107,7 @@ func (rs *RiskScorer) run() {
 		user, _ := rs.mysql.GetUserByID(uid)
 		if user != nil && user.Status {
 			rs.mysql.BanUser(uid)
+			rs.mysql.UpsertRiskScore(uid, 0, 0, 0, 0, 0) // 清零评分
 			rs.mysql.InsertAccountEvent(uid, "ban", "risk_score_auto",
 				"风险评分 "+strconv.Itoa(totalScore(rs.mysql, uid))+" 分，自动封禁")
 			log.Printf("[risk] 自动封禁 uid=%d (%s)", uid, user.Email)
