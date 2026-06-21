@@ -2,11 +2,35 @@ package middleware
 
 import (
 	"context"
+	"net"
 	"net/http"
 	"time"
 
 	"chatgpt2api-pro/internal/apilog"
 )
+
+// clientIP 从请求提取真实客户端 IP。
+// 信任链：X-Real-IP > X-Forwarded-For 第一个 > RemoteAddr。
+// X-Real-IP 由前端 Nginx/Caddy 设置（已有信任基础）。
+func clientIP(r *http.Request) string {
+	if ip := r.Header.Get("X-Real-IP"); ip != "" {
+		return ip
+	}
+	if fwd := r.Header.Get("X-Forwarded-For"); fwd != "" {
+		// 取逗号分隔的第一个 IP
+		for i := 0; i < len(fwd); i++ {
+			if fwd[i] == ',' {
+				return fwd[:i]
+			}
+		}
+		return fwd
+	}
+	host, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err != nil {
+		return r.RemoteAddr
+	}
+	return host
+}
 
 // statusWriter 包装 ResponseWriter 捕获最终写出的 HTTP 状态码。
 type statusWriter struct {
@@ -61,15 +85,18 @@ func APILogger(writer *apilog.Writer, endpoint string) func(http.Handler) http.H
 			if status < 200 || status >= 300 {
 				tokens = 0
 			}
-			writer.Submit(apilog.Record{
+			record := apilog.Record{
 				UserID:     info.UserID,
 				APIKeyID:   info.APIKeyID,
 				Endpoint:   endpoint,
+				IP:         clientIP(r),
 				StatusCode: status,
 				TokensCost: tokens,
 				Count:      info.Count,
 				LatencyMs:  int(time.Since(start).Milliseconds()),
-			})
+			}
+			writer.Submit(record)
+			apilog.DefaultBroadcaster.Broadcast(record)
 		})
 	}
 }
