@@ -37,7 +37,7 @@ func (s *MySQLStore) GetRiskScores(page, pageSize int, minScore int) ([]model.Us
 		return nil, 0, err
 	}
 	defer rows.Close()
-	var scores []model.UserRiskScore
+	scores := make([]model.UserRiskScore, 0)
 	for rows.Next() {
 		var s model.UserRiskScore
 		if rows.Scan(&s.UserID, &s.Email, &s.ScoreAPI, &s.ScorePoints, &s.ScoreContent, &s.ScoreAccount, &s.TotalScore, &s.UpdatedAt) == nil {
