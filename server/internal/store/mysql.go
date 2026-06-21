@@ -9,7 +9,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	_ "github.com/go-sql-driver/mysql"
+	"github.com/go-sql-driver/mysql"
 
 	"chatgpt2api-pro/internal/model"
 )
@@ -35,10 +35,18 @@ type MySQLStore struct {
 }
 
 func NewMySQLStore(dsn string) (*MySQLStore, error) {
-	db, err := sql.Open("mysql", dsn)
+	// 用 mysql.Config 而非裸 DSN 字符串，确保每条新建连接都执行 SET NAMES utf8mb4；
+	// 裸 DSN 的 charset 参数在 Windows GBK locale 下不可靠。
+	cfg, err := mysql.ParseDSN(dsn)
 	if err != nil {
-		return nil, fmt.Errorf("mysql open: %w", err)
+		return nil, fmt.Errorf("mysql parse dsn: %w", err)
 	}
+	cfg.Collation = "utf8mb4_unicode_ci" // 显式指定 collation，触发 SET NAMES utf8mb4
+	conn, err := mysql.NewConnector(cfg)
+	if err != nil {
+		return nil, fmt.Errorf("mysql connector: %w", err)
+	}
+	db := sql.OpenDB(conn)
 	db.SetMaxOpenConns(25)
 	db.SetMaxIdleConns(5)
 	db.SetConnMaxLifetime(5 * time.Minute)

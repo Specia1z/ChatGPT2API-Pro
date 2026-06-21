@@ -14,6 +14,16 @@ func (s *MySQLStore) BatchInsertAPICallLogs(batch []apilog.Record) error {
 	if len(batch) == 0 {
 		return nil
 	}
+	// 用事务确保 SET NAMES 和 INSERT 在同一连接上执行。
+	// Windows GBK locale 下 go-sql-driver/mysql 可能不会对池中每条连接自动 SET NAMES，
+	// 导致 prompt/image_url 中的中文被当作 GBK 存储为乱码。
+	tx, err := s.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	tx.Exec("SET NAMES utf8mb4")
+
 	var sb strings.Builder
 	sb.WriteString("INSERT INTO api_call_logs (user_id, api_key_id, endpoint, ip, prompt, image_url, status_code, tokens_cost, count, latency_ms) VALUES ")
 	args := make([]any, 0, len(batch)*10)
@@ -24,8 +34,10 @@ func (s *MySQLStore) BatchInsertAPICallLogs(batch []apilog.Record) error {
 		sb.WriteString("(?,?,?,?,?,?,?,?,?,?)")
 		args = append(args, r.UserID, r.APIKeyID, r.Endpoint, r.IP, r.Prompt, r.ImageURL, r.StatusCode, r.TokensCost, r.Count, r.LatencyMs)
 	}
-	_, err := s.db.Exec(sb.String(), args...)
-	return err
+	if _, err := tx.Exec(sb.String(), args...); err != nil {
+		return err
+	}
+	return tx.Commit()
 }
 
 // DeleteAPICallLogsBefore 删除 retentionDays 天前的调用日志，返回删除行数。
